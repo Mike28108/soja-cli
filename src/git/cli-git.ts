@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import type { GitConsole } from './console.js';
 import { diagnose } from './diagnose.js';
 import type { LoggedCommit } from './merge-evidence.js';
+import { terminalSafe } from '../utils/text.js';
 import { GitError, type ChangedFile, type ChangeKind, type GitClient, type GitCommit, type RemoteOptions } from './types.js';
 
 interface RunResult {
@@ -356,6 +357,7 @@ function parseLog(output: string): GitCommit[] {
     .flatMap((record) => {
       const [hash, shortHash, subject, author, timestamp] = record.split(FIELD);
       if (!hash || !shortHash || subject === undefined || !author || !timestamp) return [];
-      return [{ hash, shortHash, subject, author, date: new Date(Number(timestamp) * 1000) }];
+      // Commits pulled from others can carry escape sequences in their messages.
+      return [{ hash, shortHash, subject: terminalSafe(subject), author: terminalSafe(author), date: new Date(Number(timestamp) * 1000) }];
     });
 }
