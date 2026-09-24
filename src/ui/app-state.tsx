@@ -1,7 +1,7 @@
 import { useApp } from 'ink';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import type { AppServices } from '../application/services/index.js';
-import type { SyncStatus } from '../data/sync/engine.js';
+import type { SyncReport, SyncStatus } from '../data/sync/engine.js';
 import type { Session } from '../application/types.js';
 import { toDisplayError } from '../utils/errors.js';
 import { navigate, type NavigationAction, type Route } from './navigation/routes.js';
@@ -132,16 +132,22 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
         if (active) setSyncStatus(status);
       });
     };
-    const runSync = () =>
-      sync.syncNow(workspaceId).then((report) => {
-        if (!active) return;
-        setRevision((value) => value + 1);
-        if (report.conflicts || report.rejected) {
-          const parts = [report.conflicts && `${report.conflicts} conflict${report.conflicts === 1 ? '' : 's'}`, report.rejected && `${report.rejected} rejected change${report.rejected === 1 ? '' : 's'}`];
-          notify(`Sync: ${parts.filter(Boolean).join(', ')}`, 'error', 'Open the task and press ! to review.');
-        }
-      });
-    const unsubscribe = sync.subscribe(updateStatus);
+    // Every finished sync refreshes the views, whether it was the timer, a change
+    // you just made (SOJA-?1 → SOJA-1) or `Sync now`.
+    const onSync = (report: SyncReport | null) => {
+      updateStatus();
+      if (!report || !active) return;
+      setRevision((value) => value + 1);
+      if (report.conflicts || report.rejected) {
+        const parts = [
+          report.conflicts && `${report.conflicts} conflict${report.conflicts === 1 ? '' : 's'}`,
+          report.rejected && `${report.rejected} rejected change${report.rejected === 1 ? '' : 's'}`,
+        ];
+        notify(`Sync: ${parts.filter(Boolean).join(', ')}`, 'error', 'Open the task and press ! to review.');
+      }
+    };
+    const runSync = () => sync.syncNow(workspaceId);
+    const unsubscribe = sync.subscribe(onSync);
     updateStatus();
     void runSync();
     const interval = setInterval(() => void runSync(), 30_000);

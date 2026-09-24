@@ -18,6 +18,7 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ### Fixed
 
+- En modo remoto, la interfaz se actualiza en cuanto termina **cualquier** sincronización: una task creada con conexión pasa de `SOJA-?1` a su número real en segundos, sin reabrir SOJA. Antes solo se refrescaba cada 30 s.
 - `soja login --server` acepta la URL que se pega tras probar el servidor (`…/v1/health`, barra final) y explica si la dirección no es un servidor SOJA, en lugar de responder *Not signed in*.
 - Con un pipe cerrado antes de tiempo (`soja … | head`), SOJA ya no termina de golpe: deja de escribir y completa el comando (en modo remoto, su sincronización).
 

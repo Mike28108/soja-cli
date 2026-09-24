@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.2.0** |
-| Versión del documento | **0.2.0** (revisión 4), con cambios de v0.3 y v0.4 aún sin publicar |
+| Versión del documento | **0.2.0** (revisión 5), con cambios de v0.3 y v0.4 aún sin publicar |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -748,6 +748,7 @@ En modo remoto, SOJA guarda una **réplica local** de tu workspace (`~/.local/sh
 
 - **Números provisionales:** una task creada sin conexión aparece como `SOJA-?1`, `SOJA-?2`… y recibe su número real y consecutivo (`SOJA-42`) al sincronizar. Mientras tanto puedes usar `SOJA-?1` en cualquier comando.
 - **Cuándo sincroniza:** al abrir SOJA, cada 30 s y poco después de cada cambio en la interfaz; antes y después de cada comando en la CLI; y con `soja sync`.
+- **La vista se actualiza sola** al terminar cada sincronización: una task nueva pasa de `SOJA-?1` a su número real en segundos si hay conexión.
 - **Estado:** el header muestra `⇄ servidor · 2 pending`, `offline · 2 pending` o `syncing…`. En la CLI, una línea `⇅ …` avisa si quedaron cambios en cola.
 - **Nada se aplica dos veces:** cada cambio viaja con un id único, y el servidor ignora los reintentos.
 - **Cerrar SOJA no pierde nada:** la cola vive en la réplica y se envía la próxima vez que haya conexión.
@@ -1201,6 +1202,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.2.0 r5 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: la vista se actualiza al terminar cualquier sincronización. |
 | 0.2.0 r4 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: `soja login` acepta la URL completa (p. ej. con `/v1/health`) y valida que sea un servidor SOJA. |
 | 0.2.0 r3 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: trabajo sin conexión (réplica, números provisionales, conflictos, `soja sync`); tablas de sincronización; config remota con `userId`; arquitectura `data/sync/`. |
 | 0.2.0 r2 | 0.2.0 + v0.3 sin publicar | 2026-09-24 | Nueva §9 *Modo remoto (equipo)* (secciones siguientes renumeradas); `soja login/logout/mode/whoami`, `workspace create/add`; config con modos local/remoto y `credentials.json`; contratos de servicio y `data/remote/`. |

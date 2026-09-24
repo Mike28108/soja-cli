@@ -21,7 +21,8 @@ export interface SyncControl {
   syncNow(workspaceId: string): Promise<SyncReport>;
   /** Sync shortly after changes, batching bursts of edits. */
   scheduleSync(workspaceId: string, delayMs?: number): void;
-  subscribe(listener: () => void): () => void;
+  /** Called with null when a sync starts and with its report when it ends, whoever started it. */
+  subscribe(listener: (report: SyncReport | null) => void): () => void;
   notices(workspaceId: string, taskId?: string): Promise<Notice[]>;
   dismissNotice(id: string): Promise<void>;
 }
