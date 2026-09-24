@@ -16,6 +16,7 @@ SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. 
 - **Rápido:** para crear una task basta el título.
 - **Trazable:** cada cambio queda en el timeline de la task, junto a los comentarios.
 - **Local-first:** tus datos viven en SQLite en tu máquina. Está preparado para un futuro backend (`soja-backend`).
+- **Git-aware:** branch, commit, push, PR y merge desde la task, con log en vivo y errores con sugerencias. Usa tus credenciales de Git y `gh`.
 - **Scriptable:** una CLI no interactiva que usa los mismos servicios que la interfaz.
 
 ## Inicio rápido
@@ -52,8 +53,12 @@ npm run build && npm link
 ```bash
 soja task create "Fix Stripe webhook" --project enroll --priority high --requester Finance
 soja task list --all
-soja task start SOJA-12
-soja task done SOJA-12
+soja folders add ~/workspace/products   # carpetas donde viven tus repos
+soja project link ENROLL enrollbridge   # o en la TUI: p → r → elegir de la lista
+soja start SOJA-12               # crea/cambia a su branch Git y la pasa a In Progress
+soja commit SOJA-12 -m "Fix" --all
+soja pr SOJA-12                  # push + pull request con gh
+soja merge SOJA-12 --delete --done
 ```
 
 ## Documentación

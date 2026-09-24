@@ -4,6 +4,9 @@ import { createServices, type AppServices } from './application/services/index.j
 import { createLocalRepositories } from './data/local/index.js';
 import { openDatabase } from './database/client.js';
 import { runMigrations } from './database/migrate.js';
+import { CliGit } from './git/cli-git.js';
+import { GitConsole } from './git/console.js';
+import type { GitClient } from './git/types.js';
 
 export interface AppRuntime {
   services: AppServices;
@@ -15,6 +18,7 @@ export interface BootstrapOptions {
   paths?: SojaPaths;
   config?: ConfigStore;
   clock?: () => Date;
+  git?: GitClient;
 }
 
 /**
@@ -33,5 +37,11 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
     throw error;
   }
   const repos = createLocalRepositories(handle, options.clock);
-  return { services: createServices(repos, config, options.clock), paths, close: () => handle.close() };
+  const gitConsole = new GitConsole();
+  const services = createServices(repos, config, {
+    git: options.git ?? new CliGit(gitConsole),
+    gitConsole,
+    ...(options.clock ? { clock: options.clock } : {}),
+  });
+  return { services, paths, close: () => handle.close() };
 }

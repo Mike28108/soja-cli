@@ -1,4 +1,5 @@
 import { Box } from 'ink';
+import { useEffect } from 'react';
 import { useAppState } from './app-state.js';
 import { Header } from './branding/Header.js';
 import { useCommandPalette } from './hooks/use-commands.js';
@@ -7,6 +8,9 @@ import { useQuery } from './hooks/use-query.js';
 import { Layer } from './input/dispatcher.js';
 import { useKeys } from './input/KeyProvider.js';
 import type { Route } from './navigation/routes.js';
+import { CommitOverlay } from './overlays/CommitOverlay.js';
+import { GitLogOverlay } from './overlays/GitLogOverlay.js';
+import { GitRunOverlay } from './overlays/GitRunOverlay.js';
 import { NewTaskOverlay } from './overlays/NewTaskOverlay.js';
 import { PickerOverlay } from './overlays/PickerOverlay.js';
 import { PromptOverlay } from './overlays/PromptOverlay.js';
@@ -24,21 +28,31 @@ import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
  * selection you left.
  */
 export function Shell() {
-  const { session, services, stack, route, overlay, openOverlay, go, quit } = useAppState();
+  const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges } = useAppState();
   const { width } = useLayout();
-  const openPalette = useCommandPalette();
+  // New tasks default to the open project, or to the project linked to the repository SOJA runs in.
+  const here = useQuery(async () => (await services.projects.findByRepository(session, cwd))?.id ?? null, `cwd:${session.workspace.id}`);
+  const routeProjectId = route.name === 'project' ? route.projectId : null;
+  const newTaskProjectId = routeProjectId ?? here.data ?? null;
+  const openPalette = useCommandPalette(newTaskProjectId);
 
-  const projectId = route.name === 'project' ? route.projectId : null;
+  const projectId = routeProjectId;
   const project = useQuery(
     async () => (projectId ? (await services.projects.get(session, projectId)).name : null),
     `header:${projectId ?? ''}`,
   );
 
+  // On launch and whenever you come back to a task list, catch merges done elsewhere.
+  const onList = route.name === 'home' || route.name === 'project';
+  useEffect(() => {
+    if (onList && !overlay) void detectMerges();
+  }, [onList, overlay, stack.length, detectMerges]);
+
   useKeys(Layer.global, (input, key) => {
     if (input === ':' || (key.ctrl && input === 'k')) openPalette();
     else if (key.ctrl || key.meta) return false;
     else if (input === '/') openOverlay({ kind: 'search' });
-    else if (input === 'n') openOverlay({ kind: 'new-task', projectId });
+    else if (input === 'n') openOverlay({ kind: 'new-task', projectId: newTaskProjectId });
     else if (input === '?') go({ type: 'push', route: { name: 'help' } });
     else if (input === 'p') go({ type: 'push', route: { name: 'projects' } });
     else if (input === 'w') go({ type: 'push', route: { name: 'workspaces' } });
@@ -95,6 +109,12 @@ function OverlayFor({ overlay }: { overlay: Overlay }) {
       return <SearchOverlay spec={overlay} />;
     case 'new-task':
       return <NewTaskOverlay spec={overlay} />;
+    case 'git-run':
+      return <GitRunOverlay key={`${overlay.title}:${overlay.context ?? ''}`} spec={overlay} />;
+    case 'commit':
+      return <CommitOverlay spec={overlay} />;
+    case 'git-log':
+      return <GitLogOverlay spec={overlay} />;
   }
 }
 

@@ -7,12 +7,12 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.1.0** |
-| Versión del documento | **0.1.0** (revisión 2) |
+| Versión del documento | **0.1.0** (revisión 6), con cambios de v0.2 aún sin publicar |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
-Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo cambio que modifica la app (ver [Versionado y mantenimiento](#15-versionado-y-mantenimiento-de-este-documento)). El detalle de qué cambió en cada versión está en [`CHANGELOG.md`](../CHANGELOG.md).
+Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo cambio que modifica la app (ver [Versionado y mantenimiento](#16-versionado-y-mantenimiento-de-este-documento)). El detalle de qué cambió en cada versión está en [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
@@ -25,14 +25,15 @@ Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo c
 5. [La interfaz (TUI)](#5-la-interfaz-tui)
 6. [Atajos de teclado](#6-atajos-de-teclado)
 7. [CLI no interactiva](#7-cli-no-interactiva)
-8. [Configuración y datos locales](#8-configuración-y-datos-locales)
-9. [Modelo de datos](#9-modelo-de-datos)
-10. [Arquitectura](#10-arquitectura)
-11. [Decisiones técnicas](#11-decisiones-técnicas)
-12. [Guía de desarrollo](#12-guía-de-desarrollo)
-13. [Testing](#13-testing)
-14. [Limitaciones conocidas y roadmap](#14-limitaciones-conocidas-y-roadmap)
-15. [Versionado y mantenimiento de este documento](#15-versionado-y-mantenimiento-de-este-documento)
+8. [Flujo de trabajo con Git](#8-flujo-de-trabajo-con-git)
+9. [Configuración y datos locales](#9-configuración-y-datos-locales)
+10. [Modelo de datos](#10-modelo-de-datos)
+11. [Arquitectura](#11-arquitectura)
+12. [Decisiones técnicas](#12-decisiones-técnicas)
+13. [Guía de desarrollo](#13-guía-de-desarrollo)
+14. [Testing](#14-testing)
+15. [Limitaciones conocidas y roadmap](#15-limitaciones-conocidas-y-roadmap)
+16. [Versionado y mantenimiento de este documento](#16-versionado-y-mantenimiento-de-este-documento)
 
 ---
 
@@ -55,9 +56,9 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.1.0)
+### Estado actual (v0.1.0 + v0.2 sin publicar)
 
-Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. La arquitectura ya está preparada para un futuro `soja-backend` (ver [§10.4](#104-evolución-hacia-modo-remoto)).
+Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. La rama de desarrollo incluye el flujo Git local de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión. La arquitectura ya está preparada para un futuro `soja-backend` (ver [§11.4](#114-evolución-hacia-modo-remoto)).
 
 ---
 
@@ -136,7 +137,7 @@ Una plataforma o sistema mantenido por el equipo: EnrollBridge, SPRING, Taskfeed
 - Si no se indica, se deriva del nombre: la primera palabra si tiene hasta 6 letras, o si no sus primeras 4.
 - Tiene entre 2 y 10 caracteres, empieza por letra y es único dentro del workspace.
 
-Los proyectos también guardan `repository_path` y `repository_url`, pensados para la futura integración con Git.
+Un proyecto puede **vincularse a un repositorio Git local** (`repository_path`); al vincularlo, SOJA toma `repository_url` del remoto `origin` si el proyecto no tenía uno. Ver [§8](#8-flujo-de-trabajo-con-git).
 
 ### Task
 
@@ -201,11 +202,11 @@ Texto libre que indica qué departamento o persona originó la solicitud (Market
 
 Cada cambio real genera un evento. Si no cambia nada, no se registra nada. Los eventos y los comentarios forman el **timeline** de la task.
 
-Tipos de evento: `task_created`, `task_updated` (título, descripción, tipo o requester), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`.
+Tipos de evento: `task_created`, `task_updated` (título, descripción, tipo, requester o branch), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`, y los de Git: `git_committed`, `git_merged`, `git_branch_deleted`, `git_pushed`, `pr_opened`, `git_merge_detected`.
 
 ### Branch sugerida
 
-Cada task muestra la branch que generaría el futuro `soja start`: `<prefijo>/SOJA-<n>-<slug-del-título>`, por ejemplo `fix/SOJA-342-fix-stripe-webhook-duplicate-events`.
+Mientras una task no tiene branch registrada, SOJA sugiere `<prefijo>/SOJA-<n>-<slug-del-título>` (hasta 5 palabras del título), por ejemplo `fix/SOJA-342-fix-stripe-webhook-duplicate-events`. `soja start` crea esa branch y la registra en la task. El nombre registrado también se puede editar a mano desde el menú `e` (Branch name); editarlo no toca Git.
 
 | Tipo de task | Prefijo |
 | --- | --- |
@@ -266,7 +267,9 @@ ID, prioridad y título siempre se muestran.
 ### Detalle de task
 
 - **Cabecera:** ID, tipo, título, estado, prioridad, y la fecha de creación y de última actualización.
-- **Campos:** Project, Assignee, Requested by y Branch (o la branch sugerida).
+- **Campos:** Project, Assignee y Requested by.
+- **Branch y Commits** (Git local): la branch de la task con su estado (`● checked out`, `not checked out`, `suggested · b to start`, `missing · b to recreate`), cambios sin guardar del repositorio, y el último commit relacionado con el número de commits adicionales. Si no hay repositorio disponible, se muestra el motivo (por ejemplo, *EnrollBridge has no repository linked*). El estado Git carga aparte, así que el detalle aparece al instante.
+- `b` inicia la task en su branch: muestra qué hará en Git (crear, cambiar o quedarse, y vincular el repositorio si hace falta) y pide confirmación.
 - **Descripción:** hasta 6 líneas, según la altura disponible.
 - **ACTIVITY:** el timeline con hora, actor y evento. Los comentarios se marcan con `›` y ocupan hasta 3 líneas. Arranca mostrando lo más reciente; `k` sube a lo anterior y `j` baja a lo más nuevo.
 
@@ -275,6 +278,8 @@ ID, prioridad y título siempre se muestran.
 - Lista con KEY, nombre y contadores (activas, en progreso, review, bloqueadas).
 - `enter` abre la vista de proyecto: la misma lista de tasks, acotada al proyecto, con descripción, stats y ruta del repositorio si existe.
 - `n` crea un proyecto en dos pasos: nombre y luego key, con una sugerencia editable.
+- `r` abre el **selector de repositorio**: la lista de subcarpetas de tus carpetas padre, con filtro al escribir (ver [§8](#8-flujo-de-trabajo-con-git)).
+- En terminales anchas, la columna REPO muestra la carpeta vinculada.
 
 ### Workspaces
 
@@ -298,7 +303,7 @@ Desde el picker de asignación puedes escribir un username que no existe y elegi
 
 ### Comandos del palette
 
-New task, My Tasks, All Tasks, Todo, In Progress, Review, Blocked, Done, Search, Projects, Switch project, New project, Switch workspace, Workspaces, New workspace, Add developer, Help, Quit.
+New task, My Tasks, All Tasks, Todo, In Progress, Review, Blocked, Done, Search, Projects, Switch project, New project, Switch workspace, Workspaces, New workspace, Add developer, Parent folders, Help, Quit.
 
 ### Edición de campos de texto
 
@@ -329,7 +334,7 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `enter` | Abrir / confirmar |
 | `esc` | Volver o cerrar el overlay (siempre cierra lo que esté más arriba) |
 | `q` | Volver; en Home, salir |
-| `n` | Nueva task (dentro de un proyecto, la crea en ese proyecto) |
+| `n` | Nueva task. Proyecto por defecto: el abierto, o el vinculado al repositorio desde el que se abrió SOJA |
 | `/` | Buscar |
 | `:` o `Ctrl+K` | Command palette |
 | `p` | Proyectos |
@@ -361,7 +366,17 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `t` | Tipo |
 | `r` | Requester |
 | `x` | Done / reabrir |
+| `b` | Iniciar en su branch Git (equivale a `soja start`) |
+| `g` | Menú Git: commit, push, PR, merge, abortar merge, borrar branch, log |
+| `C` | Commit eligiendo archivos |
 | `j` / `k` | Desplazar el timeline |
+
+### Proyectos
+
+| Tecla | Acción |
+| --- | --- |
+| `n` | Nuevo proyecto |
+| `r` | Elegir el repositorio del proyecto (selector de carpetas) |
 
 ### Prioridad de las teclas
 
@@ -388,7 +403,7 @@ soja --version, -v        Versión
 soja task list [--all | -A] [--status <estado> | -s] [--project <key|nombre> | -p]
 soja task create <título…> [opciones]
 soja task show <id>
-soja task start <id>      # te la asigna y la pasa a In Progress
+soja task start <id>      # te la asigna y la pasa a In Progress (sin Git)
 soja task done <id>
 soja task reopen <id>     # de Done o Cancelled a Todo
 ```
@@ -405,7 +420,9 @@ Opciones de `task create`:
 | `--requester` | `-r` | texto libre |
 | `--description` | `-d` | texto libre |
 
-Si no se indica título y la terminal es interactiva, SOJA lo pregunta.
+Si no se indica título y la terminal es interactiva, SOJA lo pregunta. Sin `--project`, si el directorio actual está dentro de un repositorio vinculado a un proyecto, la task se crea en ese proyecto.
+
+`task show` incluye una sección **GIT** con la branch, su estado, los cambios sin guardar y hasta 5 commits relacionados.
 
 Formatos de ID aceptados: `SOJA-12`, `soja-12`, `#12` o `12`.
 
@@ -416,7 +433,38 @@ Alias de subcomandos: `task` = `tasks` = `t`; `list` = `ls`; `create` = `new` = 
 ```bash
 soja project list
 soja project create <nombre…> [--key <KEY>] [--description <texto>] [--repo-path <dir>] [--repo-url <url>]
+soja project link <key|nombre> [ruta|carpeta]   # por defecto, el directorio actual
+soja project unlink <key|nombre>
 ```
+
+En `project link`, un nombre sin `/` que no existe como carpeta en el directorio actual se busca entre las subcarpetas de tus carpetas padre: `soja project link ENROLL enrollbridge`. Si el nombre existe en más de una carpeta padre, SOJA pide la ruta completa.
+
+### Carpetas padre
+
+```bash
+soja folders                        # lista cada carpeta padre y sus subcarpetas (como ls -1)
+soja folders add <ruta>             # registra una carpeta padre (acepta ~)
+soja folders remove <ruta|nombre>   # la olvida; no borra nada del disco
+```
+
+En `soja folders`, `●` marca los repositorios Git y `→ KEY` indica a qué proyecto está vinculado cada uno.
+
+`project list` muestra la ruta vinculada debajo de cada proyecto.
+
+### Git
+
+```bash
+soja start <id> [--from <ref>] [--link]
+soja commit <id> -m <mensaje> [archivos…] [--all]
+soja merge <id> [--delete] [--done] [--yes]
+soja branch delete <id> [--force] [--yes]
+soja push <id>
+soja pr <id> [--yes]
+```
+
+Las operaciones muestran los comandos Git y su salida en vivo (por stderr). `merge`, `branch delete` y `pr` piden confirmación; sin terminal interactiva exigen `--yes`. `commit` sin archivos ni `--all` lista los archivos cambiados y no hace nada.
+
+Ver [§8](#8-flujo-de-trabajo-con-git).
 
 ### Workspaces
 
@@ -439,13 +487,182 @@ soja dev reset [--yes]  # borra la base de datos y la config (pide escribir "res
 soja task create "En EnrollBridge no está cargando el comprobante" -p enroll -t bug -P urgent -r Admissions
 soja task list --status blocked
 soja task list --all --project spring
-soja task start SOJA-12 && soja task done SOJA-12
+soja start SOJA-12            # branch + In Progress
+soja task done SOJA-12
 soja task list | grep URGENT
 ```
 
 ---
 
-## 8. Configuración y datos locales
+## 8. Flujo de trabajo con Git
+
+Disponible en la rama de desarrollo de v0.2. SOJA ejecuta `git` (y la CLI `gh` para los PR) en tu máquina. Vincular, iniciar, commit, merge y borrar branch funcionan **offline**; push y PR necesitan conexión. SOJA nunca hace fetch ni pull por su cuenta.
+
+### Carpetas padre
+
+La mayoría de developers guarda sus repositorios dentro de unas pocas carpetas, por ejemplo:
+
+```text
+~/workspace/
+├── products/        ← frontends
+│   ├── enrollbridge/
+│   └── spring-web/
+└── services/        ← servicios y backends
+    ├── payments-api/
+    └── spring-api/
+```
+
+Registras solo las **carpetas padre** (`products`, `services`) y SOJA lista sus subcarpetas para que elijas en lugar de escribir rutas. Puedes registrar tantas como quieras.
+
+- Se guardan en `config.json` (`parentFolders`), no en la base de datos, porque son rutas de **esta** computadora.
+- La lista muestra solo subcarpetas inmediatas y omite las ocultas (`.idea`, `.cache`…) y los archivos.
+- Una carpeta padre que ya no existe aparece como *not found* en lugar de romper la lista.
+- **Gestión:** `soja folders add|remove`, el comando **Parent folders** del palette, o **+ Add parent folder…** dentro del selector.
+
+### Vincular un proyecto a su repositorio
+
+**En la interfaz** (recomendado):
+
+1. Pantalla **Projects** (`p`), selecciona el proyecto con `j`/`k` y pulsa `r`.
+2. Si todavía no tienes carpetas padre, SOJA te pide la primera (por ejemplo `~/workspace/products`).
+3. Aparece el selector con todas las subcarpetas, como `products/enrollbridge`. A la derecha se ve `git`, `git · linked to <Proyecto>` o `not a Git repository` (atenuado, no se puede elegir).
+4. Escribe para filtrar (por ejemplo `spr`), elige con `↑`/`↓` y pulsa `enter`.
+
+Al final del selector hay tres acciones: **+ Add parent folder…**, **Type a path…** (escribir una ruta a mano, se acepta `~`) y **Unlink repository** (si el proyecto ya tenía uno).
+
+**En la terminal:**
+
+```bash
+soja project link ENROLL enrollbridge          # por nombre, dentro de las carpetas padre
+soja project link ENROLL ~/Development/x       # por ruta
+cd ~/workspace/products/enrollbridge && soja project link ENROLL   # la carpeta actual
+```
+
+Reglas comunes:
+
+- Se guarda la carpeta **raíz** del repositorio, aunque vincules desde una subcarpeta.
+- Si el proyecto no tenía `repository_url`, se toma del remoto `origin`.
+- Rutas inexistentes o que no son repositorios Git se rechazan con un mensaje claro.
+
+### `soja start <id>`
+
+Es `soja task start` (asignarte la task y pasarla a In Progress) **más** su branch:
+
+1. **Elige el repositorio.** Usa el del proyecto de la task. Si la task no tiene proyecto, usa el repositorio del directorio actual. Si el proyecto no tiene repositorio vinculado y estás dentro de uno, pide `--link` para vincularlo; nunca lo vincula por su cuenta.
+2. **Elige la branch.** La registrada en la task, o la sugerida si todavía no tiene. Valida el nombre con `git check-ref-format`.
+3. **Ejecuta Git:**
+
+   | Situación | Qué hace |
+   | --- | --- |
+   | Ya estás en la branch | Nada en Git (`already on`) |
+   | La branch existe | `git switch` (`switched to`) |
+   | La branch no existe | `git switch --create` desde HEAD o desde `--from <ref>` (`created`, o `recreated` si estaba registrada pero se borró) |
+
+4. **Solo si Git terminó bien**, actualiza la task en una única transacción: assignee, In Progress y branch. En el timeline aparece *linked branch …*.
+
+### Casos que SOJA maneja explícitamente
+
+| Caso | Resultado |
+| --- | --- |
+| Cambios sin guardar y la branch **ya existe** | Se rechaza: *"… has N uncommitted changes"* y pide hacer commit o stash. La task no cambia. |
+| Cambios sin guardar y la branch **es nueva** | Se crea y los cambios se llevan a la branch nueva (comportamiento de `git switch -c`). SOJA lo informa. |
+| Proyecto sin repositorio vinculado | Pide `soja project link` o `--link`. |
+| Repositorio vinculado que ya no existe | *"…'s repository is gone"*, con indicación para volver a vincularlo. |
+| Task sin proyecto fuera de un repositorio | Sugiere ejecutarlo dentro de un repositorio o usar `soja task start` (sin Git). |
+| Nombre de branch inválido | Se rechaza antes de tocar Git. |
+| Git no instalado o un comando falla | Mensaje de Git resumido; la task no cambia. |
+| Git funcionó pero la base de datos falló | Se informa que la branch ya existe; repetir `soja start` es seguro (queda `already on`). |
+
+### Operaciones Git desde la task
+
+En el detalle de una task, `g` abre el **menú Git**:
+
+| Opción | Qué hace | Confirmación |
+| --- | --- | --- |
+| Start / switch to branch (`b`) | `soja start` (ver arriba) | Muestra lo que hará |
+| Commit… (`C`) | Lista de archivos cambiados con casillas (todos marcados; `espacio` alterna, `a` todos/ninguno), luego el mensaje. Añade `(SOJA-n)` si el mensaje no lo menciona. Solo commitea los archivos marcados, aunque otros ya estuvieran en stage. | — |
+| Push branch | `git push --set-upstream origin <branch>` | — |
+| Open pull request… | Push y luego `gh pr create` hacia la branch base. Título `<título> (SOJA-n)`; en el cuerpo, la descripción, el requester y la referencia. | Sí |
+| Merge into base… | Cambia a la branch base y `git merge --no-ff`, con el mensaje `Merge SOJA-n: <título>`. Al terminar ofrece `d` (borrar branch y marcar Done) y `x` (solo Done). | Sí (Cancel por defecto) |
+| Abort merge | `git merge --abort` | — |
+| Delete branch… | Borra la branch local (si está activa, primero cambia a la base) y la quita de la task. | Sí; si no está mergeada, una **segunda** confirmación |
+| Git log | Todo lo que SOJA ejecutó en Git en esta sesión | — |
+
+La **branch base** es la branch desde la que `soja start` creó la de la task (se guarda en la task). Si no se conoce, se usa la branch por defecto (`origin/HEAD`, o `main`/`master`).
+
+Commit exige estar en la branch de la task: si no, SOJA lo avisa para que el commit no caiga en otra branch. Merge y borrar exigen no tener cambios sin guardar.
+
+### Merges hechos fuera de SOJA
+
+Flujo típico: SOJA crea la branch (`b`), trabajas en ella con otra herramienta (Claude, Codex, tu editor, un compañero) y el merge se hace fuera de SOJA. SOJA lo detecta solo:
+
+- **Cuándo revisa:** al abrir SOJA, al volver a una lista de tasks (como mucho cada 10 s), al abrir una task, y con `soja task list` y `soja task show`.
+- **Qué revisa:** solo las tasks **abiertas** que tienen branch, en tu repositorio local. No hace fetch.
+
+| Lo que encuentra en el repositorio | Resultado |
+| --- | --- |
+| La branch existe, tiene commits propios y todos están en su base (merge normal o fast-forward) | La task pasa a **Done** |
+| En la base hay un commit de merge que nombra la branch o `SOJA-n` (`Merge branch 'fix/SOJA-12-…'`, `Merge pull request #5 from …/fix/SOJA-12-…`), aunque la branch ya se haya borrado | **Done** |
+| En la base hay un *squash merge* de GitHub que menciona la task (`… (SOJA-12) (#5)`, como los PR que abre SOJA) | **Done** |
+| La branch fue borrada y no hay rastro de merge | La task **no cambia**; el detalle avisa *deleted, no merge found* y ofrece recrearla (`b`) u olvidarla (`g` → *Forget branch*) |
+
+Al cerrar una task así, el timeline registra *merge into main detected (done outside SOJA)* seguido de *completed it*, y el footer lo avisa. Si no estaba terminada, se reabre con `x`.
+
+Para no confundir una branch recién creada (sin trabajo propio) con una mergeada, `soja start` guarda el commit desde el que parte la branch (`branch_start`); solo cuentan los commits posteriores.
+
+**Merges en GitHub:** SOJA los ve cuando traes los cambios a tu máquina (`git pull` o `git fetch` + actualizar `main`). La detección es 100 % local.
+
+### Log en vivo y errores
+
+Cada operación abre una consola que muestra los comandos (`$ git merge …`) y la salida de Git **mientras ocurre**. Al terminar muestra el resultado, o el error con sugerencias concretas y teclas de recuperación:
+
+| Situación detectada | Sugerencia / tecla |
+| --- | --- |
+| Conflictos de merge | Lista los archivos en conflicto; `a` aborta el merge |
+| Branch sin mergear al borrar | `f` borrar igualmente (con confirmación extra) |
+| Git necesita credenciales | `i` reintentar de forma interactiva |
+| `gh` sin sesión | `i` ejecuta `gh auth login` y reintenta |
+| `gh` no instalado | Enlace de instalación |
+| El remoto rechazó el push | `git pull --rebase` |
+| Sin conexión | Indica que lo local sigue funcionando |
+| Sin remoto `origin` | `git remote add origin <url>` |
+| Git no sabe quién eres | `git config user.name/email` |
+| Cambios que se sobrescribirían | Commit (`C`) o `git stash` |
+| El PR ya existe | Muestra su URL |
+
+`r` reintenta cualquier operación fallida.
+
+### Autenticación
+
+SOJA **no pide ni guarda credenciales**. Usa las de Git (claves SSH, credential helper) y las de `gh` (`gh auth login`). Las operaciones se ejecutan primero sin prompts, para que nada quede colgado esperando. Si Git necesita credenciales, la tecla `i` **pausa la interfaz** y ejecuta el comando en la terminal para que Git (o ssh, o gh) te las pida directamente; al terminar, SOJA vuelve donde estabas. En la CLI, `soja push` y `soja pr` se ejecutan directamente en tu terminal, así que Git puede preguntar sin pasos extra.
+
+### Commits relacionados
+
+En el detalle de la task (TUI y `soja task show`), SOJA muestra hasta 10 commits (5 en la CLI) que:
+
+- existen solo en la branch de la task (no en otras branches locales), o
+- mencionan la task en el mensaje en cualquier branch local, por ejemplo `Fix receipts (SOJA-16)`. Se ignoran mayúsculas y `SOJA-1` no coincide con `SOJA-12`.
+
+Los commits hechos fuera de SOJA aparecen al reabrir la task o después de cualquier cambio en SOJA.
+
+### Ejemplo completo
+
+```bash
+cd ~/workspace/products/enrollbridge
+soja project link ENROLL
+soja task create "Receipt 500 on large PDFs" -t bug     # proyecto ENROLL por defecto
+soja start SOJA-16                                      # branch fix/SOJA-16-… desde main
+soja commit SOJA-16 -m "Handle large receipts" --all    # → "Handle large receipts (SOJA-16)"
+soja push SOJA-16
+soja pr SOJA-16                                         # pregunta y abre el PR con gh
+soja merge SOJA-16 --delete --done                      # pregunta, mergea en main, borra y cierra
+```
+
+En la interfaz, lo mismo es: abrir la task → `b` → trabajar → `C` → `g` → Push / Open pull request / Merge.
+
+---
+
+## 9. Configuración y datos locales
 
 SOJA sigue la especificación XDG.
 
@@ -462,11 +679,13 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 {
   "mode": "local",
   "userId": "<uuid>",
-  "workspaceId": "<uuid del workspace activo>"
+  "workspaceId": "<uuid del workspace activo>",
+  "parentFolders": ["/home/tu-usuario/workspace/products", "/home/tu-usuario/workspace/services"]
 }
 ```
 
 - Se valida con zod al cargar. Si el JSON está roto o la forma es inesperada, SOJA muestra un error claro y sugiere cómo arreglarlo.
+- `parentFolders` (opcional, por defecto `[]`): carpetas que contienen tus repositorios (ver [§8](#8-flujo-de-trabajo-con-git)). Los `config.json` de v0.1, que no tienen este campo, siguen funcionando. Cambiar de workspace conserva la lista.
 - `"mode": "remote"` se reconoce, pero se rechaza con el mensaje *"Remote mode is not available in this version of SOJA"*. Queda reservado para el futuro (`{ "mode": "remote", "apiUrl": "…" }`).
 - Si el workspace activo desaparece, SOJA cambia automáticamente a otro workspace del usuario. Si el usuario desaparece (por ejemplo, tras un reset), vuelve a ejecutar el setup.
 
@@ -480,7 +699,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 
 ---
 
-## 9. Modelo de datos
+## 10. Modelo de datos
 
 SQLite, definido en `src/database/schema.ts`. Las migraciones se generan con drizzle-kit en `src/database/migrations/`.
 
@@ -531,7 +750,7 @@ Clave primaria: (`workspace_id`, `user_id`).
 | key | text | UNIQUE junto con `workspace_id` |
 | description | text | nullable |
 | repository_url | text | nullable |
-| repository_path | text | nullable |
+| repository_path | text | nullable. Raíz del repositorio Git local vinculado |
 | created_at, updated_at | integer | |
 
 ### `tasks`
@@ -550,7 +769,9 @@ Clave primaria: (`workspace_id`, `user_id`).
 | assignee_id | text FK → users | nullable; queda en NULL si se borra el usuario |
 | creator_id | text FK → users | |
 | requester | text | nullable |
-| branch | text | nullable |
+| branch | text | nullable. Branch registrada por `soja start` o editada a mano; se vacía al borrar la branch |
+| base_branch | text | nullable. Branch desde la que se creó; destino de merge y PR |
+| branch_start | text | nullable. Commit donde empezó la branch; permite detectar merges hechos fuera de SOJA |
 | created_at, updated_at | integer | |
 | started_at, completed_at | integer | nullable |
 
@@ -573,7 +794,7 @@ Clave primaria: (`workspace_id`, `user_id`).
 | id | text PK | |
 | task_id | text FK → tasks | se borra en cascada con la task |
 | user_id | text FK → users | nullable; queda en NULL si se borra el usuario |
-| type | text | CHECK con los 10 tipos de evento |
+| type | text | CHECK con los 16 tipos de evento |
 | metadata | text (JSON) | payload tipado según el tipo de evento (ver `src/domain/activity.ts`) |
 | created_at | integer | |
 
@@ -591,12 +812,18 @@ Payloads de `metadata`:
 | `task_completed` | `{from}` |
 | `task_reopened` | `{from, to}` |
 | `task_created` | `{}` |
+| `git_committed` | `{hash, subject, files}` |
+| `git_merged` | `{branch, into, hash}` |
+| `git_branch_deleted` | `{branch, merged}` |
+| `git_pushed` | `{branch, remote}` |
+| `pr_opened` | `{url}` |
+| `git_merge_detected` | `{branch, into, hash}` |
 
 ---
 
-## 10. Arquitectura
+## 11. Arquitectura
 
-### 10.1 Repositorios del producto
+### 11.1 Repositorios del producto
 
 SOJA son **dos repositorios Git independientes**, sin monorepo:
 
@@ -607,7 +834,7 @@ soja-backend  ← futuro: auth, usuarios, workspaces, permisos, API, realtime
 
 El cliente **nunca** se conectará directamente a PostgreSQL. El camino será `soja-cli → SOJA API → PostgreSQL/Supabase`.
 
-### 10.2 Capas
+### 11.2 Capas
 
 ```text
 cli/   ui/                 Puntos de entrada: comandos y pantallas Ink.
@@ -622,18 +849,22 @@ data/repositories.ts       Interfaces: UserRepository, WorkspaceRepository, Proj
 data/local/*               Implementación actual: Local*Repository (Drizzle).
    ▼
 database/                  Esquema, migraciones y cliente node:sqlite.
+
+application/services ──▶ git/types.ts (GitClient) ──▶ git/cli-git.ts (ejecuta `git`)
 ```
+
+Git es un sistema externo, igual que la base de datos: los servicios dependen de la interfaz `GitClient`, y `bootstrap.ts` inyecta la implementación `CliGit`. `GitWorkflowService` coordina Git con `TaskService` y `ProjectService`.
 
 - `domain/` contiene tipos y reglas puras (enums, workflow de estados, nombres, errores). No depende de nada.
 - `bootstrap.ts` es la **raíz de composición**: el único archivo que sabe que los repositorios son locales.
 - La CLI y la TUI llaman a los mismos métodos. Por ejemplo, `soja task done` y la tecla `x` terminan en `TaskService.complete`.
 
-### 10.3 Estructura de carpetas
+### 11.3 Estructura de carpetas
 
 ```text
 src/
 ├── cli/            index.tsx (entrada, bin), output.ts, runtime.ts
-│   └── commands/   task, project, workspace, dev, info, tui, args
+│   └── commands/   task, project, workspace, start, folders, dev, info, tui, args
 ├── ui/             App.tsx (arranque), Shell.tsx (header + pila de pantallas + overlay),
 │   │               app-state.tsx (sesión, navegación, overlays, avisos), copy.ts
 │   ├── branding/   brand.ts (única fuente de la identidad), Logo, CompactLogo, Header, Splash, VersionBadge
@@ -644,7 +875,8 @@ src/
 │   ├── hooks/      use-query, use-list, use-layout, use-task-actions, use-flows, use-commands
 │   ├── input/      dispatcher (capas de teclado), KeyProvider, text-editing, list-navigation
 │   └── navigation/ routes.ts (pila de pantallas)
-├── application/    services/, filters.ts, timeline.ts, validation.ts, types.ts
+├── application/    services/ (session, workspace, project, task, git-workflow, folder), filters.ts, timeline.ts, validation.ts, types.ts
+├── git/            types.ts (GitClient, GitError), cli-git.ts (git/gh), console.ts (log en vivo), diagnose.ts (errores → sugerencias), merge-evidence.ts (detección de merges)
 ├── domain/         task.ts, workflow.ts, activity.ts, entities.ts, naming.ts, errors.ts
 ├── data/           repositories.ts, local/
 ├── database/       schema.ts, client.ts, migrate.ts, migrations/
@@ -655,7 +887,7 @@ src/
 test/               domain/, application/, config/, data/, ui/, helpers.ts
 ```
 
-### 10.4 Evolución hacia modo remoto
+### 11.4 Evolución hacia modo remoto
 
 **Problema arquitectónico conocido.** Hoy `TaskService` es dueño de reglas que, con varios usuarios, debe imponer el servidor: la numeración de tasks, el registro de actividad y la validación de membresías. Un `RemoteTaskRepository` que solo replicara el CRUD actual duplicaría esas reglas en el cliente y confiaría en que cada cliente escriba la actividad honestamente.
 
@@ -668,7 +900,7 @@ test/               domain/, application/, config/, data/, ui/, helpers.ts
 
 ---
 
-## 11. Decisiones técnicas
+## 12. Decisiones técnicas
 
 | Decisión | Motivo |
 | --- | --- |
@@ -684,10 +916,22 @@ test/               domain/, application/, config/, data/, ui/, helpers.ts
 | `node:util` (`parseArgs`, `styleText`) en la CLI | Cero dependencias extra, y los colores se desactivan solos cuando la salida no es una terminal. |
 | Descripción editable en una sola línea | Es simple y fiable dentro de Ink. `$EDITOR` queda en el roadmap. |
 | Splash de 700 ms que se salta con cualquier tecla | Identidad sin frenar al usuario. |
+| Git mediante el binario `git` (`execFile`, sin shell, `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`) | Sin dependencias; usa la configuración del usuario; nunca queda esperando credenciales; los errores se leen igual en cualquier idioma. |
+| En `soja start`, primero Git y después la base de datos | Un fallo de Git nunca deja una task "iniciada" con una branch que no existe. |
+| `soja start` reutiliza `TaskService.start` | Las reglas de "tomar una task" viven en un solo lugar, para la CLI y la TUI. |
+| Merges externos → Done automáticamente, solo con evidencia local | Refleja el trabajo hecho con otras herramientas sin pedir nada; sin red, sin falsos positivos por branches recién creadas (`branch_start`) ni por commits que solo mencionan la task. |
+| Credenciales delegadas en Git y `gh`; `i` pausa la TUI (`suspendTerminal` de Ink) | SOJA nunca maneja secretos, y funciona con cualquier configuración (SSH, HTTPS, gestores de credenciales). |
+| Comandos sin prompts por defecto (`GIT_TERMINAL_PROMPT=0`, `GH_PROMPT_DISABLED=1`) | Nada queda esperando credenciales dentro de la interfaz; el modo interactivo es explícito. |
+| Merge `--no-ff` hacia la branch base registrada | Deja un commit de merge que referencia la task y respeta la branch de la que partió el trabajo. |
+| Confirmaciones con "Cancel" preseleccionado | `enter` nunca ejecuta una acción destructiva por accidente. |
+| Errores de Git traducidos por patrones (`git/diagnose.ts`), con la salida en inglés forzada (`LC_ALL=C`) | Mensajes y sugerencias consistentes sin importar el idioma del sistema. |
+| Carpetas padre en `config.json`, no en la base de datos | Son rutas de cada máquina; en el futuro modo remoto, la base de datos será compartida y las rutas no. |
+| El selector detecta repositorios buscando `.git` en cada subcarpeta | Es instantáneo aunque haya muchas carpetas (no ejecuta `git` por cada una). |
+| Vincular un repositorio solo con `--link` o una acción explícita | Evita asociar por error el repositorio equivocado (por ejemplo, ejecutar desde otro proyecto). |
 
 ---
 
-## 12. Guía de desarrollo
+## 13. Guía de desarrollo
 
 ### Scripts
 
@@ -715,7 +959,7 @@ XDG_DATA_HOME=/tmp/soja-sandbox XDG_CONFIG_HOME=/tmp/soja-sandbox npm run dev
 1. Edita `src/database/schema.ts`.
 2. Ejecuta `npm run db:generate -- --name <descripcion>`.
 3. Revisa el SQL generado en `src/database/migrations/` y súbelo al repositorio junto con `meta/`.
-4. Actualiza la [§9 Modelo de datos](#9-modelo-de-datos) de este documento.
+4. Actualiza la [§10 Modelo de datos](#10-modelo-de-datos) de este documento.
 
 Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 
@@ -726,7 +970,7 @@ Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 3. **Repositorio**, si hace falta un acceso nuevo: primero la interfaz en `data/repositories.ts`, luego la implementación en `data/local/`.
 4. **UI:** pantallas y overlays llaman al servicio a través de `useAppState().services`. Las mutaciones van por `run()`, que refresca los datos y muestra la confirmación o el error.
 5. **CLI**, si corresponde: el comando en `src/cli/commands/`.
-6. **Documentación:** actualiza este archivo y `CHANGELOG.md` (ver [§15](#15-versionado-y-mantenimiento-de-este-documento)).
+6. **Documentación:** actualiza este archivo y `CHANGELOG.md` (ver [§16](#16-versionado-y-mantenimiento-de-este-documento)).
 
 ### Reglas de código
 
@@ -739,7 +983,7 @@ Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 
 ---
 
-## 13. Testing
+## 14. Testing
 
 Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 
@@ -750,22 +994,33 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Setup y workspaces | `test/application/session.test.ts` | Primer setup, reutilización, validación, cambio de workspace, miembros |
 | Proyectos | `test/application/projects.test.ts` | Keys únicos, duplicados, `resolve`, contadores |
 | Tasks | `test/application/tasks.test.ts` | Creación, edición y actividad, transiciones, comentarios y timeline, filtros, búsqueda (con `%` y `_` escapados), aislamiento entre workspaces, requesters |
-| Configuración | `test/config/config.test.ts` | Rutas XDG, lectura y escritura, JSON inválido, modo remoto |
+| Configuración | `test/config/config.test.ts` | Rutas XDG, lectura y escritura, JSON inválido, modo remoto, compatibilidad con config de v0.1 |
+| Carpetas padre | `test/application/folders.test.ts` | Agregar, quitar, validar y expandir `~`; listado tipo `ls -1` (sin archivos ni ocultas, con symlinks, repos marcados); carpeta desaparecida; búsqueda por nombre y ambigüedad; se conservan al cambiar de workspace |
 | Persistencia | `test/data/persistence.test.ts` | Cerrar y reabrir sobre un archivo SQLite real |
 | UI (lógica) | `test/ui/input.test.ts`, `test/ui/layout.test.ts` | Edición de texto, navegación de listas, dispatcher, columnas responsive, pila de navegación, helpers de texto y tiempo |
-| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc` |
+| Operaciones Git | `test/git/git-operations.test.ts`, `test/git/diagnose.test.ts` | Commit de archivos elegidos (nuevos, borrados, renombrados), rama incorrecta y validaciones; merge `--no-ff` en la base registrada, cambios sin guardar, conflictos con abort; borrar (mergeada, sin mergear con force, cambiando de branch); push a un remoto real local con log; PR con título y cuerpo; diagnóstico de 11 tipos de error; parser de `git status -z` |
+| Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
+| Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
+| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Estado en v0.1.0: **73 tests en verde**.
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **142 tests en verde**.
 
 ---
 
-## 14. Limitaciones conocidas y roadmap
+## 15. Limitaciones conocidas y roadmap
 
-### Limitaciones (v0.1.0)
+### Limitaciones actuales
 
 - La descripción se edita en una sola línea dentro de la TUI; no hay integración con `$EDITOR`.
 - No se pueden borrar tasks ni proyectos, ni editar proyectos después de crearlos.
 - La CLI no tiene comando para comentar (la TUI sí).
+- El estado Git del detalle no se refresca en vivo: los commits hechos fuera de SOJA aparecen al reabrir la task o tras otro cambio.
+- `soja start` no hace fetch: `--from origin/main` usa lo último que descargaste. SOJA tampoco hace pull.
+- Borrar una branch borra solo la local; la del remoto queda (bórrala desde el PR o con `git push origin --delete <branch>`).
+- Los conflictos de merge se resuelven en tu editor; SOJA los lista y permite abortar.
+- Los PR requieren la CLI `gh`. El estado de PRs y CI dentro de SOJA queda para v0.6.
+- La detección de merges externos no reconoce un *rebase and merge* de GitHub (no deja commit de merge ni conserva los commits de la branch); en ese caso, cierra la task con `x`.
+- Las tasks que ya tenían branch antes de esta versión no tienen `branch_start`; para ellas solo cuenta un commit de merge o un squash que las mencione.
 - El prefijo `SOJA-` es el mismo para todos los workspaces.
 - La búsqueda es por subcadena del título o por ID; no es difusa ni busca en la descripción.
 - En modo local no hay autenticación: los developers son registros locales.
@@ -775,12 +1030,13 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Es
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-Para v0.2, `soja task start <id>` ya asigna y pasa a In Progress. El nuevo `soja start <id>` agregará el flujo de branch Git local y seguirá funcionando sin internet. El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
+El flujo Git local de v0.2 ya está implementado en la rama de desarrollo (ver [§8](#8-flujo-de-trabajo-con-git)). El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
+
 ---
 
-## 15. Versionado y mantenimiento de este documento
+## 16. Versionado y mantenimiento de este documento
 
 ### Versionado de la app
 
@@ -813,3 +1069,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.1.0 r6 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Detección de merges hechos fuera de SOJA (→ Done), aviso y *Forget branch* para branches borradas sin merge, columna `branch_start` y evento `git_merge_detected` (migración `0002`). |
+| 0.1.0 r5 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Operaciones Git desde la task (commit con selección de archivos, push, PR, merge, abort, borrar branch), log en vivo, errores con sugerencias, autenticación delegada; comandos CLI `commit`, `merge`, `branch delete`, `push`, `pr`; columna `base_branch` y 5 eventos nuevos. |
+| 0.1.0 r4 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Carpetas padre y selector visual de repositorio (§8), `soja folders`, `project link` por nombre, `parentFolders` en la config (§9). |
+| 0.1.0 r3 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Nueva §8 *Flujo de trabajo con Git* (secciones siguientes renumeradas); `soja start`, `project link/unlink`, estado Git en el detalle, tecla `b` y `r`; tests y decisiones de Git; corregido el separador de §15. |

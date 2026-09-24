@@ -80,6 +80,8 @@ export const tasks = sqliteTable(
       .references(() => users.id),
     requester: text('requester'),
     branch: text('branch'),
+    baseBranch: text('base_branch'),
+    branchStart: text('branch_start'),
     ...timestamps,
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     completedAt: integer('completed_at', { mode: 'timestamp_ms' }),

@@ -8,6 +8,8 @@ import {
   type TaskStatus,
   type TaskType,
 } from '../../domain/task.js';
+import { toDisplayError } from '../../utils/errors.js';
+import { tildify } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
 import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statusOptions, typeOptions } from '../overlays/options.js';
 
@@ -16,8 +18,28 @@ import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statu
  * list and the task detail so both behave identically.
  */
 export function useTaskActions() {
-  const { services, session, openOverlay, run } = useAppState();
+  const { services, session, openOverlay, run, notify, cwd } = useAppState();
   const { tasks } = services;
+
+  const report = (error: unknown) => {
+    const display = toDisplayError(error);
+    notify(display.message, 'error', display.hint);
+  };
+
+  /** A yes/no picker; "No" is the default so Enter never destroys anything by accident. */
+  const confirm = (title: string, context: string, yes: string, onYes: () => void) =>
+    openOverlay({
+      kind: 'picker',
+      title,
+      context,
+      options: [
+        { value: 'no', label: 'Cancel' },
+        { value: 'yes', label: yes, color: 'yellow' },
+      ],
+      onSelect: (value) => {
+        if (value === 'yes') onYes();
+      },
+    });
 
   const update = (task: TaskView, changes: Parameters<typeof tasks.update>[2], success: string) =>
     run(() => tasks.update(session, task, changes), `${task.ref} ${success}`);
@@ -125,6 +147,17 @@ export function useTaskActions() {
         onSubmit: (value) => update(task, { description: value }, 'description saved'),
       });
     },
+    branchName(task: TaskView) {
+      openOverlay({
+        kind: 'prompt',
+        title: 'Branch',
+        context: `${task.ref} · recorded name, Git is not touched`,
+        initial: task.branch ?? '',
+        placeholder: 'fix/SOJA-12-short-name',
+        allowEmpty: true,
+        onSubmit: (value) => update(task, { branch: value }, value.trim() ? `branch ${value.trim()}` : 'branch cleared'),
+      });
+    },
     comment(task: TaskView) {
       openOverlay({
         kind: 'prompt',
@@ -132,6 +165,187 @@ export function useTaskActions() {
         context: task.ref,
         placeholder: 'Found it. The webhook retries on 500s…',
         onSubmit: (value) => run(() => tasks.comment(session, task, value), `Comment added to ${task.ref}`),
+      });
+    },
+    /** `soja start` from the TUI: shows what will happen in Git, then does it. */
+    async branch(task: TaskView) {
+      let plan;
+      try {
+        plan = await services.git.plan(session, task, cwd);
+      } catch (error) {
+        report(error);
+        return;
+      }
+      const { branch, root } = plan;
+      const gitStep = plan.checkedOut
+        ? `Stay on ${branch}`
+        : plan.branchExists
+          ? `Switch to ${branch}`
+          : `Create ${branch} from ${plan.currentBranch ?? 'HEAD'}`;
+      const label = plan.linkProject ? `Link repository to ${plan.linkProject.name}, ${gitStep.charAt(0).toLowerCase()}${gitStep.slice(1)}` : gitStep;
+      const warning =
+        plan.uncommitted > 0
+          ? plan.branchExists && !plan.checkedOut
+            ? `${plan.uncommitted} uncommitted: commit or stash first`
+            : `${plan.uncommitted} uncommitted change(s) come along`
+          : tildify(root);
+      openOverlay({
+        kind: 'picker',
+        title: 'Start on branch',
+        context: `${task.ref} · assign to you · In Progress`,
+        options: [
+          { value: 'start', label, hint: warning },
+          { value: 'cancel', label: 'Cancel', dim: true },
+        ],
+        onSelect: (value) =>
+          value === 'start'
+            ? run(() => services.git.start(session, task, { cwd, link: plan.linkProject !== null }), `${task.ref} on ${branch}`)
+            : undefined,
+      });
+    },
+    /** Choose files, then a message; commits on the task branch with live output. */
+    commit(task: TaskView) {
+      openOverlay({ kind: 'commit', task });
+    },
+    async merge(task: TaskView) {
+      let plan;
+      try {
+        plan = await services.git.mergePlan(session, task, cwd);
+      } catch (error) {
+        report(error);
+        return;
+      }
+      if (plan.alreadyMerged) {
+        notify(`${plan.branch} is already merged into ${plan.into}.`, 'info', 'Delete it from the Git menu (g).');
+        return;
+      }
+      confirm(`Merge into ${plan.into}?`, `${plan.branch} → ${plan.into} · merge commit`, `Merge ${plan.branch} into ${plan.into}`, () =>
+        openOverlay({
+          kind: 'git-run',
+          title: 'Merge',
+          context: `${plan.branch} → ${plan.into}`,
+          run: async () => {
+            const result = await services.git.merge(session, task, { cwd });
+            return `Merged into ${result.into} (${result.hash.slice(0, 7)})`;
+          },
+          next: [
+            { key: 'd', label: 'delete branch + mark Done', action: () => actions.deleteBranch(task, { markDone: true }) },
+            { key: 'x', label: 'mark Done', action: () => void run(() => tasks.complete(session, task), `${task.ref} done. Nice.`) },
+          ],
+          recover: {
+            merge_conflict: {
+              key: 'a',
+              label: 'abort merge',
+              action: () => actions.abortMerge(task),
+            },
+          },
+        }),
+      );
+    },
+    abortMerge(task: TaskView) {
+      openOverlay({
+        kind: 'git-run',
+        title: 'Abort merge',
+        context: task.ref,
+        run: async () => {
+          await services.git.abortMerge(session, task, cwd);
+          return 'Merge aborted. The repository is back to how it was.';
+        },
+      });
+    },
+    /** Confirms, then deletes; an unmerged branch needs a second, explicit confirmation. */
+    deleteBranch(task: TaskView, options: { markDone?: boolean } = {}) {
+      const branch = task.branch;
+      if (!branch) {
+        notify(`${task.ref} has no branch.`, 'info');
+        return;
+      }
+      const execute = (force: boolean) =>
+        openOverlay({
+          kind: 'git-run',
+          title: force ? 'Delete unmerged branch' : 'Delete branch',
+          context: branch,
+          run: async () => {
+            const result = await services.git.deleteBranch(session, task, { cwd, force });
+            if (options.markDone) await tasks.complete(session, task);
+            const switched = result.switchedTo ? ` Switched to ${result.switchedTo}.` : '';
+            return `Deleted ${result.branch}.${switched}${options.markDone ? ` ${task.ref} is Done.` : ''}`;
+          },
+          recover: {
+            not_merged: {
+              key: 'f',
+              label: 'delete anyway…',
+              action: () =>
+                confirm(
+                  'Delete an unmerged branch?',
+                  `${branch} has commits that are not merged. They will be lost.`,
+                  'Yes, delete it and lose those commits',
+                  () => execute(true),
+                ),
+            },
+          },
+        });
+      const doDelete = () => execute(false);
+      if (options.markDone) doDelete();
+      else confirm('Delete branch?', branch, `Delete ${branch}`, doDelete);
+    },
+    push(task: TaskView) {
+      openOverlay({
+        kind: 'git-run',
+        title: 'Push',
+        context: task.branch ?? task.ref,
+        run: async (interactive) => {
+          const result = await services.git.push(session, task, { cwd, interactive });
+          return `Pushed ${result.branch} to origin`;
+        },
+      });
+    },
+    pullRequest(task: TaskView) {
+      confirm(
+        'Open a pull request?',
+        `${task.branch ?? task.ref} → ${task.baseBranch ?? 'base branch'} · pushes first`,
+        `Push and open a PR for ${task.ref}`,
+        () =>
+          openOverlay({
+            kind: 'git-run',
+            title: 'Pull request',
+            context: task.ref,
+            run: async (interactive) => {
+              const result = await services.git.openPullRequest(session, task, { cwd, interactive });
+              return `Pull request ${result.branch} → ${result.base}: ${result.url}`;
+            },
+          }),
+      );
+    },
+    /** Everything Git in one menu. */
+    gitMenu(task: TaskView) {
+      const items = [
+        ['start', 'Start / switch to branch', 'b'],
+        ['commit', 'Commit…', 'C'],
+        ['push', 'Push branch', ''],
+        ['pullRequest', 'Open pull request…', ''],
+        ['merge', 'Merge into base…', ''],
+        ['abortMerge', 'Abort merge', ''],
+        ['deleteBranch', 'Delete branch…', ''],
+        ['forget', 'Forget branch (Git untouched)', ''],
+        ['log', 'Git log', ''],
+      ] as const;
+      openOverlay({
+        kind: 'picker',
+        title: 'Git',
+        context: task.branch ? `${task.ref} · ${task.branch}` : `${task.ref} · no branch yet`,
+        options: items.map(([value, label, key]) => ({ value, label, hint: key })),
+        onSelect: (value) => {
+          if (value === 'start') void actions.branch(task);
+          else if (value === 'commit') actions.commit(task);
+          else if (value === 'push') actions.push(task);
+          else if (value === 'pullRequest') actions.pullRequest(task);
+          else if (value === 'merge') void actions.merge(task);
+          else if (value === 'abortMerge') actions.abortMerge(task);
+          else if (value === 'deleteBranch') actions.deleteBranch(task);
+          else if (value === 'forget') void run(() => services.git.forgetBranch(session, task), `${task.ref} has no branch now`);
+          else if (value === 'log') openOverlay({ kind: 'git-log' });
+        },
       });
     },
     toggleDone(task: TaskView) {
@@ -149,6 +363,7 @@ export function useTaskActions() {
         ['project', 'Project', 'm'],
         ['type', 'Type', 't'],
         ['requester', 'Requester', 'r'],
+        ['branchName', 'Branch name', ''],
       ] as const;
       openOverlay({
         kind: 'picker',

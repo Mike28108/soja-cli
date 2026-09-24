@@ -47,6 +47,10 @@ const changesSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
   assigneeId: z.string().nullable().optional(),
   requester: optionalText(80),
+  branch: optionalText(250),
+  /** Bookkeeping for merges; changes are not shown in the timeline. */
+  baseBranch: optionalText(250),
+  branchStart: optionalText(64),
 });
 
 const commentSchema = z
@@ -141,6 +145,8 @@ export class TaskService {
         creatorId: session.user.id,
         requester: data.requester ?? null,
         branch: null,
+        baseBranch: null,
+        branchStart: null,
         startedAt: data.status === 'in_progress' ? now : null,
         completedAt: data.status === 'done' ? now : null,
       });
@@ -178,6 +184,12 @@ export class TaskService {
       patch.requester = data.requester;
       events.push({ type: 'task_updated', metadata: { field: 'requester', from: task.requester, to: data.requester } });
     }
+    if (changed(data.branch, task.branch)) {
+      patch.branch = data.branch;
+      events.push({ type: 'task_updated', metadata: { field: 'branch', from: task.branch, to: data.branch } });
+    }
+    if (changed(data.baseBranch, task.baseBranch)) patch.baseBranch = data.baseBranch;
+    if (changed(data.branchStart, task.branchStart)) patch.branchStart = data.branchStart;
     if (changed(data.type, task.type)) {
       patch.type = data.type;
       events.push({ type: 'task_updated', metadata: { field: 'type', from: task.type, to: data.type } });
@@ -203,7 +215,10 @@ export class TaskService {
       }
     }
 
-    if (events.length === 0) return this.presentOne(session, task);
+    if (events.length === 0) {
+      if (Object.keys(patch).length === 0) return this.presentOne(session, task);
+      return this.presentOne(session, await this.repos.tasks.update(task.id, patch));
+    }
     const updated = await this.repos.transaction(async () => {
       const result = await this.repos.tasks.update(task.id, patch);
       for (const event of events) await this.repos.activity.record(task.id, session.user.id, event);
@@ -212,9 +227,16 @@ export class TaskService {
     return this.presentOne(session, updated);
   }
 
-  /** Take the task: assign it to me and move it to In Progress. */
-  start(session: Session, target: TaskTarget): Promise<TaskView> {
-    return this.update(session, target, { assigneeId: session.user.id, status: 'in_progress' });
+  /**
+   * Take the task: assign it to me and move it to In Progress. The Git flow
+   * (`soja start`) reuses this and also records the branch, in one transaction.
+   */
+  start(
+    session: Session,
+    target: TaskTarget,
+    extra: { branch?: string; baseBranch?: string | null; branchStart?: string | null } = {},
+  ): Promise<TaskView> {
+    return this.update(session, target, { assigneeId: session.user.id, status: 'in_progress', ...extra });
   }
 
   complete(session: Session, target: TaskTarget): Promise<TaskView> {

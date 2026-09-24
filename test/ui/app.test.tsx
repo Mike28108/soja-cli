@@ -2,7 +2,9 @@ import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Session } from '../../src/application/types.js';
 import { App } from '../../src/ui/App.js';
-import { createSetUpApp, createTestApp, type TestApp } from '../helpers.js';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { commitFile, createRepo, createSetUpApp, createTestApp, git, tempDir, type TestApp } from '../helpers.js';
 
 const ESC = '\u001B';
 const ENTER = '\r';
@@ -26,15 +28,19 @@ async function press(stdin: { write(data: string): void }, key: string) {
 
 let app: TestApp;
 let ui: ReturnType<typeof render> | undefined;
+// A scratch directory outside any repository, so Git features never read this project's history.
+let workdir: ReturnType<typeof tempDir>;
 afterEach(() => {
   ui?.unmount();
   ui = undefined;
   app.close();
+  workdir.cleanup();
 });
 
 async function start(testApp: TestApp) {
   app = testApp;
-  ui = render(<App services={app.services} splashMs={0} />);
+  workdir = tempDir();
+  ui = render(<App services={app.services} splashMs={0} cwd={workdir.path} />);
   await settle(150);
   return ui;
 }
@@ -177,5 +183,199 @@ describe('daily use', () => {
     await press(stdin, ESC);
     await settle(100);
     expect(lastFrame()).toContain('MY WORK');
+  });
+});
+
+describe('git workflow in the interface', () => {
+  it('starts a task on its branch with b and shows the commits', async () => {
+    const testApp = await createSetUpApp();
+    const repoDir = tempDir();
+    try {
+      const repo = createRepo(realpathSync(repoDir.path));
+      const project = await testApp.services.projects.create(testApp.session, { name: 'EnrollBridge' });
+      await testApp.services.projects.linkRepository(testApp.session, project, repo);
+      await testApp.services.tasks.create(testApp.session, { title: 'Webhook duplicates', type: 'bug', projectId: project.id });
+
+      const { stdin, lastFrame } = await start(testApp);
+      await press(stdin, ENTER);
+      await settle(200);
+      expect(lastFrame()).toContain('suggested · b to start');
+
+      await press(stdin, 'b');
+      await settle(150);
+      expect(lastFrame()).toContain('Create fix/SOJA-1-webhook-duplicates from main');
+      await press(stdin, ENTER);
+      await settle(250);
+
+      expect(git(repo, 'branch', '--show-current')).toBe('fix/SOJA-1-webhook-duplicates');
+      expect(lastFrame()).toContain('checked out');
+      expect((await testApp.services.tasks.get(testApp.session, 'SOJA-1')).status).toBe('in_progress');
+
+      commitFile(repo, 'fix.txt', 'x', 'Deduplicate Stripe events');
+      // Commits made outside SOJA show up on the next refresh: any change in SOJA, or reopening the task.
+      await press(stdin, 'x');
+      await settle(250);
+      expect(lastFrame()).toContain('Deduplicate Stripe events');
+    } finally {
+      repoDir.cleanup();
+    }
+  });
+});
+
+describe('repository picker', () => {
+  it('asks for a parent folder first, then links a project by picking a subfolder', async () => {
+    const testApp = await createSetUpApp();
+    const folders = tempDir();
+    try {
+      const products = join(realpathSync(folders.path), 'products');
+      mkdirSync(products);
+      for (const name of ['enrollbridge', 'spring-web']) {
+        mkdirSync(join(products, name));
+        createRepo(join(products, name));
+      }
+      await testApp.services.projects.create(testApp.session, { name: 'EnrollBridge' });
+
+      const { stdin, lastFrame } = await start(testApp);
+      await press(stdin, 'p');
+      await settle(150);
+      await press(stdin, 'r');
+      await settle(100);
+      expect(lastFrame()).toContain('Add parent folder');
+
+      await type(stdin, products);
+      await press(stdin, ENTER);
+      await settle(200);
+      expect(lastFrame()).toContain('Repository for EnrollBridge');
+      expect(lastFrame()).toContain('products/spring-web');
+
+      await type(stdin, 'enroll');
+      await press(stdin, ENTER);
+      await settle(200);
+
+      const [project] = await testApp.services.projects.list(testApp.session);
+      expect(project?.repositoryPath).toBe(join(products, 'enrollbridge'));
+      expect(testApp.config.load()?.parentFolders).toEqual([products]);
+    } finally {
+      folders.cleanup();
+    }
+  });
+});
+
+describe('git operations in the interface', () => {
+  async function started() {
+    const testApp = await createSetUpApp();
+    const repoDir = tempDir();
+    const repo = createRepo(realpathSync(repoDir.path));
+    const project = await testApp.services.projects.create(testApp.session, { name: 'EnrollBridge' });
+    await testApp.services.projects.linkRepository(testApp.session, project, repo);
+    await testApp.services.tasks.create(testApp.session, { title: 'Webhook', type: 'bug', projectId: project.id });
+    await testApp.services.git.start(testApp.session, 'SOJA-1', { cwd: repo });
+    const ui = await start(testApp);
+    await press(ui.stdin, ENTER);
+    await settle(200);
+    return { ...ui, testApp, repo, cleanup: () => repoDir.cleanup() };
+  }
+
+  it('commits only the checked files, with live output', async () => {
+    const { stdin, lastFrame, repo, cleanup } = await started();
+    try {
+      writeFileSync(join(repo, 'a.ts'), 'a');
+      writeFileSync(join(repo, 'b.log'), 'b');
+      await press(stdin, 'C');
+      await settle(200);
+      expect(lastFrame()).toContain('[x]');
+      await press(stdin, 'j');
+      await press(stdin, ' '); // uncheck b.log (sorted after a.ts)
+      await press(stdin, ENTER);
+      await type(stdin, 'Dedupe events');
+      await press(stdin, ENTER);
+      await settle(400);
+
+      expect(lastFrame()).toContain('$ git commit --only -m "Dedupe events (SOJA-1)" -- a.ts');
+      expect(lastFrame()).toContain('Committed');
+      expect(git(repo, 'status', '--porcelain')).toBe('?? b.log');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('merges after confirmation and offers to delete the branch and finish the task', async () => {
+    const { stdin, lastFrame, repo, testApp, cleanup } = await started();
+    try {
+      commitFile(repo, 'fix.txt', 'fix', 'Fix (SOJA-1)');
+      await press(stdin, 'g');
+      await press(stdin, '5'); // Merge into base…
+      await settle(200);
+      expect(lastFrame()).toContain('Merge into main?');
+      await press(stdin, ENTER); // default is Cancel
+      await settle(100);
+      expect(git(repo, 'branch', '--show-current')).toBe('fix/SOJA-1-webhook');
+
+      await press(stdin, 'g');
+      await press(stdin, '5');
+      await settle(200);
+      await press(stdin, '2'); // confirm
+      await settle(500);
+      expect(lastFrame()).toContain('Merged into main');
+      expect(lastFrame()).toContain('delete branch + mark Done');
+
+      await press(stdin, 'd');
+      await settle(500);
+      expect(git(repo, 'branch', '--list', 'fix/*')).toBe('');
+      expect((await testApp.services.tasks.get(testApp.session, 'SOJA-1')).status).toBe('done');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('asks twice before deleting an unmerged branch', async () => {
+    const { stdin, lastFrame, repo, cleanup } = await started();
+    try {
+      commitFile(repo, 'wip.txt', 'wip', 'Unmerged');
+      await press(stdin, 'g');
+      await press(stdin, '7'); // Delete branch…
+      await settle(150);
+      await press(stdin, '2');
+      await settle(400);
+      expect(lastFrame()).toContain('has commits that are not in main');
+      expect(lastFrame()).toContain('delete anyway');
+
+      await press(stdin, 'f');
+      await settle(150);
+      expect(lastFrame()).toContain('Delete an unmerged branch?');
+      await press(stdin, '2');
+      await settle(500);
+      expect(lastFrame()).toContain('Deleted fix/SOJA-1-webhook');
+      expect(git(repo, 'branch', '--show-current')).toBe('main');
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe('merges done outside SOJA', () => {
+  it('closes the task when SOJA opens after an agent merged its branch', async () => {
+    const testApp = await createSetUpApp();
+    const repoDir = tempDir();
+    try {
+      const repo = createRepo(realpathSync(repoDir.path));
+      const project = await testApp.services.projects.create(testApp.session, { name: 'EnrollBridge' });
+      await testApp.services.projects.linkRepository(testApp.session, project, repo);
+      await testApp.services.tasks.create(testApp.session, { title: 'Webhook', type: 'bug', projectId: project.id });
+      await testApp.services.git.start(testApp.session, 'SOJA-1', { cwd: repo });
+
+      // Someone else (Claude, Codex, a teammate) finishes and merges it.
+      commitFile(repo, 'fix.txt', 'fix', 'Agent work');
+      git(repo, 'switch', '--quiet', 'main');
+      git(repo, 'merge', '--quiet', '--no-ff', '--no-edit', 'fix/SOJA-1-webhook');
+      git(repo, 'branch', '--quiet', '-d', 'fix/SOJA-1-webhook');
+
+      const { lastFrame } = await start(testApp);
+      await settle(300);
+      expect(lastFrame()).toContain('SOJA-1 was merged into main outside SOJA → Done');
+      expect((await testApp.services.tasks.get(testApp.session, 'SOJA-1')).status).toBe('done');
+    } finally {
+      repoDir.cleanup();
+    }
   });
 });

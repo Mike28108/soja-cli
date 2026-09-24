@@ -1,3 +1,5 @@
+import type { TaskView } from '../../application/types.js';
+import type { GitErrorCode } from '../../git/types.js';
 import type { ColorName } from '../theme/theme.js';
 
 export interface PickerOption {
@@ -39,8 +41,33 @@ export interface PromptSpec {
   onSubmit: (value: string) => SubmitResult;
 }
 
+export interface GitAction {
+  key: string;
+  label: string;
+  action: () => unknown;
+}
+
+/**
+ * Runs a Git operation while showing its commands and output live. On
+ * failure it shows the diagnosis, suggestions and recovery keys.
+ */
+export interface GitRunSpec {
+  kind: 'git-run';
+  title: string;
+  context?: string;
+  /** Performs the operation and returns the success line. `interactive` means the terminal was released. */
+  run: (interactive: boolean) => Promise<string>;
+  /** Offered after success, e.g. "d delete branch". */
+  next?: GitAction[];
+  /** Offered after failure, keyed by GitError code, e.g. not_merged → "f delete anyway". */
+  recover?: Partial<Record<GitErrorCode, GitAction>>;
+}
+
 export type Overlay =
   | { kind: 'search' }
+  | GitRunSpec
+  | { kind: 'commit'; task: TaskView }
+  | { kind: 'git-log' }
   | { kind: 'new-task'; projectId: string | null }
   | PickerSpec
   | PromptSpec;

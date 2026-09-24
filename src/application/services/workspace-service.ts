@@ -48,7 +48,9 @@ export class WorkspaceService {
         hint: 'List yours with `soja workspace list`.',
       });
     }
-    this.config.save({ mode: 'local', userId: user.id, workspaceId: workspace.id });
+    // Keep machine settings (parent folders) when switching.
+    const parentFolders = this.config.load()?.parentFolders ?? [];
+    this.config.save({ mode: 'local', userId: user.id, workspaceId: workspace.id, parentFolders });
     return { user, workspace };
   }
 
