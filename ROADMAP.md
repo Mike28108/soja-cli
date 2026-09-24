@@ -8,7 +8,7 @@ Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos a
 
 TUI y CLI, setup, workspaces, proyectos, tareas, comentarios, actividad, filtros y búsqueda. SQLite local funciona sin conexión. `soja task start <id>` ya asigna la tarea al usuario actual y cambia su estado a In Progress; todavía no toca Git.
 
-## v0.2 — Git Workflow local (siguiente hito)
+## v0.2 — Git Workflow local (implementado, pendiente de publicar)
 
 Objetivo: empezar a trabajar en una tarea desde su repositorio, incluso sin internet.
 
@@ -17,8 +17,13 @@ Objetivo: empezar a trabajar en una tarea desde su repositorio, incluso sin inte
 - Mostrar branch actual y estado Git local en el contexto de la tarea; detectar commits locales relacionados con su branch/ID cuando el repositorio lo permita.
 - Manejar explícitamente directorios sin Git, rutas inexistentes, cambios sin guardar, branches existentes y fallos de Git. Evitar que la tarea quede marcada como iniciada con una branch guardada que no existe por un error a mitad del flujo.
 - Añadir pruebas para nombres de branch y casos de fallo, además de un recorrido manual que cierre y reabra SOJA para comprobar persistencia.
+- **Operaciones Git desde la interfaz** (ampliación de alcance acordada el 2026-09-24): commit eligiendo archivos de una lista, merge de la branch de la tarea en su branch base (`--no-ff`), borrado de branch con confirmación (doble si no está mergeada), push y apertura de PR.
+- **Log en vivo** de cada comando Git y su salida, y errores con sugerencias concretas (conflictos, branch sin mergear, credenciales, remoto rechazado, sin conexión…).
+- **Autenticación delegada:** SOJA no pide ni guarda credenciales. Usa las de Git (SSH, credential helper) y de la CLI `gh`. Si Git necesita pedirlas, SOJA pausa la interfaz para que las introduzcas directamente en Git.
 
-**Fuera de v0.2:** GitHub API, autenticación, PRs, CI, servidor, sincronización y chat. La integración Git local debe funcionar offline.
+Commit, merge y borrar branch funcionan offline; push y PR necesitan conexión, y el resto de SOJA sigue funcionando sin ella.
+
+**Fuera de v0.2:** API de GitHub propia (GitHub App, OAuth), checks de CI, revisión de PRs dentro de SOJA, servidor, sincronización y chat.
 
 ## v0.3 — Backend y colaboración remota
 
@@ -34,7 +39,7 @@ Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias
 
 ## v0.6 — GitHub, PR y CI
 
-Integración autenticada para enlazar branches, commits, pull requests y checks con tareas y conversaciones. Evaluar GitHub App y permisos mínimos al diseñar esta etapa. `soja pr <id>` pertenece aquí, sujeto a la API y permisos disponibles; los flujos Git locales deben seguir funcionando sin GitHub.
+Integración autenticada con la API de GitHub para enlazar branches, commits, pull requests y checks con tareas y conversaciones: estado de PRs y CI dentro de SOJA, revisiones, y la evaluación de una GitHub App con permisos mínimos. La apertura básica de PRs con la CLI `gh` se adelantó a v0.2; los flujos Git locales deben seguir funcionando sin GitHub.
 
 ## v1.0 — Workspace colaborativo
 

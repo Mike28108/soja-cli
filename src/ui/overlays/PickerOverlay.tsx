@@ -81,12 +81,16 @@ export function PickerOverlay({ spec }: { spec: PickerSpec }) {
           <Box key={option.value} gap={1}>
             <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
             {!spec.filterable ? <Text dimColor>{index < 9 ? String(index + 1) : ' '}</Text> : null}
-            <Box width={labelWidth}>
+            <Box width={labelWidth} flexShrink={0}>
               <Text color={option.value === CREATE ? palette.accent : option.color} dimColor={option.dim} bold={selected}>
                 {option.label}
               </Text>
             </Box>
-            {option.hint ? <Text dimColor>{option.hint}</Text> : null}
+            {option.hint ? (
+              <Text dimColor wrap="truncate-middle">
+                {option.hint}
+              </Text>
+            ) : null}
             {current ? <Text color={palette.accent}>{symbols.active}</Text> : null}
           </Box>
         );

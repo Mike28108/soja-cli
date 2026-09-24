@@ -14,6 +14,13 @@ export interface ActivityPayloads {
   comment_added: { commentId: string };
   task_completed: { from: TaskStatus };
   task_reopened: { from: TaskStatus; to: TaskStatus };
+  git_committed: { hash: string; subject: string; files: number };
+  git_merged: { branch: string; into: string; hash: string | null };
+  git_branch_deleted: { branch: string; merged: boolean };
+  git_pushed: { branch: string; remote: string };
+  pr_opened: { url: string };
+  /** A merge done outside SOJA (another tool, an agent, GitHub + pull) was found in the base branch. */
+  git_merge_detected: { branch: string; into: string; hash: string | null };
 }
 
 export type ActivityType = keyof ActivityPayloads;
@@ -29,6 +36,12 @@ export const ACTIVITY_TYPES = [
   'comment_added',
   'task_completed',
   'task_reopened',
+  'git_committed',
+  'git_merged',
+  'git_branch_deleted',
+  'git_pushed',
+  'pr_opened',
+  'git_merge_detected',
 ] as const satisfies readonly ActivityType[];
 
 /** An event before it is persisted. Discriminated on `type` so metadata stays typed. */

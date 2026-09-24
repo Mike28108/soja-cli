@@ -1,7 +1,8 @@
 import { Box, Text } from 'ink';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { TaskGitState } from '../../application/services/index.js';
 import type { TimelineEntry } from '../../application/types.js';
-import { TYPE_LABELS } from '../../domain/task.js';
+import { isClosed, TYPE_LABELS } from '../../domain/task.js';
 import { formatRelative, formatStamp } from '../../utils/time.js';
 import { clampLines, wrapText } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
@@ -18,17 +19,22 @@ import { ScreenFrame } from './ScreenFrame.js';
 const LABEL_WIDTH = 14;
 
 export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: string }) {
-  const { services, session } = useAppState();
+  const { services, session, cwd, detectMerges } = useAppState();
+  useEffect(() => {
+    void detectMerges(taskRef);
+  }, [detectMerges, taskRef]);
   const { width, height } = useLayout();
   const actions = useTaskActions();
   const [scroll, setScroll] = useState(0);
   const query = useQuery(() => services.tasks.get(session, taskRef), `task:${session.workspace.id}:${taskRef}`);
   const task = query.data;
+  // Git state loads on its own so the task shows instantly even in big repositories.
+  const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
 
   // Everything above the timeline, measured in rows, so the timeline gets the rest.
   const titleLines = task ? wrapText(task.title, width).length : 1;
   const descriptionLines = task?.description ? clampLines(wrapText(task.description, width - 2), Math.max(1, Math.min(6, height - 18))) : [];
-  const fixedRows = 1 + titleLines + 1 + 1 + 4 + 1 + Math.max(1, descriptionLines.length) + 1 + 1;
+  const fixedRows = 1 + titleLines + 1 + 1 + 5 + 1 + Math.max(1, descriptionLines.length) + 1 + 1;
   const timelineRows = Math.max(2, height - fixedRows);
   const timeline = task ? timelineLines(task.timeline, width) : [];
   const actorWidth = Math.min(18, Math.max(8, ...timeline.map((line) => line.actor.length)) + 2);
@@ -50,6 +56,9 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         c: () => actions.comment(task),
         e: () => actions.edit(task),
         x: () => actions.toggleDone(task),
+        b: () => actions.branch(task),
+        g: () => actions.gitMenu(task),
+        C: () => actions.commit(task),
       };
       const action = bindings[input];
       if (action) void action();
@@ -68,6 +77,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     ['a', 'assign'],
     ['c', 'comment'],
     ['e', 'edit'],
+    ['g', 'git'],
     ['x', task?.status === 'done' ? 'reopen' : 'done'],
     ['esc', 'back'],
   ] as const;
@@ -107,7 +117,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         <Field label="Project" value={task.project?.name} />
         <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} />
         <Field label="Requested by" value={task.requester ?? undefined} />
-        <Field label="Branch" value={task.branch ?? undefined} hint={task.branch ? undefined : task.suggestedBranch} />
+        <GitFields state={git.data} fallbackBranch={task.branch ?? task.suggestedBranch} recorded={task.branch !== null} closed={isClosed(task.status)} />
       </Box>
 
       <Box marginTop={1} flexDirection="column" paddingLeft={2}>
@@ -147,6 +157,83 @@ function Field({ label, value, hint }: { label: string; value: string | undefine
         {hint ? <Text dimColor>{value ? `  ${hint}` : `  suggested ${hint}`}</Text> : null}
       </Text>
     </Box>
+  );
+}
+
+/** Branch and commits rows. Two rows always, so the layout does not jump while Git loads. */
+function GitFields({
+  state,
+  fallbackBranch,
+  recorded,
+  closed,
+}: {
+  state: TaskGitState | undefined;
+  fallbackBranch: string;
+  recorded: boolean;
+  closed: boolean;
+}) {
+  if (!state) {
+    return (
+      <>
+        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} />
+        <Field label="Commits" value={undefined} />
+      </>
+    );
+  }
+  if (state.status === 'unavailable') {
+    return (
+      <>
+        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} />
+        <Box>
+          <Box width={LABEL_WIDTH} flexShrink={0}>
+            <Text dimColor>Git</Text>
+          </Box>
+          <Text dimColor wrap="truncate-end">
+            {state.reason}
+          </Text>
+        </Box>
+      </>
+    );
+  }
+
+  const [latest] = state.commits;
+  return (
+    <>
+      <Box>
+        <Box width={LABEL_WIDTH} flexShrink={0}>
+          <Text dimColor>Branch</Text>
+        </Box>
+        <Text wrap="truncate-end">
+          <Text dimColor={!state.branchExists}>{closed && !state.recorded && !state.branchExists ? '—' : state.branch}</Text>
+          {state.checkedOut ? (
+            <Text color={palette.success}>{`  ${symbols.active} checked out`}</Text>
+          ) : state.branchExists ? (
+            <Text dimColor>{'  not checked out'}</Text>
+          ) : state.recorded && !closed ? (
+            <Text color={palette.warning}>{'  deleted, no merge found · b recreate · g forget'}</Text>
+          ) : state.recorded ? (
+            <Text dimColor>{'  deleted'}</Text>
+          ) : closed ? null : (
+            <Text dimColor>{'  suggested · b to start'}</Text>
+          )}
+          {state.uncommitted > 0 ? <Text color={palette.warning}>{`  ${state.uncommitted} uncommitted`}</Text> : null}
+        </Text>
+      </Box>
+      <Box>
+        <Box width={LABEL_WIDTH} flexShrink={0}>
+          <Text dimColor>Commits</Text>
+        </Box>
+        {latest ? (
+          <Text wrap="truncate-end">
+            <Text color={palette.warning}>{latest.shortHash}</Text>
+            <Text>{` ${latest.subject}`}</Text>
+            <Text dimColor>{`  ${formatRelative(latest.date)}${state.commits.length > 1 ? `  +${state.commits.length - 1} more` : ''}`}</Text>
+          </Text>
+        ) : (
+          <Text dimColor>none yet</Text>
+        )}
+      </Box>
+    </>
   );
 }
 

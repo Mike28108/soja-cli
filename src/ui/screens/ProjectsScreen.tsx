@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { Box, Text } from 'ink';
 import { useAppState } from '../app-state.js';
 import { EmptyState } from '../components/EmptyState.js';
@@ -29,19 +30,21 @@ export function ProjectsScreen({ active }: { active: boolean }) {
       const project = projects[list.index];
       if (key.return && project) go({ type: 'push', route: { name: 'project', projectId: project.id } });
       else if (input === 'n') flows.newProject();
+      else if (input === 'r' && project) void flows.pickRepository(project);
       else return false;
       return true;
     },
     active,
   );
 
-  const wide = width >= 70;
+  const wide = width >= 88;
   return (
     <ScreenFrame
       hints={[
         ['j/k', 'move'],
         ['enter', 'open'],
         ['n', 'new project'],
+        ['r', 'link repo'],
         ['esc', 'back'],
       ]}
     >
@@ -72,6 +75,9 @@ export function ProjectsScreen({ active }: { active: boolean }) {
                 <Box width={9} justifyContent="flex-end">
                   <Text dimColor>BLOCKED</Text>
                 </Box>
+                <Box width={18} paddingLeft={3}>
+                  <Text dimColor>REPO</Text>
+                </Box>
               </>
             ) : null}
           </Box>
@@ -98,6 +104,11 @@ export function ProjectsScreen({ active }: { active: boolean }) {
                     <Count width={10} value={project.counts.in_progress} color={palette.warning} />
                     <Count width={8} value={project.counts.review} color={palette.info} />
                     <Count width={9} value={project.counts.blocked} color={palette.danger} />
+                    <Box width={18} paddingLeft={3}>
+                      <Text dimColor wrap="truncate-end">
+                        {project.repositoryPath ? basename(project.repositoryPath) : symbols.dot}
+                      </Text>
+                    </Box>
                   </>
                 ) : null}
               </Box>
