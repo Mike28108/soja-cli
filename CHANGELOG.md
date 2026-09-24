@@ -7,12 +7,16 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-24
+
+Trabajo en equipo: incluye los hitos **v0.3** (modo remoto con `soja-backend`, login con GitHub) y **v0.4** (trabajo sin conexión con sincronización). No hubo release 0.3.0 separada. Requiere `soja-backend` ≥ 0.2.0.
+
 ### Added
 
 - **Trabajo sin conexión en modo remoto (v0.4):** réplica local del workspace. Crear y editar tasks, comentar y el flujo Git funcionan sin red; los cambios se encolan y se envían al reconectar, una sola vez cada uno. Las tasks nuevas aparecen como `SOJA-?1` hasta recibir su número real.
 - **Conflictos visibles:** campo por campo gana el último en llegar al servidor, y quien llegó último recibe un aviso con opción de restaurar (`!` en el detalle de la task). Los cambios rechazados por el servidor se deshacen con un aviso.
 - `soja sync [--dismiss]`; la CLI sincroniza antes y después de cada comando en modo remoto, y el header de la interfaz muestra `offline · N pending` / `syncing…`.
-- **Modo remoto (v0.3, en desarrollo):** trabajo en equipo contra `soja-backend`. `soja login --server <url>` (GitHub device flow), `soja logout`, `soja mode [local|remote]`, `soja whoami`. La interfaz y los comandos son los mismos; el header muestra `⇄ servidor`.
+- **Modo remoto (v0.3):** trabajo en equipo contra `soja-backend`. `soja login --server <url>` (GitHub device flow), `soja logout`, `soja mode [local|remote]`, `soja whoami`. La interfaz y los comandos son los mismos; el header muestra `⇄ servidor`.
 - `soja workspace create <nombre>` y `soja workspace add <username>`.
 - `config.json` guarda ambos modos a la vez (bloque `remote` con servidor, usuario y workspace); los tokens van en `credentials.json` con permisos `0600`. Las rutas locales de los repositorios viven en la réplica.
 
@@ -83,6 +87,7 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/Mike28108/soja-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Mike28108/soja-cli/releases/tag/v0.1.0
