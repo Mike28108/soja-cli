@@ -22,6 +22,7 @@ import { ProjectsScreen } from './screens/ProjectsScreen.js';
 import { TaskListScreen } from './screens/TaskListScreen.js';
 import { TaskScreen } from './screens/TaskScreen.js';
 import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
+import { ChatScreen } from './screens/ChatScreen.js';
 
 /**
  * The running app: compact header, the screen stack and the active overlay.
@@ -43,6 +44,9 @@ export function Shell() {
     `header:${projectId ?? ''}`,
   );
 
+  const chat = services.chat;
+  const chatTotals = useQuery(async () => (chat ? chat.totals(session) : null), `chat-totals:${session.workspace.id}`);
+
   // On launch and whenever you come back to a task list, catch merges done elsewhere.
   const onList = route.name === 'home' || route.name === 'project';
   useEffect(() => {
@@ -57,6 +61,7 @@ export function Shell() {
     else if (input === '?') go({ type: 'push', route: { name: 'help' } });
     else if (input === 'p') go({ type: 'push', route: { name: 'projects' } });
     else if (input === 'w') go({ type: 'push', route: { name: 'workspaces' } });
+    else if (input === '#' && chat) go({ type: 'push', route: { name: 'chat' } });
     else if (key.escape && stack.length > 1) go({ type: 'pop' });
     else if (input === 'q') {
       if (stack.length > 1) go({ type: 'pop' });
@@ -74,6 +79,7 @@ export function Shell() {
         width={width}
         server={services.environment.mode === 'remote' ? new URL(services.environment.server).host : undefined}
         syncLabel={syncLabelFor(syncStatus)}
+        chat={route.name === 'chat' ? undefined : (chatTotals.data ?? undefined)}
       />
       <Box marginTop={1} flexDirection="column">
         {stack.map((entry, index) => {
@@ -104,6 +110,8 @@ function ScreenFor({ route, active }: { route: Route; active: boolean }) {
       return <WorkspacesScreen active={active} />;
     case 'help':
       return <HelpScreen />;
+    case 'chat':
+      return <ChatScreen active={active} {...(route.channel ? { initialChannel: route.channel } : {})} />;
   }
 }
 
@@ -138,6 +146,8 @@ function headerContext(route: Route, projectName: string | null | undefined): st
       return 'Workspaces';
     case 'help':
       return 'Help';
+    case 'chat':
+      return 'Chat';
     case 'home':
       return undefined;
   }

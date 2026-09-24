@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.4.1** |
-| Versión del documento | **0.4.1** (revisión 1) |
+| Versión del documento | **0.4.1** (revisión 2) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -59,7 +59,9 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 
 ### Estado actual (v0.4.1)
 
-Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub y trabajo sin conexión (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina.
+Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina.
+
+> El chat (hito v0.5) está implementado en `main` y aún no publicado; requiere `soja-backend` ≥ 0.3.0.
 
 ---
 
@@ -272,6 +274,7 @@ ID, prioridad y título siempre se muestran.
 - **Branch y Commits** (Git local): la branch de la task con su estado (`● checked out`, `not checked out`, `suggested · b to start`, `missing · b to recreate`), cambios sin guardar del repositorio, y el último commit relacionado con el número de commits adicionales. Si no hay repositorio disponible, se muestra el motivo (por ejemplo, *EnrollBridge has no repository linked*). El estado Git carga aparte, así que el detalle aparece al instante.
 - `b` inicia la task en su branch: muestra qué hará en Git (crear, cambiar o quedarse, y vincular el repositorio si hace falta) y pide confirmación.
 - **Descripción:** hasta 6 líneas, según la altura disponible.
+- **MENTIONED IN CHAT** (modo remoto): los 3 mensajes más recientes del chat que nombran la task (`SOJA-12`), con hora y autor.
 - **ACTIVITY:** el timeline con hora, actor y evento. Los comentarios se marcan con `›` y ocupan hasta 3 líneas. Arranca mostrando lo más reciente; `k` sube a lo anterior y `j` baja a lo más nuevo.
 
 ### Proyectos
@@ -287,6 +290,29 @@ ID, prioridad y título siempre se muestran.
 - Lista de tus workspaces; el activo lleva `●`.
 - Debajo, los developers del workspace activo.
 - `enter` cambia de workspace, `n` crea uno nuevo (y te cambia a él) y `a` agrega un developer.
+
+### Chat
+
+Solo en modo remoto (ver [§9](#9-modo-remoto-equipo)). `#` lo abre desde cualquier pantalla; `soja chat #canal` abre SOJA directamente en ese canal.
+
+```text
+CHANNELS                  #general  Everything, everyone
+▌#general                  18:01  @michael Hola equipo @angel, SOJA-1 falla en CI
+ #payments             1   18:02  @angel   hola desde la TUI
+[ ] switch  # all                  ↳ @angel: hola desde la TUI
+                           18:02  @angel   → SOJA-1 hola desde la TUI
+                           18:03  @michael segundo en vivo ⋯
+                          › Message #general
+```
+
+- **Lista de canales** a la izquierda en terminales de 100 columnas o más, con los no leídos (`1`) o las menciones (`@1`). En terminales estrechas, `#` (desde la lista de mensajes) elige el canal.
+- **Campo de escritura** abajo, siempre activo al entrar: `enter` envía y `alt+enter` añade una línea. Pegar texto de varias líneas conserva los saltos. `@` + `tab` completa el nombre de un miembro.
+- **`tab`** (o `↑` con el campo vacío) pasa a la lista de mensajes, donde `j`/`k` seleccionan y cada tecla actúa sobre el mensaje seleccionado (ver [§6](#6-atajos-de-teclado)). Subir más allá del primer mensaje trae los anteriores del servidor.
+- **Estados de un mensaje:** `⋯` pendiente de envío, `(edited)`, *message deleted*. Los que te mencionan se resaltan en amarillo. Una respuesta muestra arriba la cita (`↳ @autor: …`).
+- **Leído:** abrir un canal lo marca como leído en todas tus máquinas. El header muestra `✉ 3 · @1` (no leídos · menciones) en las demás pantallas.
+- **Crear una task desde un mensaje** (`t`): el título es la primera línea, la descripción cita el mensaje con su autor y canal, el requester es el autor, y SOJA responde en el canal con `→ SOJA-n título`. Funciona sin conexión: la respuesta sale con el número real (`SOJA-42`, no `SOJA-?1`).
+- **Canales nuevos:** en el selector de canales, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión).
+- Si el servidor rechaza un mensaje (por ejemplo, porque archivaron el canal mientras estabas sin conexión), aparece un aviso sobre el campo de escritura; `!` en la lista de mensajes ofrece **devolverte el texto** al campo o descartar el aviso.
 
 ### Overlays
 
@@ -340,6 +366,7 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `:` o `Ctrl+K` | Command palette |
 | `p` | Proyectos |
 | `w` | Workspaces |
+| `#` | Chat (modo remoto) |
 | `?` | Ayuda |
 | `Ctrl+C` | Salir inmediatamente |
 
@@ -378,6 +405,24 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | --- | --- |
 | `n` | Nuevo proyecto |
 | `r` | Elegir el repositorio del proyecto (selector de carpetas) |
+
+### Chat
+
+| Tecla | Acción |
+| --- | --- |
+| `enter` | Enviar (o guardar la edición) |
+| `alt+enter` | Nueva línea |
+| `tab` | Completar `@miembro`; si no hay nada que completar, ir a la lista de mensajes |
+| `esc` | Cancelar respuesta o edición; si no hay ninguna, volver |
+| `j` / `k` | Seleccionar mensaje (en la lista); `k` en el primero trae mensajes anteriores |
+| `r` | Responder citando el mensaje |
+| `t` | Crear una task desde el mensaje |
+| `e` / `d` | Editar / borrar un mensaje tuyo (borrar pide confirmación) |
+| `enter` | Abrir la task que nombra el mensaje (`SOJA-n`); si nombra varias, elegir |
+| `#` | Elegir o crear canal |
+| `[` / `]` | Canal anterior / siguiente |
+| `!` | Mensajes no aplicados: devolver el texto o descartar |
+| `tab`, `i`, `esc` | Volver al campo de escritura |
 
 ### Prioridad de las teclas
 
@@ -487,6 +532,19 @@ soja sync [--dismiss]              # sincroniza ahora y muestra conflictos y rec
 ```
 
 Ver [§9](#9-modo-remoto-equipo).
+
+### Chat
+
+```bash
+soja chat [#canal]                     # abre la interfaz en el chat (en ese canal)
+soja chat send '#general' "Deploy listo"   # envía; en cola si no hay conexión
+echo "Build roto en main" | soja chat send ci -   # `-` lee el mensaje de stdin (scripts, hooks)
+soja chat log [#canal] [-n 20]         # últimos mensajes (no los marca como leídos)
+soja chat channels                     # canales con no leídos y menciones
+soja chat new <nombre> [--topic "…"]  # crea un canal (requiere conexión)
+```
+
+`#canal` y `canal` son equivalentes; en la shell, `#` al inicio de una palabra es un comentario, así que usa comillas (`'#general'`) o escribe el nombre sin `#`.
 
 ### Herramientas de desarrollo
 
@@ -747,7 +805,7 @@ En modo remoto, SOJA guarda una **réplica local** de tu workspace (`~/.local/sh
 | Crear proyectos o workspaces, agregar developers | No: afectan a todo el equipo y necesitan el servidor |
 
 - **Números provisionales:** una task creada sin conexión aparece como `SOJA-?1`, `SOJA-?2`… y recibe su número real y consecutivo (`SOJA-42`) al sincronizar. Mientras tanto puedes usar `SOJA-?1` en cualquier comando.
-- **Cuándo sincroniza:** al abrir SOJA, cada 30 s y poco después de cada cambio en la interfaz; antes y después de cada comando en la CLI; y con `soja sync`.
+- **Cuándo sincroniza:** al abrir SOJA, cada 30 s y poco después de cada cambio en la interfaz; antes y después de cada comando en la CLI; y con `soja sync`. Con la interfaz abierta hay además una **conexión en tiempo real** (ver *Chat*): cuando otra persona cambia algo, el servidor avisa y SOJA sincroniza al momento. Si un cambio se hace mientras otra sincronización está en curso, se envía justo al terminar esa.
 - **La vista se actualiza sola** al terminar cada sincronización: una task nueva pasa de `SOJA-?1` a su número real en segundos si hay conexión.
 - **Estado:** el header muestra `⇄ servidor · 2 pending`, `offline · 2 pending` o `syncing…`. En la CLI, una línea `⇅ …` avisa si quedaron cambios en cola.
 - **Nada se aplica dos veces:** cada cambio viaja con un id único, y el servidor ignora los reintentos.
@@ -768,11 +826,21 @@ Si el servidor **rechaza** un cambio que hiciste sin conexión (por ejemplo, asi
 
 El protocolo completo está en `soja-backend/docs/SYNC.md`.
 
+### Chat (v0.5)
+
+Canales abiertos del workspace (todos nacen con `#general`), mensajes con respuestas citadas, menciones (`@angel`) y referencias a tasks (`SOJA-12`). Uso en la interfaz en [§5](#chat), teclas en [§6](#6-atajos-de-teclado) y comandos en [§7](#chat-2).
+
+- **Tiempo real:** con la interfaz abierta, SOJA mantiene una conexión WebSocket (`/v1/live`) con el servidor. Los mensajes de otros aparecen al instante, y cualquier cambio del equipo (tasks, comentarios, proyectos) dispara una sincronización inmediata. El token viaja en el primer mensaje, nunca en la URL. Si la conexión se corta, se reintenta con espera creciente (1 s → 30 s) y, al volver, se sincroniza, así que no se pierde nada. Los comandos de la CLI no abren esta conexión.
+- **Sin conexión:** el chat se abre y se lee desde la réplica. Enviar, editar, borrar y marcar como leído se encolan como cualquier cambio (`⋯` hasta que el servidor lo confirma). Los mensajes de varias personas escritos sin conexión quedan en el orden en que llegan al servidor, igual en todas las máquinas. Crear canales y traer mensajes anteriores a la réplica requieren conexión.
+- **Reglas del servidor:** solo el autor edita o borra; borrar vacía el texto para todos. Un canal archivado no acepta mensajes. Las menciones y referencias solo cuentan si el miembro o la task existen. Hasta 30 mensajes por persona cada 10 s: si envías más (por ejemplo, al reconectar tras mucho tiempo offline), el resto espera en la cola y sale solo unos segundos después.
+- **No leídos y menciones** se calculan en tu máquina a partir de la marca de lectura de cada canal, que solo avanza y se comparte entre tus máquinas.
+- El diseño completo está en `soja-backend/docs/CHAT.md`.
+
 ### Texto de otras personas en tu terminal
 
 En modo remoto, SOJA muestra texto que escriben otros: títulos, descripciones, comentarios, nombres. Una secuencia de escape ANSI escondida en ese texto podría manipular tu terminal: imitar la salida de SOJA con colores, cambiar el título de la ventana o, en terminales como kitty, **escribir en tu portapapeles**. Por eso SOJA elimina los caracteres de control (salvo saltos de línea y tabuladores) y los caracteres de dirección de texto (*bidi*):
 
-- de **todo** lo que llega del servidor, en un único punto (el cliente HTTP), antes de guardarlo en la réplica;
+- de **todo** lo que llega del servidor, en un único punto (el cliente HTTP y la conexión en tiempo real comparten el mismo lector de JSON), antes de guardarlo en la réplica, incluidos los mensajes del chat;
 - de los **mensajes y autores de commits** que muestra (pueden venir de commits ajenos traídos con `git pull`), de la salida de Git en el log en vivo y de los errores de Git.
 
 Un intento queda visible como texto inofensivo (por ejemplo `[2J`), sin efecto. El servidor, además, rechaza caracteres de control al guardar.
@@ -951,7 +1019,12 @@ Payloads de `metadata`:
 | `sync_outbox` | Operaciones pendientes de enviar, en orden (`op_id` único, tipo, task, payload, valores base, intentos, último error) |
 | `sync_pending_activity` | Eventos del timeline escritos de forma optimista; se reemplazan por los del servidor al confirmarse |
 | `sync_state` | Cursor del feed de cambios por workspace, última sincronización y último error |
-| `sync_notices` | Avisos de conflictos y rechazos, con el valor sobrescrito para restaurarlo |
+| `sync_notices` | Avisos de conflictos y rechazos, con el valor sobrescrito para restaurarlo (en el chat, `field = 'chat'` y el texto del mensaje rechazado) |
+| `chat_channels` | Canales del workspace (nombre, tema, archivado) |
+| `chat_messages` | Mensajes: `seq` (orden del servidor; `null` mientras está pendiente), canal, autor, texto, `reply_to_id`, fechas de creación, edición y borrado |
+| `chat_reads` | Hasta qué `seq` leíste cada canal |
+
+En `sync_outbox`, `task_id` es `null` para las operaciones del chat (`message.send`, `message.edit`, `message.delete`, `channel.read`; migración `0004`).
 
 Las tasks creadas sin conexión usan **números negativos** mientras son provisionales (−1 se muestra como `SOJA-?1`). En la réplica las claves foráneas están desactivadas: es una copia del servidor, que es quien impone la integridad.
 
@@ -964,8 +1037,8 @@ Las tasks creadas sin conexión usan **números negativos** mientras son provisi
 SOJA son **dos repositorios Git independientes**, sin monorepo:
 
 ```text
-soja-cli      ← este repositorio: TUI, CLI, datos locales, futuro cliente remoto
-soja-backend  ← futuro: auth, usuarios, workspaces, permisos, API, realtime
+soja-cli      ← este repositorio: TUI, CLI, datos locales, cliente del modo remoto
+soja-backend  ← auth, usuarios, workspaces, permisos, API, sincronización, chat y tiempo real
 ```
 
 El cliente **nunca** se conectará directamente a PostgreSQL. El camino será `soja-cli → SOJA API → PostgreSQL/Supabase`.
@@ -989,7 +1062,7 @@ database/                  Esquema, migraciones y cliente node:sqlite.
 application/services ──▶ git/types.ts (GitClient) ──▶ git/cli-git.ts (ejecuta `git`)
 ```
 
-**Contratos de servicio (`application/ports.ts`).** La UI y la CLI dependen de `SessionOperations`, `WorkspaceOperations`, `ProjectOperations`, `TaskOperations`, `GitOperations` y `FolderOperations`. En modo local los implementan los servicios de `application/services/` sobre SQLite. En modo remoto, los servicios de réplica de `data/sync/` reutilizan esos mismos servicios sobre la réplica local (lecturas y escrituras optimistas) y encolan cada escritura; el `SyncEngine` la envía a la API (`data/remote/api-client.ts`) y trae los cambios de otros. `bootstrap.ts` elige según `config.mode`. `GitWorkflowService` depende solo de los contratos de tasks y proyectos, así que funciona igual en ambos modos.
+**Contratos de servicio (`application/ports.ts`).** La UI y la CLI dependen de `SessionOperations`, `WorkspaceOperations`, `ProjectOperations`, `TaskOperations`, `GitOperations` y `FolderOperations`. En modo local los implementan los servicios de `application/services/` sobre SQLite. En modo remoto, los servicios de réplica de `data/sync/` reutilizan esos mismos servicios sobre la réplica local (lecturas y escrituras optimistas) y encolan cada escritura; el `SyncEngine` la envía a la API (`data/remote/api-client.ts`) y trae los cambios de otros. `bootstrap.ts` elige según `config.mode`. `GitWorkflowService` depende solo de los contratos de tasks y proyectos, así que funciona igual en ambos modos. El chat tiene su propio contrato, `ChatOperations` (`application/chat.ts`), que solo existe en modo remoto (`services.chat`); lo implementa `data/sync/chat.ts` sobre la réplica. La conexión en tiempo real (`data/remote/live.ts`) solo notifica: los mensajes se envían siempre por la cola, así que online y offline siguen el mismo camino.
 
 Git es un sistema externo, igual que la base de datos: los servicios dependen de la interfaz `GitClient`, y `bootstrap.ts` inyecta la implementación `CliGit`. `GitWorkflowService` coordina Git con `TaskService` y `ProjectService`.
 
@@ -1002,21 +1075,21 @@ Git es un sistema externo, igual que la base de datos: los servicios dependen de
 ```text
 src/
 ├── cli/            index.tsx (entrada, bin), output.ts, runtime.ts
-│   └── commands/   task, project, workspace, start, git-ops, folders, account, dev, info, tui, args
+│   └── commands/   task, project, workspace, start, git-ops, folders, account, chat, sync, dev, info, tui, args
 ├── ui/             App.tsx (arranque), Shell.tsx (header + pila de pantallas + overlay),
 │   │               app-state.tsx (sesión, navegación, overlays, avisos), copy.ts
 │   ├── branding/   brand.ts (única fuente de la identidad), Logo, CompactLogo, Header, Splash, VersionBadge
 │   ├── theme/      theme.ts (colores, glifos y estilos de estado y prioridad)
-│   ├── screens/    Setup, TaskList, Task, Projects, Workspaces, Help, ScreenFrame
+│   ├── screens/    Setup, TaskList, Task, Projects, Workspaces, Chat, Help, ScreenFrame
 │   ├── overlays/   Picker, Prompt, Search, NewTask, OverlayFrame, options, types
 │   ├── components/ TaskTable, TextInput, Footer, Labels, EmptyState, task-columns
 │   ├── hooks/      use-query, use-list, use-layout, use-task-actions, use-flows, use-commands
 │   ├── input/      dispatcher (capas de teclado), KeyProvider, text-editing, list-navigation
 │   └── navigation/ routes.ts (pila de pantallas)
-├── application/    services/ (session, workspace, project, task, git-workflow, folder), filters.ts, timeline.ts, validation.ts, types.ts
+├── application/    services/ (session, workspace, project, task, git-workflow, folder), chat.ts, ports.ts, filters.ts, timeline.ts, validation.ts, types.ts
 ├── git/            types.ts (GitClient, GitError), cli-git.ts (git/gh), console.ts (log en vivo), diagnose.ts (errores → sugerencias), merge-evidence.ts (detección de merges)
-├── domain/         task.ts, workflow.ts, activity.ts, entities.ts, naming.ts, errors.ts
-├── data/           repositories.ts, local/ (SQLite), remote/ (api-client), sync/ (réplica: store, engine, servicios)
+├── domain/         task.ts, workflow.ts, activity.ts, entities.ts, chat.ts, naming.ts, errors.ts
+├── data/           repositories.ts, local/ (SQLite), remote/ (api-client, live), sync/ (réplica: store, engine, servicios, chat)
 ├── database/       schema.ts, client.ts, migrate.ts, migrations/
 ├── config/         paths.ts (XDG), config.ts (zod, modos local/remoto), credentials.ts (tokens 0600), version.ts
 ├── dev/            seed.ts
@@ -1140,11 +1213,12 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Operaciones Git | `test/git/git-operations.test.ts`, `test/git/diagnose.test.ts` | Commit de archivos elegidos (nuevos, borrados, renombrados), rama incorrecta y validaciones; merge `--no-ff` en la base registrada, cambios sin guardar, conflictos con abort; borrar (mergeada, sin mergear con force, cambiando de branch); push a un remoto real local con log; PR con título y cuerpo; diagnóstico de 11 tipos de error; parser de `git status -z` |
 | Seguridad de terminal | `test/security.test.ts` | Secuencias hostiles (limpiar pantalla, título, portapapeles OSC 52, colores, C1, *bidi*) eliminadas del texto del servidor, de la réplica tras sincronizar, de commits ajenos, del log de Git y de los errores; saltos de línea, tabuladores y Unicode normal intactos |
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
+| Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
-| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo |
+| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **158 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado.
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **170 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy.
 
 ---
 
@@ -1165,16 +1239,17 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - El prefijo `SOJA-` es el mismo para todos los workspaces.
 - La búsqueda es por subcadena del título o por ID; no es difusa ni busca en la descripción.
 - En modo local no hay autenticación: los developers son registros locales.
-- En modo remoto no hay tiempo real: los cambios de otros llegan con la sincronización (al abrir, cada 30 s, tras tus cambios o con `soja sync`).
+- El tiempo real solo existe con la interfaz abierta; la CLI sincroniza antes y después de cada comando.
+- Chat: sin mensajes directos, canales privados, hilos, búsqueda ni notificaciones del sistema; no se pueden archivar canales ni cambiar su tema desde SOJA (el servidor ya lo permite).
+- Los *backlinks* del chat se calculan en tu máquina buscando `SOJA-n` en el texto, así que incluyen mensajes escritos antes de que la task existiera.
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
 - No se migran datos del modo local a un servidor.
-- Sin sincronización ni colaboración en tiempo real (fuera de alcance en v0.1).
 
 ### Roadmap propuesto
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-Publicados: v0.2 (Git) y v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`), en v0.4.0. Siguiente hito: v0.5, chat en tiempo real (WebSocket). La integración con la API de GitHub llega en v0.6.
+Publicados: v0.2 (Git) y v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`), en v0.4.0. Implementado y pendiente de publicar: v0.5, chat en tiempo real (WebSocket). La integración con la API de GitHub llega en v0.6.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1213,6 +1288,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.4.1 r2 | 0.4.1 + v0.5 sin publicar | 2026-09-24 | Chat del equipo: §5 pantalla, §6 teclas, §7 `soja chat`, §9 tiempo real y reglas, §11 tablas `chat_*` y `task_id` opcional en la cola (migración `0004`), §12 `ChatOperations` y `live.ts`, tests, limitaciones. Una sincronización pedida durante otra ya no se pierde. |
 | 0.4.1 r1 | 0.4.1 | 2026-09-24 | §9: texto de otras personas limpiado antes de mostrarse en la terminal (seguridad); decisiones y tests. |
 | 0.4.0 r1 | 0.4.0 | 2026-09-24 | Publicación de v0.4.0 (hitos v0.3 y v0.4): cabecera, estado actual, §9 y roadmap como publicados. |
 | 0.2.0 r5 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: la vista se actualiza al terminar cualquier sincronización. |

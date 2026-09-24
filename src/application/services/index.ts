@@ -10,6 +10,7 @@ import { SessionService } from './session-service.js';
 import { TaskService } from './task-service.js';
 import { WorkspaceService } from './workspace-service.js';
 import type {
+  ChatOperations,
   FolderOperations,
   GitOperations,
   ProjectOperations,
@@ -32,6 +33,8 @@ export interface AppServices {
   environment: { mode: 'local' } | { mode: 'remote'; server: string };
   /** Offline sync controls; present only in remote mode. */
   sync?: SyncControl;
+  /** Team chat; present only in remote mode (there is no team locally). */
+  chat?: ChatOperations;
 }
 
 export interface ServiceOptions {

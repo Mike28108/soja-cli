@@ -33,7 +33,7 @@ Crear `soja-backend` en **otro repositorio**, con API, autenticación, workspace
 
 Conservar SQLite como estado local del cliente remoto, definir una cola de operaciones, sincronización reintentable y resolución visible de conflictos. Separar el ID interno estable del número humano asignado por el servidor. Probar creación y cambios simultáneos desde dos clientes offline, cierre y reapertura, reconexión y conflictos. Protocolo y garantías definidos en `soja-backend/docs/SYNC.md` (último en llegar por campo con aviso, números provisionales, offline solo para tasks y comentarios).
 
-## v0.5 — Chat asociado al trabajo (siguiente hito)
+## v0.5 — Chat asociado al trabajo (implementado, pendiente de publicar)
 
 Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias a tareas. Enlazar tareas con mensajes y crear una tarea desde una conversación. El chat es un dominio propio, separado de `task_comments`, y solo existe en modo remoto.
 

@@ -54,13 +54,14 @@ interface ProviderProps {
   services: AppServices;
   cwd: string;
   initialSession: Session;
+  initialRoute?: Route;
   children: ReactNode;
 }
 
-export function AppStateProvider({ services, cwd, initialSession, children }: ProviderProps) {
+export function AppStateProvider({ services, cwd, initialSession, initialRoute, children }: ProviderProps) {
   const { exit } = useApp();
   const [session, setSession] = useState(initialSession);
-  const [stack, dispatch] = useReducer(navigate, [{ name: 'home' }] as Route[]);
+  const [stack, dispatch] = useReducer(navigate, navigate([{ name: 'home' }], { type: 'reset', ...(initialRoute ? { route: initialRoute } : {}) }));
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [revision, setRevision] = useState(0);
@@ -138,7 +139,8 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
       updateStatus();
       if (!report || !active) return;
       setRevision((value) => value + 1);
-      if (report.conflicts || report.rejected) {
+      if (report.chatRejected) notify(`Chat: ${report.chatRejected} message change${report.chatRejected === 1 ? '' : 's'} not applied`, 'error', 'Open the chat (#) to get your text back.');
+      else if (report.conflicts || report.rejected) {
         const parts = [
           report.conflicts && `${report.conflicts} conflict${report.conflicts === 1 ? '' : 's'}`,
           report.rejected && `${report.rejected} rejected change${report.rejected === 1 ? '' : 's'}`,
@@ -149,11 +151,14 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
     const runSync = () => sync.syncNow(workspaceId);
     const unsubscribe = sync.subscribe(onSync);
     updateStatus();
+    // Real time (chat and "something changed"); each connection starts with a sync.
+    const stopLive = sync.startLive(workspaceId);
     void runSync();
     const interval = setInterval(() => void runSync(), 30_000);
     return () => {
       active = false;
       unsubscribe();
+      stopLive();
       clearInterval(interval);
     };
   }, [services, session.workspace.id, notify]);
