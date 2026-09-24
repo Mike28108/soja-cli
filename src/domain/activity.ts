@@ -49,6 +49,12 @@ export type ActivityEvent = {
   [T in ActivityType]: { type: T; metadata: ActivityPayloads[T] };
 }[ActivityType];
 
+/** Events that describe something done in Git on a developer's machine. */
+export type GitActivityEvent = Extract<
+  ActivityEvent,
+  { type: 'git_committed' | 'git_merged' | 'git_branch_deleted' | 'git_pushed' | 'pr_opened' | 'git_merge_detected' }
+>;
+
 export type TaskActivity = ActivityEvent & {
   id: string;
   taskId: string;

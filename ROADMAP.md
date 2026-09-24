@@ -25,9 +25,9 @@ Commit, merge y borrar branch funcionan offline; push y PR necesitan conexión, 
 
 **Fuera de v0.2:** API de GitHub propia (GitHub App, OAuth), checks de CI, revisión de PRs dentro de SOJA, servidor, sincronización y chat.
 
-## v0.3 — Backend y colaboración remota
+## v0.3 — Backend y colaboración remota (en desarrollo)
 
-Crear `soja-backend` en **otro repositorio**, con API, autenticación, workspaces y reglas de tareas impuestas por el servidor. La ruta remota será `soja-cli → SOJA API → PostgreSQL`; el cliente no se conecta directamente a PostgreSQL. Mantener el modo local sin cuenta. Definir antes de implementar cómo se asignan los números `SOJA-n` cuando varios developers crean tareas. La v0.3 no implica todavía trabajo remoto sin conexión.
+Crear `soja-backend` en **otro repositorio**, con API, autenticación, workspaces y reglas de tareas impuestas por el servidor. La ruta remota será `soja-cli → SOJA API → PostgreSQL`; el cliente no se conecta directamente a PostgreSQL. Mantener el modo local sin cuenta. Numeración decidida: contador por workspace en el servidor, incrementado de forma atómica dentro de la transacción que crea la tarea. Stack decidido: Hono + PostgreSQL (Supabase) + login con GitHub (device flow); diseño en `soja-backend/docs/ARCHITECTURE.md`. La v0.3 no implica todavía trabajo remoto sin conexión.
 
 ## v0.4 — Sincronización offline
 

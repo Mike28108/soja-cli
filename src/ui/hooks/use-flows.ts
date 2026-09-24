@@ -179,13 +179,16 @@ export function useFlows() {
     },
 
     addDeveloper() {
+      const remote = services.environment.mode === 'remote';
       openOverlay({
         kind: 'prompt',
         title: 'Add developer',
-        context: session.workspace.name,
+        context: remote ? `${session.workspace.name} · GitHub login of someone who ran soja login` : session.workspace.name,
         placeholder: 'username, e.g. angel',
         onSubmit: (username) =>
-          openOverlay({
+          remote
+            ? run(() => services.workspaces.addMember(session, { username }), `@${username.trim().replace(/^@/, '').toLowerCase()} joined ${session.workspace.name}`)
+            : openOverlay({
             kind: 'prompt',
             title: 'Display name',
             context: `@${username.trim().toLowerCase()}`,

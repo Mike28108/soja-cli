@@ -18,6 +18,9 @@ export async function devCommand(args: string[]): Promise<void> {
       return;
     case 'seed':
       await withServices(async (services) => {
+        if (services.environment.mode === 'remote') {
+          throw new ValidationError('Demo data is only for local mode.', { hint: 'Run `soja mode local` first.' });
+        }
         const result = await seedDemoData(services);
         success(`Seeded ${bold(result.session.workspace.name)}: ${result.projects} projects, ${result.tasks} tasks`);
         print(dim(`  You are @${result.session.user.username}. Run \`npm run dev\` to look around.`));

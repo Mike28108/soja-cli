@@ -9,10 +9,12 @@ interface HeaderProps {
   context?: string | undefined;
   username: string;
   width: number;
+  /** Host of the SOJA server in remote mode. */
+  server?: string | undefined;
 }
 
 /** The discreet line that stays on top during normal use. */
-export function Header({ workspace, context, username, width }: HeaderProps) {
+export function Header({ workspace, context, username, width, server }: HeaderProps) {
   const roomy = width >= 60;
   return (
     <Box justifyContent="space-between" width={width}>
@@ -24,6 +26,7 @@ export function Header({ workspace, context, username, width }: HeaderProps) {
         </Text>
       </Box>
       <Box gap={2} flexShrink={0}>
+        {server ? <Text dimColor>{`⇄ ${server}`}</Text> : null}
         <Text dimColor>@{username}</Text>
         {roomy ? <VersionBadge /> : null}
       </Box>

@@ -1,4 +1,4 @@
-import type { MemberWithUser } from '../../data/repositories.js';
+import type { Member } from '../../application/types.js';
 import type { Project } from '../../domain/entities.js';
 import { TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES, TYPE_LABELS } from '../../domain/task.js';
 import { priorityStyles, statusStyles } from '../theme/theme.js';
@@ -18,7 +18,7 @@ export const priorityOptions: PickerOption[] = [...TASK_PRIORITIES].reverse().ma
 
 export const typeOptions: PickerOption[] = TASK_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }));
 
-export function memberOptions(members: readonly MemberWithUser[], meId: string): PickerOption[] {
+export function memberOptions(members: readonly Member[], meId: string): PickerOption[] {
   return [
     ...members.map((member) => ({
       value: member.id,

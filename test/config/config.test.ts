@@ -14,6 +14,7 @@ describe('resolvePaths', () => {
       configDir: '/conf/soja',
       databaseFile: '/data/soja/soja.db',
       configFile: '/conf/soja/config.json',
+      credentialsFile: '/conf/soja/credentials.json',
     });
   });
 
@@ -51,10 +52,24 @@ describe('FileConfigStore', () => {
     expect(() => new FileConfigStore(file).load()).toThrow(/not valid JSON/);
   });
 
-  it('recognizes the future remote mode and says it is not available yet', () => {
+  it('explains remote mode without a server', () => {
     dir = tempDir();
     const file = join(dir.path, 'config.json');
-    writeFileSync(file, JSON.stringify({ mode: 'remote', apiUrl: 'https://api.soja.dev' }));
-    expect(() => new FileConfigStore(file).load()).toThrow('Remote mode is not available in this version of SOJA.');
+    writeFileSync(file, JSON.stringify({ mode: 'remote' }));
+    expect(() => new FileConfigStore(file).load()).toThrow('Remote mode is set but no server is configured.');
+  });
+
+  it('keeps the local session next to the remote settings', () => {
+    dir = tempDir();
+    const file = join(dir.path, 'config.json');
+    const config = {
+      mode: 'remote' as const,
+      userId: 'u',
+      workspaceId: 'w',
+      parentFolders: [],
+      remote: { apiUrl: 'https://api.soja.dev', workspaceId: 'rw', repositoryPaths: { p1: '/code/x' } },
+    };
+    writeFileSync(file, JSON.stringify(config));
+    expect(new FileConfigStore(file).load()).toEqual(config);
   });
 });

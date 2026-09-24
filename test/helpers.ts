@@ -22,7 +22,7 @@ export interface TestApp extends AppRuntime {
 export async function createTestApp(paths: Partial<SojaPaths> = {}, git?: GitClient): Promise<TestApp> {
   const config = new MemoryConfigStore();
   const runtime = await bootstrap({
-    paths: { dataDir: '', configDir: '', configFile: '', databaseFile: ':memory:', ...paths },
+    paths: { dataDir: '', configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:', ...paths },
     config,
     clock: steppingClock(),
     ...(git ? { git } : {}),

@@ -8,17 +8,27 @@ import { ProjectService } from './project-service.js';
 import { SessionService } from './session-service.js';
 import { TaskService } from './task-service.js';
 import { WorkspaceService } from './workspace-service.js';
+import type {
+  FolderOperations,
+  GitOperations,
+  ProjectOperations,
+  SessionOperations,
+  TaskOperations,
+  WorkspaceOperations,
+} from '../ports.js';
 
 /** Everything the CLI and the TUI are allowed to call. Both get the same instance shape. */
 export interface AppServices {
-  session: SessionService;
-  workspaces: WorkspaceService;
-  projects: ProjectService;
-  tasks: TaskService;
-  git: GitWorkflowService;
-  folders: FolderService;
+  session: SessionOperations;
+  workspaces: WorkspaceOperations;
+  projects: ProjectOperations;
+  tasks: TaskOperations;
+  git: GitOperations;
+  folders: FolderOperations;
   /** Live log of the Git commands SOJA runs, for the interface to display. */
   gitConsole: GitConsole;
+  /** Where the data lives: this machine (SQLite) or a SOJA server. */
+  environment: { mode: 'local' } | { mode: 'remote'; server: string };
 }
 
 export interface ServiceOptions {
@@ -36,9 +46,10 @@ export function createServices(repos: Repositories, config: ConfigStore, options
     workspaces,
     projects,
     tasks,
-    git: new GitWorkflowService(repos, tasks, projects, options.git),
+    git: new GitWorkflowService(tasks, projects, options.git),
     folders: new FolderService(config),
     gitConsole: options.gitConsole ?? new GitConsole(),
+    environment: { mode: 'local' },
   };
 }
 
