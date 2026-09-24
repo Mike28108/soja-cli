@@ -7,12 +7,12 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.2.0** |
-| Versión del documento | **0.2.0** (revisión 1) |
+| Versión del documento | **0.2.0** (revisión 2), con cambios de v0.3 aún sin publicar |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
-Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo cambio que modifica la app (ver [Versionado y mantenimiento](#16-versionado-y-mantenimiento-de-este-documento)). El detalle de qué cambió en cada versión está en [`CHANGELOG.md`](../CHANGELOG.md).
+Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo cambio que modifica la app (ver [Versionado y mantenimiento](#17-versionado-y-mantenimiento-de-este-documento)). El detalle de qué cambió en cada versión está en [`CHANGELOG.md`](../CHANGELOG.md).
 
 ---
 
@@ -26,14 +26,15 @@ Este documento describe el estado **actual** de SOJA. Se actualiza en el mismo c
 6. [Atajos de teclado](#6-atajos-de-teclado)
 7. [CLI no interactiva](#7-cli-no-interactiva)
 8. [Flujo de trabajo con Git](#8-flujo-de-trabajo-con-git)
-9. [Configuración y datos locales](#9-configuración-y-datos-locales)
-10. [Modelo de datos](#10-modelo-de-datos)
-11. [Arquitectura](#11-arquitectura)
-12. [Decisiones técnicas](#12-decisiones-técnicas)
-13. [Guía de desarrollo](#13-guía-de-desarrollo)
-14. [Testing](#14-testing)
-15. [Limitaciones conocidas y roadmap](#15-limitaciones-conocidas-y-roadmap)
-16. [Versionado y mantenimiento de este documento](#16-versionado-y-mantenimiento-de-este-documento)
+9. [Modo remoto (equipo)](#9-modo-remoto-equipo)
+10. [Configuración y datos locales](#10-configuración-y-datos-locales)
+11. [Modelo de datos](#11-modelo-de-datos)
+12. [Arquitectura](#12-arquitectura)
+13. [Decisiones técnicas](#13-decisiones-técnicas)
+14. [Guía de desarrollo](#14-guía-de-desarrollo)
+15. [Testing](#15-testing)
+16. [Limitaciones conocidas y roadmap](#16-limitaciones-conocidas-y-roadmap)
+17. [Versionado y mantenimiento de este documento](#17-versionado-y-mantenimiento-de-este-documento)
 
 ---
 
@@ -58,7 +59,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 
 ### Estado actual (v0.2.0)
 
-Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. Incluye el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión salvo push y PR. La arquitectura ya está preparada para un futuro `soja-backend` (ver [§11.4](#114-evolución-hacia-modo-remoto)).
+Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. Incluye el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión salvo push y PR. En desarrollo (v0.3): **modo remoto** para trabajar en equipo contra `soja-backend` (ver [§9](#9-modo-remoto-equipo)). El modo local sigue siendo el predeterminado.
 
 ---
 
@@ -473,11 +474,24 @@ soja workspace list
 soja use <slug o nombre>          # equivale a: soja workspace use <…>
 ```
 
+### Cuenta y modo remoto
+
+```bash
+soja login [--server <url>]        # device flow de GitHub; activa el modo remoto
+soja logout
+soja mode [local|remote]
+soja whoami
+soja workspace create <nombre>     # en ambos modos; te deja como owner y la activa
+soja workspace add <username>      # agrega un developer al workspace activo
+```
+
+Ver [§9](#9-modo-remoto-equipo).
+
 ### Herramientas de desarrollo
 
 ```bash
 soja dev migrate      # aplica migraciones pendientes
-soja dev seed         # datos demo
+soja dev seed         # datos demo (solo en modo local)
 soja dev reset [--yes]  # borra la base de datos y la config (pide escribir "reset")
 ```
 
@@ -662,7 +676,71 @@ En la interfaz, lo mismo es: abrir la task → `b` → trabajar → `C` → `g` 
 
 ---
 
-## 9. Configuración y datos locales
+## 9. Modo remoto (equipo)
+
+En desarrollo para v0.3. Hasta aquí SOJA guarda todo en tu máquina (**modo local**). En **modo remoto**, un equipo comparte workspaces, proyectos y tasks a través de un servidor [`soja-backend`](https://github.com/Mike28108/soja-backend) (repositorio aparte). La interfaz y los comandos son los mismos; solo cambia dónde viven los datos.
+
+```text
+soja (tu máquina) ──HTTPS──▶ soja-backend ──▶ PostgreSQL (Supabase)
+```
+
+### Empezar
+
+```bash
+soja login --server https://tu-servidor-soja
+#  1. Open   https://github.com/login/device
+#  2. Enter  ABCD-1234        ← apruebas una vez en el navegador
+#  ✓ Signed in as @michael
+
+soja workspace create "Bravos Development"   # el primero de tu equipo
+soja workspace add angel                     # angel debe haber hecho `soja login` antes
+```
+
+- **Login con GitHub** (*device flow*, como `gh auth login`): SOJA muestra un código que apruebas en el navegador. SOJA no ve tu contraseña y no guarda tu token de GitHub.
+- El token de SOJA se guarda en `~/.config/soja/credentials.json` con permisos `0600`, separado de `config.json`.
+- Tu username es tu login de GitHub.
+
+### Cambiar de modo
+
+```bash
+soja mode              # muestra el modo actual
+soja mode local        # tus datos locales (SQLite), sin cerrar sesión en el servidor
+soja mode remote       # vuelve al servidor
+soja logout            # revoca la sesión en el servidor y vuelve a local
+soja whoami            # usuario, workspace y modo
+```
+
+Los dos modos conviven en `config.json`: cambiar de uno a otro no borra nada. En la interfaz, el header muestra `⇄ servidor` cuando estás en modo remoto.
+
+### Qué se comparte y qué no
+
+| Dato | Dónde vive |
+| --- | --- |
+| Workspaces, miembros, proyectos, tasks, comentarios, actividad | Servidor (lo ve todo el equipo) |
+| Branch de cada task y eventos Git (commits, merges, PR…) | Servidor; los reporta la máquina que ejecutó Git |
+| Ruta local del repositorio de cada proyecto | **Solo en tu máquina** (`config.json` → `remote.repositoryPaths`): cada developer tiene el repositorio en su propia carpeta |
+| Carpetas padre, URL del servidor, workspace activo | Solo en tu máquina |
+
+Git sigue siendo **local**: `soja start`, commit, merge y push se ejecutan en tu repositorio, y el servidor solo recibe el resultado para el timeline.
+
+### Reglas en el servidor
+
+En modo remoto el servidor aplica las reglas, así que todos los clientes ven lo mismo:
+
+- los números `SOJA-n` (atómicos aunque dos developers creen tasks a la vez);
+- una entrada de actividad por cada cambio real;
+- las transiciones de estado;
+- la validación de miembros y proyectos.
+
+Solo los *owners* agregan developers.
+
+### Sin conexión
+
+En v0.3, el modo remoto **necesita el servidor**: sin conexión verás *Could not reach the SOJA server…* con la sugerencia de pasar a `soja mode local`. El trabajo offline sobre datos remotos llega en v0.4.
+
+---
+
+## 10. Configuración y datos locales
 
 SOJA sigue la especificación XDG.
 
@@ -670,6 +748,7 @@ SOJA sigue la especificación XDG.
 | --- | --- | --- |
 | Base de datos | `$XDG_DATA_HOME/soja/soja.db` | `~/.local/share/soja/soja.db` |
 | Configuración | `$XDG_CONFIG_HOME/soja/config.json` | `~/.config/soja/config.json` |
+| Tokens de servidores SOJA (modo remoto) | `$XDG_CONFIG_HOME/soja/credentials.json` (permisos `0600`) | `~/.config/soja/credentials.json` |
 
 Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa modo WAL, así que junto a ella aparecen los archivos `soja.db-wal` y `soja.db-shm`.
 
@@ -680,13 +759,19 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
   "mode": "local",
   "userId": "<uuid>",
   "workspaceId": "<uuid del workspace activo>",
-  "parentFolders": ["/home/tu-usuario/workspace/products", "/home/tu-usuario/workspace/services"]
+  "parentFolders": ["/home/tu-usuario/workspace/products", "/home/tu-usuario/workspace/services"],
+  "remote": {
+    "apiUrl": "https://tu-servidor-soja",
+    "workspaceId": "<uuid del workspace activo en el servidor>",
+    "repositoryPaths": { "<uuid del proyecto>": "/home/tu-usuario/workspace/products/enrollbridge" }
+  }
 }
 ```
 
 - Se valida con zod al cargar. Si el JSON está roto o la forma es inesperada, SOJA muestra un error claro y sugiere cómo arreglarlo.
 - `parentFolders` (opcional, por defecto `[]`): carpetas que contienen tus repositorios (ver [§8](#8-flujo-de-trabajo-con-git)). Los `config.json` de v0.1, que no tienen este campo, siguen funcionando. Cambiar de workspace conserva la lista.
-- `"mode": "remote"` se reconoce, pero se rechaza con el mensaje *"Remote mode is not available in this version of SOJA"*. Queda reservado para el futuro (`{ "mode": "remote", "apiUrl": "…" }`).
+- `mode` elige de dónde salen los datos: `local` (SQLite, `userId`/`workspaceId`) o `remote` (bloque `remote`). Ambos bloques conviven; `soja mode` cambia entre ellos.
+- `remote` lo escribe `soja login`. El token **no** está aquí sino en `credentials.json`.
 - Si el workspace activo desaparece, SOJA cambia automáticamente a otro workspace del usuario. Si el usuario desaparece (por ejemplo, tras un reset), vuelve a ejecutar el setup.
 
 ### Variables de entorno
@@ -699,7 +784,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 
 ---
 
-## 10. Modelo de datos
+## 11. Modelo de datos
 
 SQLite, definido en `src/database/schema.ts`. Las migraciones se generan con drizzle-kit en `src/database/migrations/`.
 
@@ -821,9 +906,9 @@ Payloads de `metadata`:
 
 ---
 
-## 11. Arquitectura
+## 12. Arquitectura
 
-### 11.1 Repositorios del producto
+### 12.1 Repositorios del producto
 
 SOJA son **dos repositorios Git independientes**, sin monorepo:
 
@@ -834,7 +919,7 @@ soja-backend  ← futuro: auth, usuarios, workspaces, permisos, API, realtime
 
 El cliente **nunca** se conectará directamente a PostgreSQL. El camino será `soja-cli → SOJA API → PostgreSQL/Supabase`.
 
-### 11.2 Capas
+### 12.2 Capas
 
 ```text
 cli/   ui/                 Puntos de entrada: comandos y pantallas Ink.
@@ -853,18 +938,20 @@ database/                  Esquema, migraciones y cliente node:sqlite.
 application/services ──▶ git/types.ts (GitClient) ──▶ git/cli-git.ts (ejecuta `git`)
 ```
 
+**Contratos de servicio (`application/ports.ts`).** La UI y la CLI dependen de `SessionOperations`, `WorkspaceOperations`, `ProjectOperations`, `TaskOperations`, `GitOperations` y `FolderOperations`. En modo local los implementan los servicios de `application/services/` sobre SQLite; en modo remoto, las clases de `data/remote/` sobre la API. `bootstrap.ts` elige según `config.mode`. `GitWorkflowService` depende solo de los contratos de tasks y proyectos, así que funciona igual en ambos modos.
+
 Git es un sistema externo, igual que la base de datos: los servicios dependen de la interfaz `GitClient`, y `bootstrap.ts` inyecta la implementación `CliGit`. `GitWorkflowService` coordina Git con `TaskService` y `ProjectService`.
 
 - `domain/` contiene tipos y reglas puras (enums, workflow de estados, nombres, errores). No depende de nada.
 - `bootstrap.ts` es la **raíz de composición**: el único archivo que sabe que los repositorios son locales.
 - La CLI y la TUI llaman a los mismos métodos. Por ejemplo, `soja task done` y la tecla `x` terminan en `TaskService.complete`.
 
-### 11.3 Estructura de carpetas
+### 12.3 Estructura de carpetas
 
 ```text
 src/
 ├── cli/            index.tsx (entrada, bin), output.ts, runtime.ts
-│   └── commands/   task, project, workspace, start, folders, dev, info, tui, args
+│   └── commands/   task, project, workspace, start, git-ops, folders, account, dev, info, tui, args
 ├── ui/             App.tsx (arranque), Shell.tsx (header + pila de pantallas + overlay),
 │   │               app-state.tsx (sesión, navegación, overlays, avisos), copy.ts
 │   ├── branding/   brand.ts (única fuente de la identidad), Logo, CompactLogo, Header, Splash, VersionBadge
@@ -878,29 +965,24 @@ src/
 ├── application/    services/ (session, workspace, project, task, git-workflow, folder), filters.ts, timeline.ts, validation.ts, types.ts
 ├── git/            types.ts (GitClient, GitError), cli-git.ts (git/gh), console.ts (log en vivo), diagnose.ts (errores → sugerencias), merge-evidence.ts (detección de merges)
 ├── domain/         task.ts, workflow.ts, activity.ts, entities.ts, naming.ts, errors.ts
-├── data/           repositories.ts, local/
+├── data/           repositories.ts, local/ (SQLite), remote/ (api-client, servicios remotos)
 ├── database/       schema.ts, client.ts, migrate.ts, migrations/
-├── config/         paths.ts (XDG), config.ts (zod), version.ts
+├── config/         paths.ts (XDG), config.ts (zod, modos local/remoto), credentials.ts (tokens 0600), version.ts
 ├── dev/            seed.ts
 ├── utils/          errors.ts, text.ts, time.ts
 └── bootstrap.ts
 test/               domain/, application/, config/, data/, ui/, helpers.ts
 ```
 
-### 11.4 Evolución hacia modo remoto
+### 12.4 Modo remoto
 
-**Problema arquitectónico conocido.** Hoy `TaskService` es dueño de reglas que, con varios usuarios, debe imponer el servidor: la numeración de tasks, el registro de actividad y la validación de membresías. Un `RemoteTaskRepository` que solo replicara el CRUD actual duplicaría esas reglas en el cliente y confiaría en que cada cliente escriba la actividad honestamente.
+El problema previsto en v0.1 se resolvió como se recomendaba: en modo remoto, las reglas que exigen una única fuente de verdad (numeración, actividad, membresías, transiciones) viven en `soja-backend`, que expone una API orientada a comandos (`POST /tasks/:n/changes`, `/start`, `/comments`, `/git-events`…). Los servicios remotos del cliente (`data/remote/services.ts`) son finos: traducen cada operación a una llamada y construyen el timeline localmente a partir de la actividad y los comentarios que devuelve el servidor. Diseño completo en `soja-backend/docs/ARCHITECTURE.md`.
 
-**Camino recomendado:**
-
-1. `soja-backend` expone una API por comandos: crear task, aplicar cambios, comentar, completar. El servidor asigna los números y escribe la actividad.
-2. `data/remote/` implementa los repositorios contra esa API. Las operaciones con reglas se delegan al backend, que devuelve la entidad actualizada.
-3. `bootstrap.ts` elige la implementación según `config.mode`.
-4. La UI y la CLI no cambian: solo dependen de los servicios.
+**Deuda conocida:** las reglas puras del dominio (`task.ts`, `workflow.ts`, `naming.ts`, `activity.ts`) están copiadas en ambos repositorios. Si crecen, conviene publicarlas como paquete compartido.
 
 ---
 
-## 12. Decisiones técnicas
+## 13. Decisiones técnicas
 
 | Decisión | Motivo |
 | --- | --- |
@@ -919,6 +1001,9 @@ test/               domain/, application/, config/, data/, ui/, helpers.ts
 | Git mediante el binario `git` (`execFile`, sin shell, `GIT_TERMINAL_PROMPT=0`, `LC_ALL=C`) | Sin dependencias; usa la configuración del usuario; nunca queda esperando credenciales; los errores se leen igual en cualquier idioma. |
 | En `soja start`, primero Git y después la base de datos | Un fallo de Git nunca deja una task "iniciada" con una branch que no existe. |
 | `soja start` reutiliza `TaskService.start` | Las reglas de "tomar una task" viven en un solo lugar, para la CLI y la TUI. |
+| Modo remoto detrás de los mismos contratos de servicio | La UI y los comandos no saben de dónde salen los datos; añadir el modo remoto no tocó ninguna pantalla. |
+| Rutas de repositorio solo en la máquina (`remote.repositoryPaths`) | Cada developer tiene el repositorio en su carpeta; el servidor solo comparte la URL. |
+| Token de sesión en `credentials.json` (0600), aparte de `config.json` | La configuración se puede compartir o inspeccionar sin exponer credenciales. |
 | Merges externos → Done automáticamente, solo con evidencia local | Refleja el trabajo hecho con otras herramientas sin pedir nada; sin red, sin falsos positivos por branches recién creadas (`branch_start`) ni por commits que solo mencionan la task. |
 | Credenciales delegadas en Git y `gh`; `i` pausa la TUI (`suspendTerminal` de Ink) | SOJA nunca maneja secretos, y funciona con cualquier configuración (SSH, HTTPS, gestores de credenciales). |
 | Comandos sin prompts por defecto (`GIT_TERMINAL_PROMPT=0`, `GH_PROMPT_DISABLED=1`) | Nada queda esperando credenciales dentro de la interfaz; el modo interactivo es explícito. |
@@ -931,7 +1016,7 @@ test/               domain/, application/, config/, data/, ui/, helpers.ts
 
 ---
 
-## 13. Guía de desarrollo
+## 14. Guía de desarrollo
 
 ### Scripts
 
@@ -959,7 +1044,7 @@ XDG_DATA_HOME=/tmp/soja-sandbox XDG_CONFIG_HOME=/tmp/soja-sandbox npm run dev
 1. Edita `src/database/schema.ts`.
 2. Ejecuta `npm run db:generate -- --name <descripcion>`.
 3. Revisa el SQL generado en `src/database/migrations/` y súbelo al repositorio junto con `meta/`.
-4. Actualiza la [§10 Modelo de datos](#10-modelo-de-datos) de este documento.
+4. Actualiza la [§11 Modelo de datos](#11-modelo-de-datos) de este documento.
 
 Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 
@@ -970,7 +1055,7 @@ Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 3. **Repositorio**, si hace falta un acceso nuevo: primero la interfaz en `data/repositories.ts`, luego la implementación en `data/local/`.
 4. **UI:** pantallas y overlays llaman al servicio a través de `useAppState().services`. Las mutaciones van por `run()`, que refresca los datos y muestra la confirmación o el error.
 5. **CLI**, si corresponde: el comando en `src/cli/commands/`.
-6. **Documentación:** actualiza este archivo y `CHANGELOG.md` (ver [§16](#16-versionado-y-mantenimiento-de-este-documento)).
+6. **Documentación:** actualiza este archivo y `CHANGELOG.md` (ver [§17](#17-versionado-y-mantenimiento-de-este-documento)).
 
 ### Reglas de código
 
@@ -983,7 +1068,7 @@ Las migraciones se aplican automáticamente, en una transacción, al abrir SOJA.
 
 ---
 
-## 14. Testing
+## 15. Testing
 
 Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 
@@ -999,15 +1084,16 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Persistencia | `test/data/persistence.test.ts` | Cerrar y reabrir sobre un archivo SQLite real |
 | UI (lógica) | `test/ui/input.test.ts`, `test/ui/layout.test.ts` | Edición de texto, navegación de listas, dispatcher, columnas responsive, pila de navegación, helpers de texto y tiempo |
 | Operaciones Git | `test/git/git-operations.test.ts`, `test/git/diagnose.test.ts` | Commit de archivos elegidos (nuevos, borrados, renombrados), rama incorrecta y validaciones; merge `--no-ff` en la base registrada, cambios sin guardar, conflictos con abort; borrar (mergeada, sin mergear con force, cambiando de branch); push a un remoto real local con log; PR con título y cuerpo; diagnóstico de 11 tipos de error; parser de `git status -z` |
+| Modo remoto | `test/data/remote.test.ts` | Sesión y workspace desde el servidor, token enviado, sin token, tasks por número y timeline local, errores del servidor mapeados a los locales, servidor inalcanzable, rutas de repositorio solo locales, permisos 0600 de `credentials.json` |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **142 tests en verde**.
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **150 tests en verde**. El modo remoto se verificó además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas (solo GitHub estaba simulado).
 
 ---
 
-## 15. Limitaciones conocidas y roadmap
+## 16. Limitaciones conocidas y roadmap
 
 ### Limitaciones actuales
 
@@ -1024,19 +1110,21 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - El prefijo `SOJA-` es el mismo para todos los workspaces.
 - La búsqueda es por subcadena del título o por ID; no es difusa ni busca en la descripción.
 - En modo local no hay autenticación: los developers son registros locales.
+- El modo remoto necesita conexión (v0.4 añade trabajo offline) y no hay actualizaciones en tiempo real: los cambios de otros se ven al recargar la vista.
+- No se migran datos del modo local a un servidor.
 - Sin sincronización ni colaboración en tiempo real (fuera de alcance en v0.1).
 
 ### Roadmap propuesto
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-El flujo Git de v0.2 está publicado (ver [§8](#8-flujo-de-trabajo-con-git)). El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
+El flujo Git de v0.2 está publicado (ver [§8](#8-flujo-de-trabajo-con-git)) y v0.3 (modo remoto + `soja-backend`) está en desarrollo (ver [§9](#9-modo-remoto-equipo)). La sincronización offline, el chat y la integración con la API de GitHub permanecen en hitos posteriores.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
 ---
 
-## 16. Versionado y mantenimiento de este documento
+## 17. Versionado y mantenimiento de este documento
 
 ### Versionado de la app
 
@@ -1069,6 +1157,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.2.0 r2 | 0.2.0 + v0.3 sin publicar | 2026-09-24 | Nueva §9 *Modo remoto (equipo)* (secciones siguientes renumeradas); `soja login/logout/mode/whoami`, `workspace create/add`; config con modos local/remoto y `credentials.json`; contratos de servicio y `data/remote/`. |
 | 0.2.0 r1 | 0.2.0 | 2026-09-24 | Publicación de v0.2.0: cabecera, estado actual y §8 describen el flujo Git como publicado. |
 | 0.1.0 r6 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Detección de merges hechos fuera de SOJA (→ Done), aviso y *Forget branch* para branches borradas sin merge, columna `branch_start` y evento `git_merge_detected` (migración `0002`). |
 | 0.1.0 r5 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Operaciones Git desde la task (commit con selección de archivos, push, PR, merge, abort, borrar branch), log en vivo, errores con sugerencias, autenticación delegada; comandos CLI `commit`, `merge`, `branch delete`, `push`, `pr`; columna `base_branch` y 5 eventos nuevos. |

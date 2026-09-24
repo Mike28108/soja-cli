@@ -1,10 +1,15 @@
-import type { Project, ProjectRef, User, UserRef, Workspace } from '../domain/entities.js';
+import type { Project, ProjectRef, User, UserRef, Workspace, WorkspaceRole } from '../domain/entities.js';
 import type { StatusCounts, Task } from '../domain/task.js';
 
 /** Who is acting and where. Every workspace-scoped service call takes one. */
 export interface Session {
   user: User;
   workspace: Workspace;
+}
+
+/** A developer in a workspace, as every data source can provide it. */
+export interface Member extends UserRef {
+  role: WorkspaceRole;
 }
 
 export interface TaskView extends Task {

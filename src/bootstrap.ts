@@ -6,6 +6,10 @@ import { openDatabase } from './database/client.js';
 import { runMigrations } from './database/migrate.js';
 import { CliGit } from './git/cli-git.js';
 import { GitConsole } from './git/console.js';
+import { CredentialStore } from './config/credentials.js';
+import { ApiClient } from './data/remote/api-client.js';
+import { createRemoteServices } from './data/remote/index.js';
+import { SojaError } from './domain/errors.js';
 import type { GitClient } from './git/types.js';
 
 export interface AppRuntime {
@@ -17,8 +21,11 @@ export interface AppRuntime {
 export interface BootstrapOptions {
   paths?: SojaPaths;
   config?: ConfigStore;
+  credentials?: CredentialStore;
   clock?: () => Date;
   git?: GitClient;
+  /** HTTP for remote mode (tests pass the server app's fetch). */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -29,6 +36,22 @@ export interface BootstrapOptions {
 export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRuntime> {
   const paths = options.paths ?? resolvePaths();
   const config = options.config ?? new FileConfigStore(paths.configFile);
+  const gitConsole = new GitConsole();
+  const git = options.git ?? new CliGit(gitConsole);
+
+  const loaded = config.load();
+  if (loaded?.mode === 'remote' && loaded.remote) {
+    const credentials = options.credentials ?? new CredentialStore(paths.credentialsFile);
+    const token = credentials.token(loaded.remote.apiUrl);
+    if (!token) {
+      throw new SojaError(`Not signed in to ${loaded.remote.apiUrl}.`, {
+        hint: `Run \`soja login --server ${loaded.remote.apiUrl}\`, or \`soja mode local\` to work locally.`,
+      });
+    }
+    const api = new ApiClient(loaded.remote.apiUrl, token, options.fetch);
+    return { services: createRemoteServices(api, config, git, gitConsole), paths, close: () => undefined };
+  }
+
   const handle = openDatabase(paths.databaseFile);
   try {
     await runMigrations(handle);
@@ -37,9 +60,8 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
     throw error;
   }
   const repos = createLocalRepositories(handle, options.clock);
-  const gitConsole = new GitConsole();
   const services = createServices(repos, config, {
-    git: options.git ?? new CliGit(gitConsole),
+    git,
     gitConsole,
     ...(options.clock ? { clock: options.clock } : {}),
   });
