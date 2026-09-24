@@ -1,3 +1,4 @@
+import type { ActivityEvent } from '../domain/activity.js';
 import type { Project, ProjectRef, User, UserRef, Workspace, WorkspaceRole } from '../domain/entities.js';
 import type { StatusCounts, Task } from '../domain/task.js';
 
@@ -20,7 +21,7 @@ export interface TaskView extends Task {
 }
 
 export type TimelineEntry =
-  | { kind: 'event'; id: string; at: Date; actor: UserRef | null; text: string }
+  | { kind: 'event'; id: string; at: Date; actor: UserRef | null; text: string; event: ActivityEvent }
   | { kind: 'comment'; id: string; at: Date; actor: UserRef | null; body: string };
 
 export interface TaskDetails extends TaskView {

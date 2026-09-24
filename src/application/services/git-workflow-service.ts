@@ -3,9 +3,9 @@ import type { Project } from '../../domain/entities.js';
 import { SojaError } from '../../domain/errors.js';
 import { formatTaskRef, isClosed, suggestBranchName, taskMentionPattern, type Task } from '../../domain/task.js';
 import { findMergeEvidence } from '../../git/merge-evidence.js';
-import type { GitActivityEvent } from '../../domain/activity.js';
+import type { ActivityEvent, GitActivityEvent } from '../../domain/activity.js';
 import { ValidationError } from '../../domain/errors.js';
-import { GitError, type ChangedFile, type GitClient, type GitCommit, type RemoteOptions } from '../../git/types.js';
+import { GitError, type ChangedFile, type GitClient, type GitCommit, type PullRequest, type RemoteOptions } from '../../git/types.js';
 import type { Session, TaskView } from '../types.js';
 import type { ProjectOperations, TaskOperations } from '../ports.js';
 import type { TaskTarget } from './task-service.js';
@@ -74,7 +74,31 @@ export interface MergePlan extends TaskContext {
   uncommitted: number;
 }
 
+/** A task's pull request, as the GitHub CLI reports it. Problems are reported, never thrown. */
+export type TaskPullRequestState =
+  | { status: 'none'; reason: string }
+  | { status: 'unavailable'; reason: string; hint: string | undefined; code: string }
+  | { status: 'found'; pr: PullRequest };
+
+/** Something that happened on GitHub and SOJA just learned (and recorded). */
+export type PullRequestUpdate =
+  | { kind: 'merged'; task: TaskView; pr: PullRequest }
+  | { kind: 'checks_failed'; task: TaskView; pr: PullRequest };
+
+/** Reasons to think twice before merging a pull request, in plain words. */
+export function pullRequestWarnings(pr: PullRequest): string[] {
+  return [
+    pr.checks.failed > 0 ? `${pr.checks.failed} check${pr.checks.failed === 1 ? '' : 's'} failing` : null,
+    pr.checks.pending > 0 ? `${pr.checks.pending} still running` : null,
+    pr.review === 'changes_requested' ? 'changes requested' : pr.review === 'review_required' ? 'not approved yet' : null,
+    pr.mergeable === 'conflicting' ? 'conflicts with the base' : null,
+  ].filter((warning): warning is string => warning !== null);
+}
+
 const COMMIT_LIMIT = 10;
+/** Pull request lists are reused for this long, so moving around the lists does not call GitHub each time. */
+const PR_CACHE_MS = 60_000;
+const PR_LIST_LIMIT = 100;
 
 /**
  * Local Git flow for tasks. Everything here works offline. Git runs first
@@ -82,10 +106,13 @@ const COMMIT_LIMIT = 10;
  * task "started" on a branch that does not exist.
  */
 export class GitWorkflowService {
+  private readonly pullRequestCache = new Map<string, { at: number; list: Promise<PullRequest[]> }>();
+
   constructor(
     private readonly tasks: TaskOperations,
     private readonly projects: ProjectOperations,
     private readonly git: GitClient,
+    private readonly now: () => number = Date.now,
   ) {}
 
   /**
@@ -404,6 +431,123 @@ export class GitWorkflowService {
     return this.tasks.update(session, target, { branch: null, baseBranch: null, branchStart: null });
   }
 
+  // ── Pull requests on GitHub (v0.6, through the GitHub CLI) ──────────────
+
+  /** The task's pull request, fresh from GitHub. */
+  async pullRequest(session: Session, target: TaskTarget, cwd: string): Promise<TaskPullRequestState> {
+    try {
+      const task = await this.tasks.get(session, target);
+      if (!task.branch) return { status: 'none', reason: 'No branch yet.' };
+      const { root, linkProject } = await this.repositoryFor(session, task, cwd);
+      if (linkProject) return { status: 'none', reason: `${linkProject.name} has no repository linked.` };
+      const pr = await this.git.pullRequestFor(root, task.branch);
+      return pr ? { status: 'found', pr } : { status: 'none', reason: 'No pull request yet.' };
+    } catch (error) {
+      if (error instanceof GitError) return { status: 'unavailable', reason: error.message, hint: error.hint, code: error.code };
+      if (error instanceof SojaError) return { status: 'unavailable', reason: error.message, hint: error.hint, code: 'failed' };
+      throw error;
+    }
+  }
+
+  /**
+   * Pull requests of open tasks, by task id (for markers in lists). Uses one
+   * `gh pr list` per repository, reused for a minute. Unreachable
+   * repositories and GitHub problems are skipped silently.
+   */
+  async pullRequestIndex(session: Session, cwd: string, tasks: readonly Task[]): Promise<Map<string, PullRequest>> {
+    const index = new Map<string, PullRequest>();
+    for (const [root, group] of await this.byRepository(session, cwd, tasks)) {
+      const list = await this.cachedPullRequests(root).catch(() => null);
+      if (!list) continue;
+      for (const task of group) {
+        const pr = list.find((candidate) => candidate.head === task.branch);
+        if (pr) index.set(task.id, pr);
+      }
+    }
+    return index;
+  }
+
+  /**
+   * Learns what happened on GitHub to open tasks: a merged pull request
+   * closes its task (`pr_merged`), and failing checks on a new commit are
+   * recorded once (`pr_checks_failed`), so in remote mode the whole team
+   * sees them. `only` checks one task with fresh data.
+   */
+  async followPullRequests(session: Session, cwd: string, options: { only?: TaskTarget } = {}): Promise<PullRequestUpdate[]> {
+    const candidates = (options.only ? [await this.tasks.get(session, options.only)] : await this.tasks.list(session, 'all')).filter(
+      (task) => task.branch && !isClosed(task.status),
+    );
+    const updates: PullRequestUpdate[] = [];
+    for (const [root, group] of await this.byRepository(session, cwd, candidates)) {
+      let list: PullRequest[];
+      try {
+        const only = options.only ? group[0] : undefined;
+        list = only?.branch ? [await this.git.pullRequestFor(root, only.branch)].filter((pr): pr is PullRequest => pr !== null) : await this.cachedPullRequests(root);
+      } catch {
+        continue; // gh missing, logged out or offline: nothing to learn right now
+      }
+      for (const task of group) {
+        const pr = list.find((candidate) => candidate.head === task.branch);
+        if (!pr) continue;
+        // Acted on once per pull request: a task reopened after its merge stays open.
+        if (pr.state === 'merged' && !(await this.recorded(session, task, (event) => event.type === 'pr_merged' && event.metadata.number === pr.number))) {
+          await this.record(session, task, { type: 'pr_merged', metadata: { number: pr.number, url: pr.url, into: pr.base, via: 'github' } });
+          updates.push({ kind: 'merged', task: await this.tasks.complete(session, task), pr });
+        } else if (
+          pr.state === 'open' &&
+          pr.checks.failed > 0 &&
+          pr.headSha &&
+          !(await this.recorded(session, task, (event) => event.type === 'pr_checks_failed' && event.metadata.sha === pr.headSha))
+        ) {
+          await this.record(session, task, {
+            type: 'pr_checks_failed',
+            metadata: { number: pr.number, url: pr.url, sha: pr.headSha, checks: pr.checks.failing.slice(0, 20) },
+          });
+          updates.push({ kind: 'checks_failed', task, pr });
+        }
+      }
+    }
+    return updates;
+  }
+
+  /**
+   * Merges the task's pull request on GitHub (merge commit), closes the task
+   * and, if asked, deletes the branch on GitHub and here.
+   */
+  async mergePullRequest(
+    session: Session,
+    target: TaskTarget,
+    options: { cwd: string; deleteBranch: boolean },
+  ): Promise<{ pr: PullRequest; task: TaskView }> {
+    const context = await this.context(session, target, options.cwd);
+    const branch = this.requireBranch(context);
+    const pr = await this.git.pullRequestFor(context.root, branch);
+    if (!pr) throw new GitError(`${branch} has no pull request.`, { suggestions: ['Open one from the Git menu (g).'] });
+    if (pr.state !== 'open') throw new GitError(`Pull request #${pr.number} is already ${pr.state}.`);
+    if (pr.draft) throw new GitError(`Pull request #${pr.number} is a draft.`, { suggestions: ['Mark it ready for review on GitHub first.'] });
+
+    // gh may switch away from the branch before deleting it; the working tree must be clean for that.
+    if (options.deleteBranch && context.currentBranch === branch && (await this.git.changedFiles(context.root)).length > 0) {
+      throw new GitError(`${branch} is checked out and has uncommitted changes.`, {
+        code: 'dirty_worktree',
+        suggestions: ['Commit them first (C), or merge without deleting the branch.'],
+      });
+    }
+    await this.git.mergePullRequest(context.root, pr.number, { deleteBranch: options.deleteBranch });
+    this.pullRequestCache.delete(context.root);
+    await this.record(session, context.task, { type: 'pr_merged', metadata: { number: pr.number, url: pr.url, into: pr.base, via: 'soja' } });
+    if (options.deleteBranch) {
+      await this.tasks.recordGitEvent(
+        session,
+        context.task,
+        { type: 'git_branch_deleted', metadata: { branch, merged: true } },
+        { branch: null, baseBranch: null, branchStart: null },
+      );
+    }
+    const task = await this.tasks.complete(session, context.task);
+    return { pr: { ...pr, state: 'merged', mergedAt: new Date(this.now()) }, task };
+  }
+
   /** Runs `gh auth login` in the terminal (the caller releases it first). */
   loginGitHub(): Promise<void> {
     return this.git.loginGitHub();
@@ -482,6 +626,33 @@ export class GitWorkflowService {
         suggestions: ['Add one: `git remote add origin <url>`.'],
       });
     }
+  }
+
+  private cachedPullRequests(root: string): Promise<PullRequest[]> {
+    const cached = this.pullRequestCache.get(root);
+    if (cached && this.now() - cached.at < PR_CACHE_MS) return cached.list;
+    const list = this.git.pullRequests(root, PR_LIST_LIMIT);
+    this.pullRequestCache.set(root, { at: this.now(), list });
+    // A failure is not remembered: the next look tries again.
+    list.catch(() => this.pullRequestCache.delete(root));
+    return list;
+  }
+
+  /** Tasks with a branch, grouped by the repository they live in. Tasks without one are left out. */
+  private async byRepository<T extends Task>(session: Session, cwd: string, tasks: readonly T[]): Promise<Map<string, T[]>> {
+    const groups = new Map<string, T[]>();
+    for (const task of tasks) {
+      if (!task.branch) continue;
+      const found = await this.repositoryFor(session, task, cwd).catch(() => null);
+      if (!found || found.linkProject) continue;
+      groups.set(found.root, [...(groups.get(found.root) ?? []), task]);
+    }
+    return groups;
+  }
+
+  private async recorded(session: Session, task: Task, matches: (event: ActivityEvent) => boolean): Promise<boolean> {
+    const details = await this.tasks.get(session, task);
+    return details.timeline.some((entry) => entry.kind === 'event' && matches(entry.event));
   }
 
   private async record(session: Session, task: Task, event: GitActivityEvent): Promise<void> {

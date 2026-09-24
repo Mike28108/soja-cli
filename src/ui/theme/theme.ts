@@ -26,6 +26,8 @@ export const palette = {
   warning: 'yellow',
   success: 'green',
   info: 'cyan',
+  /** Merged pull requests (GitHub's own convention). */
+  merged: 'magenta',
 } as const satisfies Record<string, ColorName>;
 
 /** Soy green, from young leaf to ripe pod. */
@@ -46,6 +48,9 @@ export const symbols = {
   pending: '⋯',
   reply: '↳',
   unread: '✉',
+  /** Checks still running. */
+  running: '◌',
+  pullRequest: '#',
 } as const;
 
 export interface TokenStyle {

@@ -43,6 +43,11 @@ export interface AppState {
    * Full scans are throttled; `only` checks one task right away.
    */
   detectMerges(only?: string): Promise<void>;
+  /**
+   * Learns what happened on GitHub (merged pull requests close their tasks,
+   * failing checks are recorded). Full scans are throttled; `only` checks one task.
+   */
+  followPullRequests(only?: string): Promise<void>;
   /** Remote mode: pending changes, connectivity and the last sync. Null in local mode. */
   syncStatus: SyncStatus | null;
   quit(): void;
@@ -122,6 +127,42 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
     [services, session, cwd, notify],
   );
 
+  const lastPrScan = useRef(0);
+  const followPullRequests = useCallback(
+    async (only?: string) => {
+      if (!only) {
+        if (Date.now() - lastPrScan.current < 120_000) return;
+        lastPrScan.current = Date.now();
+      }
+      try {
+        const updates = await services.git.followPullRequests(session, cwd, only ? { only } : {});
+        const merged = updates.filter((update) => update.kind === 'merged');
+        const failed = updates.filter((update) => update.kind === 'checks_failed');
+        const [firstMerged] = merged;
+        const [firstFailed] = failed;
+        if (firstMerged) {
+          notify(
+            merged.length === 1
+              ? `${firstMerged.task.ref}: PR #${firstMerged.pr.number} was merged on GitHub → Done`
+              : `${merged.length} pull requests were merged on GitHub → Done`,
+            'success',
+          );
+        } else if (firstFailed) {
+          notify(
+            failed.length === 1
+              ? `${firstFailed.task.ref}: checks failed on PR #${firstFailed.pr.number} (${firstFailed.pr.checks.failing.join(', ')})`
+              : `Checks failed on ${failed.length} pull requests`,
+            'error',
+          );
+        }
+        if (updates.length) setRevision((value) => value + 1);
+      } catch {
+        // Best effort: without gh, or offline, there is simply nothing new.
+      }
+    },
+    [services, session, cwd, notify],
+  );
+
   // Remote mode: sync on launch, every 30 s and shortly after changes; refresh views when it finishes.
   useEffect(() => {
     const sync = services.sync;
@@ -187,10 +228,11 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
       run,
       refresh: () => setRevision((value) => value + 1),
       detectMerges,
+      followPullRequests,
       syncStatus,
       quit: exit,
     }),
-    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, syncStatus, exit],
+    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, followPullRequests, syncStatus, exit],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
