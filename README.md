@@ -6,7 +6,7 @@
 ▄▄▄▄▄▄█▀  ▀█▄▄▄▄█▀  ▀█▄▄▄▄█▀  ██    ██ ▄▄▄
 ```
 
-**Software Operations & Job Assistant** · v0.2.0 · by Enmauel.biz
+**Software Operations & Job Assistant** · v0.4.0 · by Enmauel.biz
 
 > No dashboards. No browser. No bullshit. Just work.
 
