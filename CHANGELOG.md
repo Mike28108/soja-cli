@@ -7,7 +7,9 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
-Requiere `soja-backend` ≥ 0.3.0 para el chat; con servidores anteriores, el resto del modo remoto sigue funcionando.
+## [0.5.0] - 2026-09-24
+
+Chat del equipo en tiempo real (hito v0.5). Requiere `soja-backend` ≥ 0.3.0 para el chat; con servidores anteriores, el resto del modo remoto sigue funcionando.
 
 ### Added
 

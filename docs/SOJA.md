@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **0.4.1** |
-| Versión del documento | **0.4.1** (revisión 2) |
+| Versión de la app | **0.5.0** |
+| Versión del documento | **0.5.0** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,11 +57,11 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.4.1)
+### Estado actual (v0.5.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina.
 
-> El chat (hito v0.5) está implementado en `main` y aún no publicado; requiere `soja-backend` ≥ 0.3.0.
+El chat requiere `soja-backend` ≥ 0.3.0.
 
 ---
 
@@ -1249,7 +1249,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-Publicados: v0.2 (Git) y v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`), en v0.4.0. Implementado y pendiente de publicar: v0.5, chat en tiempo real (WebSocket). La integración con la API de GitHub llega en v0.6.
+Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, y v0.5 (chat en tiempo real por WebSocket) en v0.5.0. Siguiente hito: v0.6, integración con la API de GitHub (PR y CI).
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1288,6 +1288,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.5.0 r1 | 0.5.0 | 2026-09-24 | Publicación de v0.5.0 (chat): cabecera, estado actual y roadmap como publicados. |
 | 0.4.1 r2 | 0.4.1 + v0.5 sin publicar | 2026-09-24 | Chat del equipo: §5 pantalla, §6 teclas, §7 `soja chat`, §9 tiempo real y reglas, §11 tablas `chat_*` y `task_id` opcional en la cola (migración `0004`), §12 `ChatOperations` y `live.ts`, tests, limitaciones. Una sincronización pedida durante otra ya no se pierde. |
 | 0.4.1 r1 | 0.4.1 | 2026-09-24 | §9: texto de otras personas limpiado antes de mostrarse en la terminal (seguridad); decisiones y tests. |
 | 0.4.0 r1 | 0.4.0 | 2026-09-24 | Publicación de v0.4.0 (hitos v0.3 y v0.4): cabecera, estado actual, §9 y roadmap como publicados. |
