@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.6.0** |
-| Versión del documento | **0.6.0** (revisión 1) |
+| Versión del documento | **0.6.0** (revisión 2) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -191,6 +191,11 @@ Se permite pasar de cualquier estado a cualquier otro. Las reglas de fechas son:
 - Pasar a **Done** registra `completed_at` y un evento `task_completed`.
 - Salir de Done o Cancelled hacia un estado abierto limpia `completed_at` y registra `task_reopened`.
 - **Cancelled** no cuenta como completada: `completed_at` queda vacío.
+
+### Archivar y borrar
+
+- **Archivar** saca la task de todas las listas y contadores sin perder nada: sigue apareciendo en la búsqueda (`/`, marcada *archived*), en *Archived tasks* (palette) y con `soja task list --archived`. Se restaura igual. Queda en el timeline (`task_archived`, `task_unarchived`) y, en equipo, se sincroniza como cualquier cambio, también sin conexión.
+- **Borrar** es definitivo: la task se va con sus comentarios y su timeline, para todo el equipo. Solo los **owners** del workspace pueden hacerlo, y SOJA pide dos confirmaciones (en la CLI, escribir el ID). Su número no se vuelve a usar. En equipo, si el servidor rechaza el borrado (por ejemplo, ya no eres owner), la task vuelve con un aviso.
 
 ### Agrupaciones de estados
 
@@ -453,6 +458,9 @@ soja task show <id>
 soja task start <id>      # te la asigna y la pasa a In Progress (sin Git)
 soja task done <id>
 soja task reopen <id>     # de Done o Cancelled a Todo
+soja task archive <id>    # fuera de las listas; soja task list --archived las muestra
+soja task restore <id>
+soja task delete <id> [--yes]   # definitivo, solo owners; pide escribir el ID
 ```
 
 Opciones de `task create`:
@@ -938,6 +946,7 @@ Convenciones:
 | name | text | |
 | slug | text | UNIQUE; ante un duplicado se agrega `-2`, `-3`… |
 | description | text | nullable |
+| last_deleted_number | integer | Número más alto de una task borrada; los números nunca se reutilizan (los commits viejos siguen apuntando a su task) |
 | created_at, updated_at | integer | |
 
 ### `workspace_members`
@@ -984,6 +993,7 @@ Clave primaria: (`workspace_id`, `user_id`).
 | branch_start | text | nullable. Commit donde empezó la branch; permite detectar merges hechos fuera de SOJA |
 | created_at, updated_at | integer | |
 | started_at, completed_at | integer | nullable |
+| archived_at | integer | nullable. Archivada: fuera de las listas y de los contadores, visible en la búsqueda |
 
 Índices: (`workspace_id`, `status`), `assignee_id` y `project_id`.
 
@@ -1021,6 +1031,7 @@ Payloads de `metadata`:
 | `comment_added` | `{commentId}` |
 | `task_completed` | `{from}` |
 | `task_reopened` | `{from, to}` |
+| `task_archived`, `task_unarchived` | `{}` |
 | `task_created` | `{}` |
 | `git_committed` | `{hash, subject, files}` |
 | `git_merged` | `{branch, into, hash}` |
@@ -1234,11 +1245,12 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
+| Archivar y borrar | `test/application/archive.test.ts`, `test/data/sync.test.ts` | Archivadas fuera de listas y contadores pero en la búsqueda, restaurar y timeline; borrar solo owners y sin reutilizar números; en equipo: archivar offline, borrar para todos, borrado rechazado que devuelve la task |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **180 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **185 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1247,7 +1259,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 ### Limitaciones actuales
 
 - La descripción se edita en una sola línea dentro de la TUI; no hay integración con `$EDITOR`.
-- No se pueden borrar tasks ni proyectos, ni editar proyectos después de crearlos.
+- No se pueden borrar proyectos ni editarlos después de crearlos.
 - La CLI no tiene comando para comentar (la TUI sí).
 - El estado Git del detalle no se refresca en vivo: los commits hechos fuera de SOJA aparecen al reabrir la task o tras otro cambio.
 - `soja start` no hace fetch: `--from origin/main` usa lo último que descargaste. SOJA tampoco hace pull.
@@ -1308,6 +1320,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.6.0 r2 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §4 *Archivar y borrar*: tasks archivadas (fuera de listas y contadores, en la búsqueda, filtro *Archived*) y borrado definitivo solo para owners con doble confirmación; los números no se reutilizan (`workspaces.last_deleted_number`); `soja task archive/restore/delete`, `task list --archived`; eventos `task_archived`/`task_unarchived`; migración `0006`. |
 | 0.6.0 r1 | 0.6.0 | 2026-09-24 | Publicación de v0.6.0 (GitHub): cabecera, estado actual y roadmap. |
 | 0.5.0 r2 | 0.5.0 + v0.6 sin publicar | 2026-09-24 | §8 *Pull requests y CI en GitHub*: estado del PR y checks en el detalle y las listas, merge del PR desde SOJA, PR mergeado en GitHub cierra la task, checks fallidos en el timeline; `soja pr status/merge`; eventos `pr_merged` y `pr_checks_failed` (migración `0005`). |
 | 0.5.0 r1 | 0.5.0 | 2026-09-24 | Publicación de v0.5.0 (chat): cabecera, estado actual y roadmap como publicados. |

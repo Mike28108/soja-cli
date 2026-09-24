@@ -209,3 +209,50 @@ describe('offline work in remote mode', () => {
     expect((await michael.runtime.services.projects.list(michael.session)).map((p) => p.id)).toEqual([project.id]);
   });
 });
+
+describe('archiving and deleting in remote mode', () => {
+  it('archives offline and the team sees it after syncing; deletes reach everyone', async () => {
+    const michael = await client(michaelId);
+    const angel = await client(angelId);
+    await michael.runtime.services.tasks.create(michael.session, { title: 'Old idea', assigneeId: null });
+    await michael.runtime.services.tasks.create(michael.session, { title: 'Mistake', assigneeId: null });
+    await michael.sync();
+    await angel.sync();
+
+    server.online = false;
+    await michael.runtime.services.tasks.archive(michael.session, 'SOJA-1');
+    expect(await refs(michael)).toEqual(['SOJA-2']);
+    server.online = true;
+    // A pull while the archive waits must not bring the task back into the lists.
+    server.opsFailWith = 500;
+    await michael.sync();
+    expect(await refs(michael)).toEqual(['SOJA-2']);
+    server.opsFailWith = null;
+    await michael.sync();
+    await angel.sync();
+    expect(await refs(angel)).toEqual(['SOJA-2']);
+    expect((await angel.runtime.services.tasks.list(angel.session, 'archived')).map((t) => t.ref)).toEqual(['SOJA-1']);
+    expect(await timeline(angel, 'SOJA-1')).toContain('archived the task');
+
+    await michael.runtime.services.tasks.remove(michael.session, 'SOJA-2');
+    await michael.sync();
+    await angel.sync();
+    expect(await refs(angel)).toEqual([]);
+    await expect(angel.runtime.services.tasks.get(angel.session, 'SOJA-2')).rejects.toThrow();
+  });
+
+  it('brings a task back when the server refuses to delete it', async () => {
+    const angel = await client(angelId);
+    await angel.runtime.services.tasks.create(angel.session, { title: 'Keep me', assigneeId: null });
+    await angel.sync();
+    // Angel was an owner when last synced, but is only a member now.
+    server.roles.set(angelId, 'member');
+    await angel.runtime.services.tasks.remove(angel.session, 'SOJA-1');
+    expect(await refs(angel)).toEqual([]);
+    const report = await angel.sync();
+    expect(report.rejected).toBe(1);
+    expect(await refs(angel)).toEqual(['SOJA-1']);
+    const notices = await angel.runtime.services.sync?.notices(angel.session.workspace.id);
+    expect(notices?.[0]?.message).toMatch(/Could not delete SOJA-1: Only workspace owners/);
+  });
+});

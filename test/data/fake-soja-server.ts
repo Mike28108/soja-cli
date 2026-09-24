@@ -34,6 +34,8 @@ export class FakeSojaServer {
   private seq = 0;
   private number = 0;
   opRequests = 0;
+  /** Workspace role per user; owner unless set. */
+  readonly roles = new Map<string, 'owner' | 'member'>();
 
   constructor() {
     this.general = this.addChannel('general');
@@ -106,7 +108,7 @@ export class FakeSojaServer {
     const ws = `/v1/workspaces/${this.workspace.id}`;
     const path = url.pathname;
 
-    if (path === '/v1/me') return json({ user: me, workspaces: [{ ...this.workspace, role: 'owner' }] });
+    if (path === '/v1/me') return json({ user: me, workspaces: [{ ...this.workspace, role: this.roles.get(userId) ?? 'owner' }] });
     if (path === `${ws}/ops` && this.opsFailWith) return json({ error: { code: 'internal', message: 'Server trouble.' } }, this.opsFailWith);
     if (path === `${ws}/ops`) {
       let chatBudget = this.messageLimit ?? Infinity;
@@ -165,6 +167,13 @@ export class FakeSojaServer {
       this.rejectNext = null;
     } else if (op.type.startsWith('message.') || op.type === 'channel.read') {
       result = this.applyChat(op, userId, reject);
+    } else if (op.type === 'task.delete') {
+      if ((this.roles.get(userId) ?? 'owner') !== 'owner') result = reject('owner_only', 'Only workspace owners can delete tasks.');
+      else {
+        this.tasks.delete(op.taskId);
+        this.log('task', op.taskId);
+        result = { opId: op.opId, status: 'applied', deleted: { taskId: op.taskId } };
+      }
     } else if (op.type === 'task.create') {
       if (this.tasks.has(op.taskId)) result = reject('id_taken', 'A task with this id already exists.');
       else if (!String(op.payload.title ?? '').trim()) result = reject('invalid_input', 'title: A task needs a title.');
@@ -188,6 +197,14 @@ export class FakeSojaServer {
         const conflicts = Object.keys(op.payload)
           .filter((field) => op.base && field in op.base && task[field] !== op.base[field] && task[field] !== op.payload[field])
           .map((field) => ({ field, overwritten: task[field], at: task.updatedAt }));
+        if (typeof op.payload.archived === 'boolean') {
+          const archived = op.payload.archived;
+          delete op.payload.archived;
+          if (archived !== (task.archivedAt != null)) {
+            task.archivedAt = archived ? op.occurredAt : null;
+            this.addActivity(task.id as string, userId, archived ? 'task_archived' : 'task_unarchived', {}, op.occurredAt);
+          }
+        }
         for (const [field, to] of Object.entries(op.payload)) {
           if (task[field] !== to) this.addActivity(task.id as string, userId, field === 'priority' ? 'priority_changed' : 'task_updated', { field, from: task[field], to }, op.occurredAt);
         }
@@ -257,9 +274,10 @@ export class FakeSojaServer {
       comments: [...this.comments.values()].filter((comment) => ids('comment').has(comment.id as string)),
       activity: this.activity.filter((item) => ids('activity').has(item.id as string)),
       projects: [...this.projects.values()].filter((project) => ids('project').has(project.id as string)),
-      members: [...this.users.values()].filter((user) => ids('member').has(user.id)).map((user) => ({ ...user, role: 'member' })),
+      members: [...this.users.values()].filter((user) => ids('member').has(user.id)).map((user) => ({ ...user, role: this.roles.get(user.id) ?? 'owner' })),
       channels: [...this.channels.values()].filter((channel) => ids('channel').has(channel.id as string)),
       messages: [...this.messages.values()].filter((message) => ids('message').has(message.id as string)),
+      deletedTasks: [...ids('task')].filter((id) => !this.tasks.has(id)),
       reads: [...(this.reads.get(userId ?? '') ?? new Map<string, number>()).entries()].map(([channelId, lastReadSeq]) => ({ channelId, lastReadSeq })),
     };
   }

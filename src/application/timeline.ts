@@ -66,6 +66,10 @@ export function describe(item: TaskActivity, lookups: TimelineLookups): string {
       return `merge into ${item.metadata.into} detected (done outside SOJA)`;
     case 'pr_opened':
       return `opened a pull request ${item.metadata.url}`;
+    case 'task_archived':
+      return 'archived the task';
+    case 'task_unarchived':
+      return 'restored the task from the archive';
     case 'pr_merged':
       return item.metadata.via === 'soja'
         ? `merged PR #${item.metadata.number} into ${item.metadata.into} on GitHub`

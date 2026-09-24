@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { and, count, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../../database/client.js';
-import { tasks } from '../../database/schema.js';
+import { taskActivity, taskComments, tasks, workspaces } from '../../database/schema.js';
 import { NotFoundError } from '../../domain/errors.js';
 import type { Task } from '../../domain/task.js';
 import type { NewTask, StatusCountRow, TaskPatch, TaskQuery, TaskRepository } from '../repositories.js';
@@ -17,13 +17,15 @@ export class LocalTaskRepository implements TaskRepository {
   async create(input: NewTask): Promise<Task> {
     const now = this.clock();
     // Computing the number inside the INSERT keeps it atomic in SQLite.
-    // Provisional (negative) numbers never count towards the next real one.
-    const nextNumber = sql<number>`(SELECT COALESCE(MAX(${tasks.number}), 0) + 1 FROM ${tasks} WHERE ${tasks.workspaceId} = ${input.workspaceId})`;
+    // Provisional (negative) numbers never count towards the next real one, and
+    // numbers of deleted tasks are never handed out again.
+    const nextNumber = sql<number>`(SELECT MAX(COALESCE(MAX(${tasks.number}), 0), COALESCE((SELECT ${workspaces.lastDeletedNumber} FROM ${workspaces} WHERE ${workspaces.id} = ${input.workspaceId}), 0)) + 1 FROM ${tasks} WHERE ${tasks.workspaceId} = ${input.workspaceId})`;
     const [task] = await this.db
       .insert(tasks)
       .values({
         startedAt: null,
         completedAt: null,
+        archivedAt: null,
         ...input,
         id: input.id ?? randomUUID(),
         number: input.number ?? nextNumber,
@@ -52,6 +54,9 @@ export class LocalTaskRepository implements TaskRepository {
     if (query.assigneeId) conditions.push(eq(tasks.assigneeId, query.assigneeId));
     if (query.projectId) conditions.push(eq(tasks.projectId, query.projectId));
     if (query.statuses) conditions.push(inArray(tasks.status, [...query.statuses]));
+    const archived = query.archived ?? 'exclude';
+    if (archived === 'exclude') conditions.push(isNull(tasks.archivedAt));
+    else if (archived === 'only') conditions.push(isNotNull(tasks.archivedAt));
     if (query.search) {
       const pattern = `%${escapeLike(query.search.text)}%`;
       const byTitle = sql`${tasks.title} LIKE ${pattern} ESCAPE '\\'`;
@@ -80,8 +85,22 @@ export class LocalTaskRepository implements TaskRepository {
     return this.db
       .select({ projectId: tasks.projectId, status: tasks.status, count: count() })
       .from(tasks)
-      .where(eq(tasks.workspaceId, workspaceId))
+      .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt)))
       .groupBy(tasks.projectId, tasks.status);
+  }
+
+  async delete(id: string): Promise<void> {
+    const task = await this.findById(id);
+    if (task && task.number > 0) {
+      await this.db
+        .update(workspaces)
+        .set({ lastDeletedNumber: sql`MAX(${workspaces.lastDeletedNumber}, ${task.number})` })
+        .where(eq(workspaces.id, task.workspaceId));
+    }
+    // Explicit, not only ON DELETE CASCADE: the remote replica runs without foreign keys.
+    await this.db.delete(taskActivity).where(eq(taskActivity.taskId, id));
+    await this.db.delete(taskComments).where(eq(taskComments.taskId, id));
+    await this.db.delete(tasks).where(eq(tasks.id, id));
   }
 }
 

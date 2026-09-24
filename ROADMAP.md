@@ -64,6 +64,12 @@ Prioridades acordadas (2026-09-24), todas dentro de v1.0:
 - **Pasar datos local → equipo:** migrar tasks y proyectos del modo local a un servidor.
 - **Robustez:** dominio compartido entre cliente y backend, copias de la réplica, pruebas de carga del servidor y E2E automatizados en CI.
 
+Decisiones (2026-09-24):
+- **Instalación desde GitHub Releases con `gh`:** cada release adjunta el paquete y se instala con el `gh` del equipo; el código sigue privado. SOJA avisa de versiones nuevas consultando el último release.
+- **Dominio:** copias en ambos repos con un chequeo en CI que falla si se desalinean.
+- **Quitar tasks:** archivar (reversible, sincronizado) y borrado definitivo solo para owners, con doble confirmación.
+- **Migración local → equipo:** proyectos, tasks, comentarios y timeline con fechas; conserva los números si el workspace está vacío y, si no, renumera mostrando la equivalencia. Developers asociados por username.
+
 ## Regla de alcance
 
 No adelantar backend, GitHub ni chat solo porque aparezcan en el roadmap. Al iniciar cada hito, confirmar el comportamiento existente, acotar los cambios y actualizar [docs/SOJA.md](docs/SOJA.md) y [CHANGELOG.md](CHANGELOG.md) conforme se implementen. No crear integraciones vacías ni simular capacidad remota.

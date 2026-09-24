@@ -19,7 +19,7 @@ import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statu
  * list and the task detail so both behave identically.
  */
 export function useTaskActions() {
-  const { services, session, openOverlay, run, notify, cwd } = useAppState();
+  const { services, session, openOverlay, run, notify, cwd, route, go } = useAppState();
   const { tasks } = services;
 
   const report = (error: unknown) => {
@@ -406,16 +406,45 @@ export function useTaskActions() {
         ['requester', 'Requester', 'r'],
         ['branchName', 'Branch name', ''],
       ] as const;
+      const archived = task.archivedAt !== null;
       openOverlay({
         kind: 'picker',
         title: 'Edit',
         context: task.ref,
-        options: fields.map(([value, label, key]) => ({ value, label, hint: key })),
+        options: [
+          ...fields.map(([value, label, key]) => ({ value, label, hint: key })),
+          { value: 'archive', label: archived ? 'Restore from the archive' : 'Archive', hint: archived ? '' : 'hide from lists' },
+          { value: 'delete', label: 'Delete permanently…', color: 'red' as const, hint: 'owners' },
+        ],
         onSelect: (value) => {
-          const field = fields.find(([candidate]) => candidate === value)?.[0];
-          if (field) void actions[field](task);
+          if (value === 'archive') void actions.toggleArchive(task);
+          else if (value === 'delete') actions.remove(task);
+          else {
+            const field = fields.find(([candidate]) => candidate === value)?.[0];
+            if (field) void actions[field](task);
+          }
         },
       });
+    },
+    toggleArchive(task: TaskView) {
+      return task.archivedAt
+        ? run(() => tasks.restore(session, task), `${task.ref} is back in the lists`)
+        : run(() => tasks.archive(session, task), `${task.ref} archived. Find it with / or in Archived tasks.`);
+    },
+    /** Two confirmations: deleting takes the comments and the timeline with it, for everyone. */
+    remove(task: TaskView) {
+      confirm('Delete this task for good?', `${task.ref} · ${task.title}`, `Delete ${task.ref}…`, () =>
+        confirm(
+          'Really delete it?',
+          'Its comments and timeline go too, for the whole team. Archive keeps it restorable.',
+          `Yes, delete ${task.ref} permanently`,
+          () =>
+            void run(async () => {
+              await tasks.remove(session, task);
+              if (route.name === 'task') go({ type: 'pop' });
+            }, `${task.ref} deleted`),
+        ),
+      );
     },
   };
   return actions;
