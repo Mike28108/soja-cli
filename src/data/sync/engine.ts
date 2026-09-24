@@ -14,6 +14,7 @@ interface OpResult {
   task?: TaskView;
   message?: ChatMessage;
   read?: { channelId: string; lastReadSeq: number };
+  deleted?: { taskId: string };
   conflicts?: { field: string; overwritten: unknown; at: string }[];
   error?: { code: string; message: string };
 }
@@ -30,6 +31,8 @@ interface ChangeBatch {
   channels?: Channel[];
   messages?: ChatMessage[];
   reads?: { channelId: string; lastReadSeq: number }[];
+  /** Tasks deleted by an owner (servers ≥ 1.0). */
+  deletedTasks?: string[];
 }
 
 /** Pushed by the server over the live connection (docs/CHAT.md). */
@@ -216,6 +219,10 @@ export class SyncEngine {
           await this.chatResult(workspaceId, op, result, report);
           continue;
         }
+        if (op.type === 'task.delete') {
+          await this.deleteResult(workspaceId, op, result, report);
+          continue;
+        }
         if (result.status === 'applied' && result.task) {
           report.pushed += 1;
           const before = op.type === 'task.create' ? await this.store.findTask(taskIdOf(op)) : null;
@@ -281,6 +288,27 @@ export class SyncEngine {
     else if (message) await this.refreshMessage(workspaceId, message).catch(() => undefined);
   }
 
+  /** A refused delete (e.g. you are no longer an owner) brings the task back as the server has it. */
+  private async deleteResult(workspaceId: string, op: QueuedOp, result: OpResult, report: SyncReport): Promise<void> {
+    if (result.status === 'applied') {
+      report.pushed += 1;
+      return;
+    }
+    report.rejected += 1;
+    const number = Number(op.payload['number']);
+    const ref = formatTaskRef(number);
+    await this.store.addNotice(workspaceId, {
+      id: randomUUID(),
+      taskId: op.taskId,
+      taskRef: ref,
+      kind: 'rejected',
+      field: null,
+      overwritten: null,
+      message: `Could not delete ${ref}: ${result.error?.message ?? 'rejected by the server'}`,
+    });
+    if (!isProvisional(number)) await this.refreshTaskByRef(workspaceId, ref).catch(() => undefined);
+  }
+
   /** Reloads one message as the server has it (undoing a refused edit or delete). */
   private async refreshMessage(workspaceId: string, message: ChatMessage): Promise<void> {
     if (message.seq === null) return;
@@ -326,8 +354,12 @@ export class SyncEngine {
   private async refreshTask(workspaceId: string, taskId: string): Promise<void> {
     const task = await this.store.findTask(taskId);
     if (!task || isProvisional(task.number)) return;
+    await this.refreshTaskByRef(workspaceId, formatTaskRef(task.number));
+  }
+
+  private async refreshTaskByRef(workspaceId: string, ref: string): Promise<void> {
     const details = await this.api.get<{ task: TaskView; comments: TaskComment[]; activity: TaskActivity[] }>(
-      `/v1/workspaces/${workspaceId}/tasks/${formatTaskRef(task.number)}`,
+      `/v1/workspaces/${workspaceId}/tasks/${ref}`,
     );
     await this.store.upsertTask(toTask(details.task));
     for (const comment of details.comments) await this.store.upsertComment(comment);
@@ -346,6 +378,7 @@ export class SyncEngine {
       for (const channel of batch.channels ?? []) await this.store.upsertChannel(channel);
       for (const message of batch.messages ?? []) await this.store.upsertMessage(message);
       for (const read of batch.reads ?? []) await this.store.markRead(read.channelId, read.lastReadSeq);
+      for (const taskId of batch.deletedTasks ?? []) await this.store.deleteTask(taskId);
       report.pulledTasks += batch.tasks.length;
       report.pulledMessages += batch.messages?.length ?? 0;
       cursor = batch.cursor;
@@ -359,8 +392,9 @@ export class SyncEngine {
     for (const op of await this.store.pending(workspaceId)) {
       const messageId = String(op.payload['messageId'] ?? '');
       if (op.type === 'task.change') {
-        const fields = Object.fromEntries(Object.entries(op.payload).filter(([field]) => TASK_FIELDS.has(field)));
-        await this.store.patchTask(taskIdOf(op), fields as Partial<Task>);
+        const fields: Partial<Task> = Object.fromEntries(Object.entries(op.payload).filter(([field]) => TASK_FIELDS.has(field)));
+        if (typeof op.payload['archived'] === 'boolean') fields.archivedAt = op.payload['archived'] ? op.occurredAt : null;
+        await this.store.patchTask(taskIdOf(op), fields);
       } else if (op.type === 'message.edit') {
         await this.store.patchMessage(messageId, { body: String(op.payload['body'] ?? ''), editedAt: op.occurredAt });
       } else if (op.type === 'message.delete') {

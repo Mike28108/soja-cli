@@ -58,8 +58,8 @@ export interface ProjectRepository {
   update(id: string, patch: ProjectPatch): Promise<Project>;
 }
 
-export type NewTask = Omit<Task, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt'> &
-  Partial<Pick<Task, 'startedAt' | 'completedAt'>> & {
+export type NewTask = Omit<Task, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt' | 'archivedAt'> &
+  Partial<Pick<Task, 'startedAt' | 'completedAt' | 'archivedAt'>> & {
     /** Chosen by the caller (offline replica); random otherwise. */
     id?: string;
     /** Explicit number (provisional, negative, in the offline replica); next free otherwise. */
@@ -82,6 +82,7 @@ export type TaskPatch = Partial<
     | 'branchStart'
     | 'startedAt'
     | 'completedAt'
+    | 'archivedAt'
   >
 >;
 
@@ -92,6 +93,8 @@ export interface TaskQuery {
   statuses?: readonly TaskStatus[];
   /** Matches the title (case-insensitive substring) or the exact task number. */
   search?: { text: string; number: number | null };
+  /** Archived tasks: left out (default), the only ones, or included (search). */
+  archived?: 'exclude' | 'only' | 'include';
   limit?: number;
 }
 
@@ -108,7 +111,10 @@ export interface TaskRepository {
   findByNumber(workspaceId: string, number: number): Promise<Task | null>;
   list(query: TaskQuery): Promise<Task[]>;
   update(id: string, patch: TaskPatch): Promise<Task>;
+  /** Active (not archived) tasks only. */
   countByProjectAndStatus(workspaceId: string): Promise<StatusCountRow[]>;
+  /** Removes the task with its comments and timeline. */
+  delete(id: string): Promise<void>;
 }
 
 export interface CommentRepository {

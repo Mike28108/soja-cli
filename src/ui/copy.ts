@@ -10,6 +10,7 @@ export const EMPTY_TASKS: Record<TaskFilter, readonly string[]> = {
   review: ['Nothing waiting for review.'],
   blocked: ['Nothing blocked.', 'Keep it that way.'],
   done: ['Nothing done yet.', 'The day is young.'],
+  archived: ['Nothing archived.', 'Archive a task from its Edit menu (e).'],
 };
 
 export const EMPTY_SEARCH = ['Nothing matches.', 'Maybe it is still in a WhatsApp chat.'];

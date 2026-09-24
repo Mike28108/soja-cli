@@ -245,6 +245,25 @@ export class ReplicaTaskService implements TaskOperations {
     return this.update(session, target, { status: 'done' });
   }
 
+  archive(session: Session, target: Target): Promise<TaskView> {
+    return this.update(session, target, { archived: true });
+  }
+
+  restore(session: Session, target: Target): Promise<TaskView> {
+    return this.update(session, target, { archived: false });
+  }
+
+  /** Deletes here right away (owners only, checked on the replica and again on the server) and queues it. */
+  async remove(session: Session, target: Target): Promise<{ id: string; number: number }> {
+    const removed = await this.local.remove(session, target);
+    await this.context.store.enqueue(
+      { opId: randomUUID(), workspaceId: session.workspace.id, type: 'task.delete', taskId: removed.id, payload: { number: removed.number }, base: null, occurredAt: new Date() },
+      [],
+    );
+    this.context.onWrite();
+    return removed;
+  }
+
   async reopen(session: Session, target: Target): Promise<TaskView> {
     const task = await this.find(session, target);
     if (!isClosed(task.status)) throw new ValidationError(`${formatTaskRef(task.number)} is already open.`);

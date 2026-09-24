@@ -26,6 +26,8 @@ export const workspaces = sqliteTable('workspaces', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   description: text('description'),
+  /** Highest task number ever deleted, so numbers are never reused (old commits keep pointing at the right task). */
+  lastDeletedNumber: integer('last_deleted_number').notNull().default(0),
   ...timestamps,
 });
 
@@ -85,6 +87,7 @@ export const tasks = sqliteTable(
     ...timestamps,
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     completedAt: integer('completed_at', { mode: 'timestamp_ms' }),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' }),
   },
   (t) => [
     uniqueIndex('tasks_workspace_number').on(t.workspaceId, t.number),
