@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-24
+
+Flujo de trabajo con Git: branches, commits, merges, push y pull requests desde cada task; todo offline salvo push y PR.
+
 ### Added
 
 - **Flujo Git local (v0.2):** `soja start <id> [--from <ref>] [--link]` crea o cambia a la branch de la task, y luego te la asigna, la pasa a In Progress y registra la branch. Git va primero: si falla, la task no cambia.
@@ -60,5 +64,6 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Mike28108/soja-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Mike28108/soja-cli/releases/tag/v0.1.0
