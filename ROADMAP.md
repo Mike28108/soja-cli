@@ -25,15 +25,15 @@ Commit, merge y borrar branch funcionan offline; push y PR necesitan conexión, 
 
 **Fuera de v0.2:** API de GitHub propia (GitHub App, OAuth), checks de CI, revisión de PRs dentro de SOJA, servidor, sincronización y chat.
 
-## v0.3 — Backend y colaboración remota (en desarrollo)
+## v0.3 — Backend y colaboración remota (publicado en v0.4.0)
 
 Crear `soja-backend` en **otro repositorio**, con API, autenticación, workspaces y reglas de tareas impuestas por el servidor. La ruta remota será `soja-cli → SOJA API → PostgreSQL`; el cliente no se conecta directamente a PostgreSQL. Mantener el modo local sin cuenta. Numeración decidida: contador por workspace en el servidor, incrementado de forma atómica dentro de la transacción que crea la tarea. Stack decidido: Hono + PostgreSQL (Supabase) + login con GitHub (device flow); diseño en `soja-backend/docs/ARCHITECTURE.md`. La v0.3 no implica todavía trabajo remoto sin conexión.
 
-## v0.4 — Sincronización offline (en desarrollo)
+## v0.4 — Sincronización offline (publicado en v0.4.0)
 
 Conservar SQLite como estado local del cliente remoto, definir una cola de operaciones, sincronización reintentable y resolución visible de conflictos. Separar el ID interno estable del número humano asignado por el servidor. Probar creación y cambios simultáneos desde dos clientes offline, cierre y reapertura, reconexión y conflictos. Protocolo y garantías definidos en `soja-backend/docs/SYNC.md` (último en llegar por campo con aviso, números provisionales, offline solo para tasks y comentarios).
 
-## v0.5 — Chat asociado al trabajo
+## v0.5 — Chat asociado al trabajo (siguiente hito)
 
 Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias a tareas. Enlazar tareas con mensajes y crear una tarea desde una conversación. Diseñar el chat como dominio propio, separado de `task_comments`. Empezar por canales; agregar jerarquía de equipos solo si un caso real la requiere. La experiencia offline del chat dependerá de las garantías alcanzadas en v0.4.
 

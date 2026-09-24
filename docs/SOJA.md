@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **0.2.0** |
-| Versión del documento | **0.2.0** (revisión 5), con cambios de v0.3 y v0.4 aún sin publicar |
+| Versión de la app | **0.4.0** |
+| Versión del documento | **0.4.0** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,9 +57,9 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.2.0)
+### Estado actual (v0.4.0)
 
-Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. Incluye el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión salvo push y PR. En desarrollo (v0.3–v0.4): **modo remoto** para trabajar en equipo contra `soja-backend`, también sin conexión (ver [§9](#9-modo-remoto-equipo)). El modo local sigue siendo el predeterminado.
+Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub y trabajo sin conexión (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina.
 
 ---
 
@@ -679,7 +679,7 @@ En la interfaz, lo mismo es: abrir la task → `b` → trabajar → `C` → `g` 
 
 ## 9. Modo remoto (equipo)
 
-En desarrollo (v0.3 y v0.4). Hasta aquí SOJA guarda todo en tu máquina (**modo local**). En **modo remoto**, un equipo comparte workspaces, proyectos y tasks a través de un servidor [`soja-backend`](https://github.com/Mike28108/soja-backend) (repositorio aparte). La interfaz y los comandos son los mismos; solo cambia dónde viven los datos.
+Desde v0.4.0 (incluye los hitos v0.3 y v0.4). Hasta aquí SOJA guarda todo en tu máquina (**modo local**). En **modo remoto**, un equipo comparte workspaces, proyectos y tasks a través de un servidor [`soja-backend`](https://github.com/Mike28108/soja-backend) (repositorio aparte). La interfaz y los comandos son los mismos; solo cambia dónde viven los datos.
 
 ```text
 soja (tu máquina) ──HTTPS──▶ soja-backend ──▶ PostgreSQL (Supabase)
@@ -1163,7 +1163,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-El flujo Git de v0.2 está publicado (ver [§8](#8-flujo-de-trabajo-con-git)) y v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) están en desarrollo (ver [§9](#9-modo-remoto-equipo)). El chat y la integración con la API de GitHub permanecen en hitos posteriores.
+Publicados: v0.2 (Git) y v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`), en v0.4.0. Siguiente hito: v0.5, chat en tiempo real (WebSocket). La integración con la API de GitHub llega en v0.6.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1202,6 +1202,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.4.0 r1 | 0.4.0 | 2026-09-24 | Publicación de v0.4.0 (hitos v0.3 y v0.4): cabecera, estado actual, §9 y roadmap como publicados. |
 | 0.2.0 r5 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: la vista se actualiza al terminar cualquier sincronización. |
 | 0.2.0 r4 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: `soja login` acepta la URL completa (p. ej. con `/v1/health`) y valida que sea un servidor SOJA. |
 | 0.2.0 r3 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: trabajo sin conexión (réplica, números provisionales, conflictos, `soja sync`); tablas de sincronización; config remota con `userId`; arquitectura `data/sync/`. |
