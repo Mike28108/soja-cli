@@ -21,7 +21,7 @@ import type { Channel, ChatMessage } from '../../domain/chat.js';
 import type { Project, TaskComment, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
 import type { Task } from '../../domain/task.js';
 
-export type TaskOpType = 'task.create' | 'task.change' | 'task.comment' | 'task.git_event';
+export type TaskOpType = 'task.create' | 'task.change' | 'task.comment' | 'task.git_event' | 'task.delete';
 export type ChatOpType = 'message.send' | 'message.edit' | 'message.delete' | 'channel.read';
 export type OpType = TaskOpType | ChatOpType;
 
@@ -55,7 +55,7 @@ export interface Notice {
 /** Task fields as stored; server views carry extra presentation fields we drop. */
 const TASK_COLUMNS = [
   'id', 'number', 'workspaceId', 'projectId', 'title', 'description', 'type', 'priority', 'status', 'assigneeId',
-  'creatorId', 'requester', 'branch', 'baseBranch', 'branchStart', 'createdAt', 'updatedAt', 'startedAt', 'completedAt',
+  'creatorId', 'requester', 'branch', 'baseBranch', 'branchStart', 'createdAt', 'updatedAt', 'startedAt', 'completedAt', 'archivedAt',
 ] as const satisfies readonly (keyof Task)[];
 
 const pickTask = (task: Task): Task =>

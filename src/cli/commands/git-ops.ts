@@ -1,4 +1,3 @@
-import { createInterface } from 'node:readline/promises';
 import type { AppServices } from '../../application/services/index.js';
 import { pullRequestWarnings } from '../../application/services/index.js';
 import type { Session } from '../../application/types.js';
@@ -6,6 +5,7 @@ import { ValidationError } from '../../domain/errors.js';
 import { GitError } from '../../git/types.js';
 import { symbols } from '../../ui/theme/theme.js';
 import { bold, color, dim, paint, print, success } from '../output.js';
+import { confirm } from '../prompt.js';
 import { withSession } from '../runtime.js';
 import { parseCommand, requireArg } from './args.js';
 
@@ -35,17 +35,6 @@ async function withGit<T>(work: (services: AppServices, session: Session) => Pro
       stop();
     }
   });
-}
-
-async function confirm(question: string, yes: boolean | undefined): Promise<boolean> {
-  if (yes) return true;
-  if (!process.stdin.isTTY) throw new ValidationError('Refusing to continue without confirmation.', { hint: 'Pass --yes.' });
-  const readline = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    return /^y(es)?$/i.test((await readline.question(`${question} ${dim('[y/N]')} `)).trim());
-  } finally {
-    readline.close();
-  }
 }
 
 const interactive = () => Boolean(process.stdin.isTTY && process.stdout.isTTY);

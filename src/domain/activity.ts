@@ -25,6 +25,8 @@ export interface ActivityPayloads {
   pr_merged: { number: number; url: string; into: string; via: 'soja' | 'github' };
   /** Checks failed on the pull request's latest commit (recorded once per commit). */
   pr_checks_failed: { number: number; url: string; sha: string; checks: string[] };
+  task_archived: Record<string, never>;
+  task_unarchived: Record<string, never>;
 }
 
 export type ActivityType = keyof ActivityPayloads;
@@ -48,6 +50,8 @@ export const ACTIVITY_TYPES = [
   'git_merge_detected',
   'pr_merged',
   'pr_checks_failed',
+  'task_archived',
+  'task_unarchived',
 ] as const satisfies readonly ActivityType[];
 
 /** An event before it is persisted. Discriminated on `type` so metadata stays typed. */

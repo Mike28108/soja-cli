@@ -75,6 +75,8 @@ export interface Task {
   updatedAt: Date;
   startedAt: Date | null;
   completedAt: Date | null;
+  /** Hidden from lists (still searchable); null when active. */
+  archivedAt: Date | null;
 }
 
 /** Human identifier prefix. Numbers are sequential per workspace. */

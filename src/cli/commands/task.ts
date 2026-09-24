@@ -10,6 +10,7 @@ import { formatRelative, formatStamp } from '../../utils/time.js';
 import type { TaskGitState } from '../../application/services/index.js';
 import { tildify } from '../../utils/text.js';
 import { bold, color, dim, print, success, taskLine, token } from '../output.js';
+import { confirmTyped } from '../prompt.js';
 import { withSession } from '../runtime.js';
 import { oneOf, parseCommand, requireArg } from './args.js';
 
@@ -31,8 +32,13 @@ export async function taskCommand(args: string[]): Promise<void> {
     case 'start':
     case 'reopen':
       return transition(sub, rest);
+    case 'archive':
+    case 'restore':
+      return archive(sub, rest);
+    case 'delete':
+      return remove(rest);
     default:
-      throw new ValidationError(`Unknown task command “${sub}”.`, { hint: 'Try: list, create, show, start, done, reopen.' });
+      throw new ValidationError(`Unknown task command “${sub}”.`, { hint: 'Try: list, create, show, start, done, reopen, archive, restore, delete.' });
   }
 }
 
@@ -41,9 +47,10 @@ async function list(args: string[]): Promise<void> {
     all: { type: 'boolean', short: 'A' },
     status: { type: 'string', short: 's' },
     project: { type: 'string', short: 'p' },
+    archived: { type: 'boolean' },
   });
   const status = oneOf(values.status, ['todo', 'in_progress', 'review', 'blocked', 'done'] as const, 'status');
-  const filter: TaskFilter = status ?? (values.all ? 'all' : 'mine');
+  const filter: TaskFilter = values.archived ? 'archived' : (status ?? (values.all ? 'all' : 'mine'));
 
   await withSession(async (services, session) => {
     await reportMerges(services, session);
@@ -61,8 +68,8 @@ async function list(args: string[]): Promise<void> {
     const counts = countStatuses(tasks);
     print(
       dim(
-        filter === 'done'
-          ? `${tasks.length} done`
+        filter === 'done' || filter === 'archived'
+          ? `${tasks.length} ${filter}`
           : `${activeCount(counts)} active ${symbols.dot} ${counts.in_progress} in progress ${symbols.dot} ${counts.review} review ${symbols.dot} ${counts.blocked} blocked`,
       ),
     );
@@ -214,6 +221,29 @@ function printGit(ref: string, state: TaskGitState): void {
     print(`  ${color('yellow', commit.shortHash)} ${commit.subject} ${dim(`${commit.author}, ${formatRelative(commit.date)}`)}`);
   }
   if (state.commits.length > 5) print(dim(`  ${symbols.ellipsis} ${state.commits.length - 5} more`));
+}
+
+async function archive(action: 'archive' | 'restore', args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const ref = requireArg(positionals[0], 'task ID', `soja task ${action} SOJA-12`);
+  await withSession(async (services, session) => {
+    const task = action === 'archive' ? await services.tasks.archive(session, ref) : await services.tasks.restore(session, ref);
+    success(action === 'archive' ? `${bold(task.ref)} archived ${dim('· soja task list --archived, or soja task restore')}` : `${bold(task.ref)} is back in the lists`);
+  });
+}
+
+/** `soja task delete <id> [--yes]`: owners only; you type the ID to confirm. */
+async function remove(args: string[]): Promise<void> {
+  const { values, positionals } = parseCommand(args, { yes: { type: 'boolean', short: 'y' } });
+  const ref = requireArg(positionals[0], 'task ID', 'soja task delete SOJA-12 [--yes]');
+  await withSession(async (services, session) => {
+    const task = await services.tasks.get(session, ref);
+    print(`${bold(task.ref)} ${task.title}`);
+    print(dim('  Its comments and timeline are deleted too, for the whole team. `soja task archive` keeps it restorable.'));
+    if (!(await confirmTyped('Delete it permanently?', task.ref, values.yes))) return print(dim('Cancelled.'));
+    await services.tasks.remove(session, task);
+    success(`${bold(task.ref)} deleted`);
+  });
 }
 
 async function transition(action: 'done' | 'start' | 'reopen', args: string[]): Promise<void> {

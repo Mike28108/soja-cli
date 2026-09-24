@@ -62,6 +62,7 @@ export function TaskTable({ tasks, selected, offset, height, width, showAssignee
             ) : null}
             <Box width={columns.title}>
               <Text wrap="truncate-end">
+                {task.archivedAt ? <Text dimColor>{'archived · '}</Text> : null}
                 {pr ? <PullRequestMark pr={pr} /> : null}
                 <Text bold={isSelected} dimColor={task.status === 'cancelled'} strikethrough={task.status === 'cancelled'}>
                   {task.title}

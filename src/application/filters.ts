@@ -2,8 +2,10 @@ import type { TaskQuery } from '../data/repositories.js';
 import type { TaskStatus } from '../domain/task.js';
 import type { Session } from './types.js';
 
+/** The tabs of the task list, in order. */
 export const TASK_FILTERS = ['mine', 'all', 'todo', 'in_progress', 'review', 'blocked', 'done'] as const;
-export type TaskFilter = (typeof TASK_FILTERS)[number];
+/** Tabs plus `archived`, reached from the command palette or `--archived`. */
+export type TaskFilter = (typeof TASK_FILTERS)[number] | 'archived';
 
 export const FILTER_LABELS: Record<TaskFilter, string> = {
   mine: 'My Tasks',
@@ -13,6 +15,7 @@ export const FILTER_LABELS: Record<TaskFilter, string> = {
   review: 'Review',
   blocked: 'Blocked',
   done: 'Done',
+  archived: 'Archived',
 };
 
 const OPEN_STATUSES: readonly TaskStatus[] = ['backlog', 'todo', 'in_progress', 'review', 'blocked'];
@@ -25,6 +28,8 @@ export function filterToQuery(session: Session, filter: TaskFilter): TaskQuery {
       return { workspaceId, assigneeId: session.user.id, statuses: OPEN_STATUSES };
     case 'all':
       return { workspaceId, statuses: OPEN_STATUSES };
+    case 'archived':
+      return { workspaceId, archived: 'only' };
     default:
       return { workspaceId, statuses: [filter] };
   }

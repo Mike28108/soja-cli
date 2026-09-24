@@ -14,6 +14,8 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['task start <id>', 'Assign to yourself and move to In Progress (no Git)'],
   ['task done <id>', 'Mark as Done'],
   ['task reopen <id>', 'Move a closed task back to Todo'],
+  ['task archive|restore <id>', 'Hide a task from lists, or bring it back (list --archived)'],
+  ['task delete <id> [--yes]', 'Delete a task for good (owners; type the ID to confirm)'],
   ['project list', 'Projects with open work'],
   ['project create <name>', 'New project (--key, --repo-path, --repo-url)'],
   ['project link <key> [path|name]', 'Link a project to a local Git repository (default: here)'],

@@ -51,6 +51,8 @@ const changesSchema = z.object({
   /** Bookkeeping for merges; changes are not shown in the timeline. */
   baseBranch: optionalText(250),
   branchStart: optionalText(64),
+  /** Archive (hide from lists) or restore. */
+  archived: z.boolean().optional(),
 });
 
 const commentSchema = z
@@ -85,6 +87,8 @@ export class TaskService {
     const tasks = await this.repos.tasks.list({
       workspaceId: session.workspace.id,
       search: { text: trimmed, number: exact },
+      // Search is how archived tasks are found again.
+      archived: 'include',
       limit,
     });
     // An exact ID hit goes first; the rest keep newest-first order.
@@ -209,6 +213,10 @@ export class TaskService {
       if (data.assigneeId) events.push({ type: 'assigned', metadata: { from: task.assigneeId, to: data.assigneeId } });
       else if (task.assigneeId) events.push({ type: 'unassigned', metadata: { from: task.assigneeId } });
     }
+    if (data.archived !== undefined && data.archived !== (task.archivedAt !== null)) {
+      patch.archivedAt = data.archived ? this.clock() : null;
+      events.push({ type: data.archived ? 'task_archived' : 'task_unarchived', metadata: {} });
+    }
     if (data.status) {
       const change = planStatusChange(task, data.status, this.clock());
       if (change) {
@@ -239,6 +247,28 @@ export class TaskService {
     extra: { branch?: string; baseBranch?: string | null; branchStart?: string | null } = {},
   ): Promise<TaskView> {
     return this.update(session, target, { assigneeId: session.user.id, status: 'in_progress', ...extra });
+  }
+
+  archive(session: Session, target: TaskTarget): Promise<TaskView> {
+    return this.update(session, target, { archived: true });
+  }
+
+  restore(session: Session, target: TaskTarget): Promise<TaskView> {
+    return this.update(session, target, { archived: false });
+  }
+
+  /**
+   * Deletes the task with its comments and timeline, for good. Owners only;
+   * archiving is the reversible alternative.
+   */
+  async remove(session: Session, target: TaskTarget): Promise<{ id: string; number: number }> {
+    const task = await this.resolve(session, target);
+    const member = await this.repos.workspaces.findMember(session.workspace.id, session.user.id);
+    if (member?.role !== 'owner') {
+      throw new ValidationError('Only workspace owners can delete tasks.', { hint: 'Archive it instead: it leaves the lists and can be restored.' });
+    }
+    await this.repos.transaction(() => this.repos.tasks.delete(task.id));
+    return { id: task.id, number: task.number };
   }
 
   complete(session: Session, target: TaskTarget): Promise<TaskView> {
