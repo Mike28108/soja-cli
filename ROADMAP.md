@@ -4,11 +4,11 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
-## v0.1 — Base local (actual)
+## v0.1 — Base local (publicado en v0.1.0)
 
 TUI y CLI, setup, workspaces, proyectos, tareas, comentarios, actividad, filtros y búsqueda. SQLite local funciona sin conexión. `soja task start <id>` ya asigna la tarea al usuario actual y cambia su estado a In Progress; todavía no toca Git.
 
-## v0.2 — Git Workflow local (implementado, pendiente de publicar)
+## v0.2 — Git Workflow local (publicado en v0.2.0)
 
 Objetivo: empezar a trabajar en una tarea desde su repositorio, incluso sin internet.
 
