@@ -73,3 +73,14 @@ describe('FileConfigStore', () => {
     expect(new FileConfigStore(file).load()).toEqual(config);
   });
 });
+
+describe('server URL normalization', () => {
+  it('accepts the URL people paste, including the health path', async () => {
+    const { normalize } = await import('../../src/config/credentials.js');
+    expect(normalize('https://soja.up.railway.app/v1/health')).toBe('https://soja.up.railway.app');
+    expect(normalize('https://soja.up.railway.app/v1/')).toBe('https://soja.up.railway.app');
+    expect(normalize('https://soja.up.railway.app/')).toBe('https://soja.up.railway.app');
+    expect(normalize(' https://soja.up.railway.app ')).toBe('https://soja.up.railway.app');
+    expect(normalize('http://localhost:8787/api/v1/health')).toBe('http://localhost:8787/api');
+  });
+});
