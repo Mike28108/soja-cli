@@ -58,6 +58,14 @@ export class CredentialStore {
   }
 }
 
+/**
+ * The server's base URL. Accepts what people paste after testing it with curl,
+ * e.g. `https://host/v1/health` or `https://host/`, and returns `https://host`.
+ */
 export function normalize(apiUrl: string): string {
-  return apiUrl.replace(/\/+$/, '');
+  const trimmed = apiUrl.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return trimmed.replace(/\/+$/, '');
+  const url = new URL(trimmed);
+  const base = url.pathname.replace(/\/v1(\/.*)?$/, '').replace(/\/+$/, '');
+  return `${url.protocol}//${url.host}${base}`;
 }

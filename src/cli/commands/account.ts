@@ -36,7 +36,15 @@ export async function loginCommand(args: string[]): Promise<void> {
   }
 
   const api = new ApiClient(server, null);
-  const health = await api.get<{ version: string }>('/v1/health');
+  const health = await api.get<{ status?: string; version?: string }>('/v1/health').catch((error: unknown) => {
+    throw new SojaError(`${server} does not look like a SOJA server.`, {
+      hint: 'Use the base URL of your soja-backend, e.g. https://soja-backend-production.up.railway.app',
+      cause: error,
+    });
+  });
+  if (health?.status !== 'ok') {
+    throw new SojaError(`${server} does not look like a SOJA server.`, { hint: 'Its /v1/health did not answer {"status":"ok"}.' });
+  }
   const start = await api.post<DeviceStart>('/v1/auth/device');
   print(`${bold('Sign in with GitHub')} ${dim(`(SOJA server ${health.version} at ${server})`)}`);
   print();
