@@ -1,4 +1,5 @@
 import { ConflictError, NotFoundError, SojaError, ValidationError } from '../../domain/errors.js';
+import { terminalSafe } from '../../utils/text.js';
 
 /** The server could not be reached at all (as opposed to answering with an error). */
 export class OfflineError extends SojaError {}
@@ -12,8 +13,15 @@ export interface ApiErrorBody {
 
 /** `…At` fields arrive as ISO strings; the rest of SOJA works with Dates. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+/**
+ * Every string from the server is made terminal-safe here, the single door
+ * remote data comes through (other people's titles, comments, names…), and
+ * `…At` fields become Dates.
+ */
 function reviveDates(key: string, value: unknown): unknown {
-  return typeof value === 'string' && key.endsWith('At') && ISO_DATE.test(value) ? new Date(value) : value;
+  if (typeof value !== 'string') return value;
+  if (key.endsWith('At') && ISO_DATE.test(value)) return new Date(value);
+  return terminalSafe(value);
 }
 
 /**
