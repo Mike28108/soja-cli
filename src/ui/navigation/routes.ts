@@ -6,6 +6,7 @@ export type Route =
   | { name: 'projects' }
   | { name: 'project'; projectId: string }
   | { name: 'workspaces' }
+  | { name: 'chat'; channel?: string }
   | { name: 'help' };
 
 export type NavigationAction = { type: 'push'; route: Route } | { type: 'pop' } | { type: 'reset'; route?: Route };

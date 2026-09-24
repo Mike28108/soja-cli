@@ -2,7 +2,7 @@ import { Box, Text } from 'ink';
 import { useEffect, useState } from 'react';
 import type { TaskGitState } from '../../application/services/index.js';
 import type { TimelineEntry } from '../../application/types.js';
-import { isClosed, TYPE_LABELS } from '../../domain/task.js';
+import { isClosed, isProvisional, TYPE_LABELS } from '../../domain/task.js';
 import { formatRelative, formatStamp } from '../../utils/time.js';
 import { clampLines, wrapText } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
@@ -60,13 +60,20 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
       },
     });
   };
+  // Remote mode: the latest chat messages that name this task.
+  const chatMentions = useQuery(
+    async () => (services.chat && query.data && !isProvisional(query.data.number) ? services.chat.mentionsOfTask(session, query.data.number, 3) : []),
+    `task-chat:${taskRef}:${query.data?.number ?? ''}`,
+  );
+  const mentionList = chatMentions.data ?? [];
   // Git state loads on its own so the task shows instantly even in big repositories.
   const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
 
   // Everything above the timeline, measured in rows, so the timeline gets the rest.
   const titleLines = task ? wrapText(task.title, width).length : 1;
   const descriptionLines = task?.description ? clampLines(wrapText(task.description, width - 2), Math.max(1, Math.min(6, height - 18))) : [];
-  const fixedRows = 1 + titleLines + 1 + 1 + 5 + 1 + Math.max(1, descriptionLines.length) + 1 + 1;
+  const mentionRows = mentionList.length ? mentionList.length + 2 : 0;
+  const fixedRows = 1 + titleLines + 1 + 1 + 5 + 1 + Math.max(1, descriptionLines.length) + 1 + 1 + mentionRows;
   const timelineRows = Math.max(2, height - fixedRows);
   const timeline = task ? timelineLines(task.timeline, width) : [];
   const actorWidth = Math.min(18, Math.max(8, ...timeline.map((line) => line.actor.length)) + 2);
@@ -168,6 +175,20 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         )}
       </Box>
 
+      {mentionList.length ? (
+        <Box marginTop={1} flexDirection="column">
+          <Text dimColor bold>
+            MENTIONED IN CHAT
+          </Text>
+          {mentionList.map((message) => (
+            <Text key={message.id} wrap="truncate-end">
+              <Text dimColor>{formatStamp(message.createdAt).padEnd(7)}</Text>
+              <Text>{`${message.author ? `@${message.author.username}` : 'someone'} `}</Text>
+              <Text dimColor>{message.body.split('\n')[0]}</Text>
+            </Text>
+          ))}
+        </Box>
+      ) : null}
       <Box marginTop={1} justifyContent="space-between">
         <Text dimColor bold>
           ACTIVITY

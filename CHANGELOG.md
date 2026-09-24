@@ -7,6 +7,27 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+Requiere `soja-backend` ≥ 0.3.0 para el chat; con servidores anteriores, el resto del modo remoto sigue funcionando.
+
+### Added
+
+- **Chat del equipo (v0.5, modo remoto):** canales abiertos por workspace (`#general` por defecto), mensajes con respuestas citadas, menciones `@usuario` y referencias `SOJA-n`. `#` abre el chat desde cualquier pantalla: lista de canales con no leídos, campo de escritura siempre activo (`enter` envía, `alt+enter` nueva línea, `@` + `tab` completa), y en la lista de mensajes `r` responde, `t` crea una task desde el mensaje (con respuesta automática `→ SOJA-n`), `e`/`d` edita o borra lo tuyo y `enter` abre la task mencionada.
+- **Tiempo real:** con la interfaz abierta, una conexión WebSocket trae los mensajes al instante y sincroniza en cuanto el equipo cambia algo (también tasks). Se reconecta sola y sincroniza al volver.
+- **Chat sin conexión:** se lee desde la réplica; enviar, editar, borrar y marcar como leído van a la cola (`⋯` pendiente). Si el servidor pide esperar (límite de 30 mensajes cada 10 s), el resto sale solo poco después, en orden.
+- Header con `✉ 3 · @1` (no leídos · menciones); marcas de lectura compartidas entre tus máquinas.
+- Detalle de task: sección **MENTIONED IN CHAT** con los mensajes que la nombran.
+- CLI: `soja chat [#canal]`, `soja chat send <canal> <texto|->` (`-` lee de stdin, para scripts y hooks), `soja chat log`, `soja chat channels`, `soja chat new`.
+- Un mensaje rechazado por el servidor deja un aviso y permite recuperar el texto (`!` en el chat).
+
+### Changed
+
+- Réplica del modo remoto: tablas `chat_channels`, `chat_messages`, `chat_reads`, y `task_id` opcional en `sync_outbox` (migración `0004`).
+
+### Fixed
+
+- Un cambio hecho mientras otra sincronización estaba en curso podía esperar hasta la siguiente (hasta 30 s); ahora se envía justo al terminar la actual.
+- Cerrar SOJA ya no deja sincronizaciones programadas que fallaban tras cerrar la réplica.
+
 ## [0.4.1] - 2026-09-24
 
 ### Security

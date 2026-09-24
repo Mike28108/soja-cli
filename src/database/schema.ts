@@ -138,7 +138,8 @@ export const syncOutbox = sqliteTable(
     opId: text('op_id').notNull().unique(),
     workspaceId: text('workspace_id').notNull(),
     type: text('type').notNull(),
-    taskId: text('task_id').notNull(),
+    /** The task a task operation changes; null for chat operations. */
+    taskId: text('task_id'),
     payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     base: text('base', { mode: 'json' }).$type<Record<string, unknown>>(),
     occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
@@ -180,3 +181,43 @@ export const syncNotices = sqliteTable(
   },
   (t) => [index('sync_notices_workspace').on(t.workspaceId)],
 );
+
+// ── Chat replica (v0.5, remote mode only) ───────────────────────────────────
+
+export const chatChannels = sqliteTable(
+  'chat_channels',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    name: text('name').notNull(),
+    topic: text('topic'),
+    createdBy: text('created_by'),
+    ...timestamps,
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('chat_channels_workspace').on(t.workspaceId, t.name)],
+);
+
+export const chatMessages = sqliteTable(
+  'chat_messages',
+  {
+    id: text('id').primaryKey(),
+    /** Server order; null while the message waits in the outbox. */
+    seq: integer('seq'),
+    workspaceId: text('workspace_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    authorId: text('author_id'),
+    body: text('body').notNull(),
+    replyToId: text('reply_to_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('chat_messages_channel').on(t.channelId, t.seq), index('chat_messages_workspace').on(t.workspaceId)],
+);
+
+/** How far you have read each channel (yours only). */
+export const chatReads = sqliteTable('chat_reads', {
+  channelId: text('channel_id').primaryKey(),
+  lastReadSeq: integer('last_read_seq').notNull().default(0),
+});

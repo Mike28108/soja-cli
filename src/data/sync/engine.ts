@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { TaskView } from '../../application/types.js';
 import type { TaskActivity } from '../../domain/activity.js';
+import type { Channel, ChatMessage } from '../../domain/chat.js';
 import type { Project, TaskComment, User, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
-import { formatTaskRef, isProvisional, type Task } from '../../domain/task.js';
+import { formatTaskRef, isProvisional, TASK_REF_PREFIX, type Task } from '../../domain/task.js';
 import { OfflineError, type ApiClient } from '../remote/api-client.js';
 import type { WorkspaceWithRole } from '../repositories.js';
-import type { QueuedOp, ReplicaStore } from './store.js';
+import { isChatOp, type QueuedOp, type ReplicaStore } from './store.js';
 
 interface OpResult {
   opId: string;
   status: 'applied' | 'rejected';
   task?: TaskView;
+  message?: ChatMessage;
+  read?: { channelId: string; lastReadSeq: number };
   conflicts?: { field: string; overwritten: unknown; at: string }[];
   error?: { code: string; message: string };
 }
@@ -23,14 +26,31 @@ interface ChangeBatch {
   activity: TaskActivity[];
   projects: Omit<Project, 'repositoryPath'>[];
   members: (UserRef & { role: WorkspaceRole })[];
+  /** Chat (servers ≥ 0.3). */
+  channels?: Channel[];
+  messages?: ChatMessage[];
+  reads?: { channelId: string; lastReadSeq: number }[];
 }
+
+/** Pushed by the server over the live connection (docs/CHAT.md). */
+export type LiveEvent =
+  | { type: 'message.created' | 'message.updated'; message: ChatMessage }
+  | { type: 'channel.created' | 'channel.updated'; channel: Channel }
+  | { type: 'changes.available' };
 
 export interface SyncReport {
   online: boolean;
   pushed: number;
   conflicts: number;
   rejected: number;
+  /** Chat operations the server refused (e.g. a message to an archived channel). */
+  chatRejected: number;
+  /** Operations the server left for later (message rate limit); they stay queued. */
+  deferred: number;
   pulledTasks: number;
+  pulledMessages: number;
+  /** True for updates that arrived over the live connection rather than a sync cycle. */
+  live?: boolean;
   error?: string;
 }
 
@@ -49,6 +69,31 @@ const TASK_FIELDS = new Set(['title', 'description', 'projectId', 'type', 'prior
 /** Server task view → stored task row (presentation fields are dropped by the store). */
 const toTask = (view: TaskView): Task => view;
 
+const emptyReport = (): SyncReport => ({ online: true, pushed: 0, conflicts: 0, rejected: 0, chatRejected: 0, deferred: 0, pulledTasks: 0, pulledMessages: 0 });
+
+function taskIdOf(op: QueuedOp): string {
+  if (!op.taskId) throw new Error(`Operation ${op.type} has no task.`);
+  return op.taskId;
+}
+
+/** `SOJA-?3` as written in text, not followed by more digits. */
+const provisionalRefPattern = (number: number) => new RegExp(`\\b${TASK_REF_PREFIX}-\\?${-number}(?!\\d)`, 'gi');
+
+/**
+ * A message that names a task created offline (`SOJA-?1`) waits until that
+ * task has its real number, so it reaches the server as `SOJA-7`. The batch
+ * stops before such a message when the task is created earlier in the batch.
+ */
+function sendable(batch: readonly QueuedOp[]): QueuedOp[] {
+  const provisional = new RegExp(`\\b${TASK_REF_PREFIX}-\\?\\d`, 'i');
+  let creates = false;
+  for (const [index, op] of batch.entries()) {
+    if (op.type === 'task.create') creates = true;
+    else if (creates && isChatOp(op.type) && provisional.test(String(op.payload['body'] ?? ''))) return batch.slice(0, index);
+  }
+  return [...batch];
+}
+
 /**
  * Keeps a workspace replica in step with the SOJA server (docs/SYNC.md in
  * soja-backend): push the outbox, apply results, pull changes, re-apply
@@ -57,6 +102,7 @@ const toTask = (view: TaskView): Task => view;
  */
 export class SyncEngine {
   private running: Promise<SyncReport> | null = null;
+  private queued: Promise<SyncReport> | null = null;
   private online: boolean | null = null;
   /** Called with null when a cycle starts and with its report when it ends. */
   private listeners = new Set<(report: SyncReport | null) => void>();
@@ -88,9 +134,19 @@ export class SyncEngine {
     return me;
   }
 
-  /** Runs one sync cycle, or joins the one already running. Never throws. */
+  /**
+   * Runs one sync cycle. While one is running, a single follow-up cycle is
+   * queued (whatever was written meanwhile may have missed its push); every
+   * caller in between shares it. Never throws.
+   */
   sync(workspaceId: string): Promise<SyncReport> {
-    if (this.running) return this.running;
+    if (this.running) {
+      this.queued ??= this.running.then(() => {
+        this.queued = null;
+        return this.sync(workspaceId);
+      });
+      return this.queued;
+    }
     this.running = this.cycle(workspaceId).then((report) => {
       this.running = null;
       this.emit(report);
@@ -101,7 +157,7 @@ export class SyncEngine {
   }
 
   private async cycle(workspaceId: string): Promise<SyncReport> {
-    const report: SyncReport = { online: true, pushed: 0, conflicts: 0, rejected: 0, pulledTasks: 0 };
+    const report = emptyReport();
     let pushError: unknown = null;
     try {
       try {
@@ -122,8 +178,9 @@ export class SyncEngine {
       this.online = !(error instanceof OfflineError);
       report.online = this.online;
       report.error = message;
-      if (error !== pushError) await this.store.markAttempt(workspaceId, message);
-      await this.store.saveState(workspaceId, { lastError: message });
+      // Best effort: the replica may already be closed when a late cycle fails.
+      if (error !== pushError) await this.store.markAttempt(workspaceId, message).catch(() => undefined);
+      await this.store.saveState(workspaceId, { lastError: message }).catch(() => undefined);
       // Pending changes stay visible even when the pull could not run.
       await this.reapplyPending(workspaceId).catch(() => undefined);
     }
@@ -132,13 +189,13 @@ export class SyncEngine {
 
   private async push(workspaceId: string, report: SyncReport): Promise<void> {
     for (;;) {
-      const batch = (await this.store.pending(workspaceId)).slice(0, BATCH);
+      const batch = sendable((await this.store.pending(workspaceId)).slice(0, BATCH));
       if (batch.length === 0) return;
       const { results } = await this.api.post<{ results: OpResult[] }>(`/v1/workspaces/${workspaceId}/ops`, {
         ops: batch.map((op) => ({
           opId: op.opId,
           type: op.type,
-          taskId: op.taskId,
+          ...(op.taskId ? { taskId: op.taskId } : {}),
           occurredAt: op.occurredAt.toISOString(),
           payload: op.payload,
           ...(op.base ? { base: op.base } : {}),
@@ -147,13 +204,25 @@ export class SyncEngine {
 
       const acknowledged: string[] = [];
       const refresh = new Set<string>();
+      let unanswered = 0;
       for (const op of batch) {
         const result = results.find((candidate) => candidate.opId === op.opId);
-        if (!result) continue;
+        if (!result) {
+          unanswered += 1;
+          continue;
+        }
         acknowledged.push(op.opId);
+        if (isChatOp(op.type)) {
+          await this.chatResult(workspaceId, op, result, report);
+          continue;
+        }
         if (result.status === 'applied' && result.task) {
           report.pushed += 1;
+          const before = op.type === 'task.create' ? await this.store.findTask(taskIdOf(op)) : null;
           await this.store.upsertTask(toTask(result.task));
+          if (before && isProvisional(before.number) && !isProvisional(result.task.number)) {
+            await this.renumberInChat(workspaceId, before.number, result.task.number);
+          }
           for (const conflict of result.conflicts ?? []) {
             report.conflicts += 1;
             await this.store.addNotice(workspaceId, {
@@ -174,15 +243,75 @@ export class SyncEngine {
       await this.store.acknowledge(acknowledged);
       // Best effort: the rejection notice is already recorded; the next pull corrects the rest.
       for (const taskId of refresh) await this.refreshTask(workspaceId, taskId).catch(() => undefined);
+      // The server is pacing us (message rate limit): the rest waits for a later cycle.
+      if (unanswered > 0) {
+        report.deferred += unanswered;
+        return;
+      }
+    }
+  }
+
+  private async chatResult(workspaceId: string, op: QueuedOp, result: OpResult, report: SyncReport): Promise<void> {
+    if (result.status === 'applied') {
+      if (result.message) await this.store.upsertMessage(result.message);
+      if (result.read) await this.store.markRead(result.read.channelId, result.read.lastReadSeq);
+      if (op.type !== 'channel.read') report.pushed += 1;
+      return;
+    }
+    // A refused read mark changes nothing you can see.
+    if (op.type === 'channel.read') return;
+    report.chatRejected += 1;
+    const messageId = String(op.payload['messageId'] ?? '');
+    const message = await this.store.findMessage(messageId);
+    const channel = message ? await this.store.findChannel(message.channelId) : null;
+    const where = channel ? `#${channel.name}` : 'the chat';
+    const reason = result.error?.message ?? 'rejected by the server';
+    const body = typeof op.payload['body'] === 'string' ? op.payload['body'] : null;
+    await this.store.addNotice(workspaceId, {
+      id: randomUUID(),
+      taskId: null,
+      taskRef: where,
+      kind: 'rejected',
+      field: 'chat',
+      // Your text, so the chat can give it back to you.
+      overwritten: body,
+      message: `${op.type === 'message.send' ? `Message to ${where} not sent` : `Change to a message in ${where} not applied`}: ${reason}`,
+    });
+    if (op.type === 'message.send') await this.store.deleteMessage(messageId);
+    else if (message) await this.refreshMessage(workspaceId, message).catch(() => undefined);
+  }
+
+  /** Reloads one message as the server has it (undoing a refused edit or delete). */
+  private async refreshMessage(workspaceId: string, message: ChatMessage): Promise<void> {
+    if (message.seq === null) return;
+    const [server] = await this.api.get<ChatMessage[]>(
+      `/v1/workspaces/${workspaceId}/channels/${message.channelId}/messages?before=${message.seq + 1}&limit=1`,
+    );
+    if (server?.id === message.id) await this.store.upsertMessage(server);
+  }
+
+  /** Queued and unsent messages that named `SOJA-?n` now name the real task. */
+  private async renumberInChat(workspaceId: string, provisional: number, number: number): Promise<void> {
+    const pattern = provisionalRefPattern(provisional);
+    const ref = formatTaskRef(number);
+    for (const op of await this.store.pending(workspaceId)) {
+      const body = op.payload['body'];
+      if (!isChatOp(op.type) || typeof body !== 'string' || !pattern.test(body)) continue;
+      pattern.lastIndex = 0;
+      await this.store.updateQueuedPayload(op.opId, { ...op.payload, body: body.replace(pattern, ref) });
+      const messageId = String(op.payload['messageId'] ?? '');
+      const message = await this.store.findMessage(messageId);
+      if (message && message.seq === null) await this.store.patchMessage(messageId, { body: body.replace(pattern, ref) });
     }
   }
 
   private async rejected(workspaceId: string, op: QueuedOp, result: OpResult, refresh: Set<string>): Promise<void> {
-    const task = await this.store.findTask(op.taskId);
+    const taskId = taskIdOf(op);
+    const task = await this.store.findTask(taskId);
     const ref = task ? formatTaskRef(task.number) : 'a task';
     await this.store.addNotice(workspaceId, {
       id: randomUUID(),
-      taskId: op.type === 'task.create' ? null : op.taskId,
+      taskId: op.type === 'task.create' ? null : taskId,
       taskRef: ref,
       kind: 'rejected',
       field: null,
@@ -190,8 +319,8 @@ export class SyncEngine {
       message: `${op.type === 'task.create' ? `Could not create ${ref}` : `A change to ${ref} was not applied`}: ${result.error?.message ?? 'rejected by the server'}`,
     });
     // A task the server never accepted must not linger; other rejections are undone by reloading the task.
-    if (op.type === 'task.create') await this.store.deleteTask(op.taskId);
-    else refresh.add(op.taskId);
+    if (op.type === 'task.create') await this.store.deleteTask(taskId);
+    else refresh.add(taskId);
   }
 
   private async refreshTask(workspaceId: string, taskId: string): Promise<void> {
@@ -214,7 +343,11 @@ export class SyncEngine {
       for (const task of batch.tasks) await this.store.upsertTask(toTask(task));
       for (const comment of batch.comments) await this.store.upsertComment(comment);
       for (const activity of batch.activity) await this.store.upsertActivity(activity);
+      for (const channel of batch.channels ?? []) await this.store.upsertChannel(channel);
+      for (const message of batch.messages ?? []) await this.store.upsertMessage(message);
+      for (const read of batch.reads ?? []) await this.store.markRead(read.channelId, read.lastReadSeq);
       report.pulledTasks += batch.tasks.length;
+      report.pulledMessages += batch.messages?.length ?? 0;
       cursor = batch.cursor;
       await this.store.saveState(workspaceId, { cursor });
       if (!batch.hasMore) return;
@@ -224,10 +357,41 @@ export class SyncEngine {
   /** Server rows may predate queued edits; put the queued field values back on top. */
   private async reapplyPending(workspaceId: string): Promise<void> {
     for (const op of await this.store.pending(workspaceId)) {
-      if (op.type !== 'task.change') continue;
-      const fields = Object.fromEntries(Object.entries(op.payload).filter(([field]) => TASK_FIELDS.has(field)));
-      await this.store.patchTask(op.taskId, fields as Partial<Task>);
+      const messageId = String(op.payload['messageId'] ?? '');
+      if (op.type === 'task.change') {
+        const fields = Object.fromEntries(Object.entries(op.payload).filter(([field]) => TASK_FIELDS.has(field)));
+        await this.store.patchTask(taskIdOf(op), fields as Partial<Task>);
+      } else if (op.type === 'message.edit') {
+        await this.store.patchMessage(messageId, { body: String(op.payload['body'] ?? ''), editedAt: op.occurredAt });
+      } else if (op.type === 'message.delete') {
+        await this.store.patchMessage(messageId, { body: '', deletedAt: op.occurredAt });
+      }
     }
+  }
+
+  /**
+   * Applies a chat event from the live connection right away. Returns true
+   * when the caller should run a sync instead (the event only says "changed").
+   */
+  async receive(workspaceId: string, event: LiveEvent): Promise<boolean> {
+    switch (event.type) {
+      case 'changes.available':
+        return true;
+      case 'message.created':
+      case 'message.updated':
+        if (event.message.workspaceId !== workspaceId) return false;
+        await this.store.upsertMessage(event.message);
+        break;
+      case 'channel.created':
+      case 'channel.updated':
+        if (event.channel.workspaceId !== workspaceId) return false;
+        await this.store.upsertChannel(event.channel);
+        break;
+    }
+    await this.reapplyPending(workspaceId);
+    this.online = true;
+    this.emit({ ...emptyReport(), live: true, pulledMessages: event.type.startsWith('message.') ? 1 : 0 });
+    return false;
   }
 
   private emit(report: SyncReport | null): void {

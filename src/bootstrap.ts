@@ -28,6 +28,8 @@ export interface BootstrapOptions {
   fetch?: typeof fetch;
   /** Replica database for remote mode (tests use ':memory:'). */
   replicaFile?: string;
+  /** Real-time connection for remote mode (tests pass a fake). */
+  WebSocket?: typeof WebSocket;
 }
 
 /**
@@ -59,7 +61,15 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
       replica.close();
       throw error;
     }
-    return { services: createReplicaServices(api, replica, config, git, gitConsole), paths, close: () => replica.close() };
+    const services = createReplicaServices(api, replica, config, git, gitConsole, options.WebSocket);
+    return {
+      services,
+      paths,
+      close: () => {
+        services.sync.stop();
+        replica.close();
+      },
+    };
   }
 
   const handle = openDatabase(paths.databaseFile);

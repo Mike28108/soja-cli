@@ -41,6 +41,17 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
     ],
   ],
   [
+    'Chat (remote mode)',
+    [
+      ['#', 'Open the chat'],
+      ['enter / alt+enter', 'Send / new line'],
+      ['tab', '@ complete, or pick a message'],
+      ['r / t', 'Reply / task from message'],
+      ['e / d', 'Edit / delete yours'],
+      ['[ ] / #', 'Switch channel'],
+    ],
+  ],
+  [
     'Go to',
     [
       ['/', 'Search'],

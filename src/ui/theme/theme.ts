@@ -42,6 +42,10 @@ export const symbols = {
   rule: '─',
   comment: '›',
   ellipsis: '…',
+  /** Chat: a message waiting to be sent, a quoted reply, unread messages. */
+  pending: '⋯',
+  reply: '↳',
+  unread: '✉',
 } as const;
 
 export interface TokenStyle {

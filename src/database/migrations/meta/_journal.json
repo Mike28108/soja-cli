@@ -29,6 +29,13 @@
       "when": 1790277009822,
       "tag": "0003_sync-replica",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790286496661,
+      "tag": "0004_chat-replica",
+      "breakpoints": true
     }
   ]
 }
