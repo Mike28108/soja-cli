@@ -58,14 +58,15 @@ const toTask = (view: TaskView): Task => view;
 export class SyncEngine {
   private running: Promise<SyncReport> | null = null;
   private online: boolean | null = null;
-  private listeners = new Set<() => void>();
+  /** Called with null when a cycle starts and with its report when it ends. */
+  private listeners = new Set<(report: SyncReport | null) => void>();
 
   constructor(
     private readonly api: ApiClient,
     private readonly store: ReplicaStore,
   ) {}
 
-  subscribe(listener: () => void): () => void {
+  subscribe(listener: (report: SyncReport | null) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -90,11 +91,12 @@ export class SyncEngine {
   /** Runs one sync cycle, or joins the one already running. Never throws. */
   sync(workspaceId: string): Promise<SyncReport> {
     if (this.running) return this.running;
-    this.running = this.cycle(workspaceId).finally(() => {
+    this.running = this.cycle(workspaceId).then((report) => {
       this.running = null;
-      this.emit();
+      this.emit(report);
+      return report;
     });
-    this.emit();
+    this.emit(null);
     return this.running;
   }
 
@@ -228,8 +230,8 @@ export class SyncEngine {
     }
   }
 
-  private emit(): void {
-    for (const listener of this.listeners) listener();
+  private emit(report: SyncReport | null): void {
+    for (const listener of this.listeners) listener(report);
   }
 }
 
