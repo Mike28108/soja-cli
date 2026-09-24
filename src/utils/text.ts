@@ -44,3 +44,20 @@ export function expandHome(path: string, home: string = homedir()): string {
 export function tildify(path: string, home: string = homedir()): string {
   return path === home || path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }
+
+/**
+ * C0/C1 control characters except tab and newline (these carry ANSI escape
+ * sequences: colors, cursor moves, window titles, clipboard writes), plus the
+ * Unicode bidi controls used to disguise text ("Trojan Source").
+ */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const UNSAFE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
+
+/**
+ * Makes text written by someone else safe to print in a terminal. Applied to
+ * everything that comes from a SOJA server and to Git output from other
+ * people's commits.
+ */
+export function terminalSafe(text: string): string {
+  return text.replace(/\r\n?/g, '\n').replace(UNSAFE, '');
+}

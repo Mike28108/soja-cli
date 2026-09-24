@@ -1,3 +1,5 @@
+import { terminalSafe } from '../utils/text.js';
+
 export type ConsoleLineKind = 'command' | 'stdout' | 'stderr' | 'info' | 'success' | 'error';
 
 export interface ConsoleLine {
@@ -20,7 +22,7 @@ export class GitConsole {
   constructor(private readonly capacity = 500) {}
 
   write(kind: ConsoleLineKind, text: string): void {
-    for (const part of text.replace(/\r/g, '\n').split('\n')) {
+    for (const part of terminalSafe(text.replace(/\r/g, '\n')).split('\n')) {
       if (!part.trim()) continue;
       this.lines.push({ id: (this.counter += 1), kind, text: part, at: new Date() });
     }
