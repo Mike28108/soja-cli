@@ -48,11 +48,14 @@ export interface NewProject {
   repositoryPath?: string | null;
 }
 
+export type ProjectPatch = Partial<Pick<Project, 'name' | 'description' | 'repositoryUrl' | 'repositoryPath'>>;
+
 export interface ProjectRepository {
   findById(id: string): Promise<Project | null>;
   findByKey(workspaceId: string, key: string): Promise<Project | null>;
   listByWorkspace(workspaceId: string): Promise<Project[]>;
   create(input: NewProject): Promise<Project>;
+  update(id: string, patch: ProjectPatch): Promise<Project>;
 }
 
 export type NewTask = Omit<Task, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt'> &
@@ -70,6 +73,8 @@ export type TaskPatch = Partial<
     | 'assigneeId'
     | 'requester'
     | 'branch'
+    | 'baseBranch'
+    | 'branchStart'
     | 'startedAt'
     | 'completedAt'
   >

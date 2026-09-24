@@ -54,6 +54,18 @@ export function describe(item: TaskActivity, lookups: TimelineLookups): string {
     }
     case 'comment_added':
       return 'added a comment';
+    case 'git_committed':
+      return `committed ${item.metadata.hash.slice(0, 7)} “${item.metadata.subject}”`;
+    case 'git_merged':
+      return `merged ${item.metadata.branch} into ${item.metadata.into}`;
+    case 'git_branch_deleted':
+      return `deleted branch ${item.metadata.branch}${item.metadata.merged ? '' : ' (unmerged)'}`;
+    case 'git_pushed':
+      return `pushed ${item.metadata.branch} to ${item.metadata.remote}`;
+    case 'git_merge_detected':
+      return `merge into ${item.metadata.into} detected (done outside SOJA)`;
+    case 'pr_opened':
+      return `opened a pull request ${item.metadata.url}`;
     case 'task_updated': {
       const { field, from, to } = item.metadata;
       switch (field) {

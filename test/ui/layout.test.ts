@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { layoutTaskColumns } from '../../src/ui/components/task-columns.js';
 import { navigate, type Route } from '../../src/ui/navigation/routes.js';
-import { wrapText, clampLines } from '../../src/utils/text.js';
+import { clampLines, expandHome, tildify, wrapText } from '../../src/utils/text.js';
 import { formatRelative, formatStamp } from '../../src/utils/time.js';
 
 describe('layoutTaskColumns', () => {
@@ -61,5 +61,15 @@ describe('text and time helpers', () => {
     expect(formatStamp(new Date(2025, 8, 22), now)).toBe('Sep 22 2025');
     expect(formatRelative(new Date(2026, 8, 24, 11, 55), now)).toBe('5m ago');
     expect(formatRelative(new Date(2026, 8, 24, 9, 0), now)).toBe('3h ago');
+  });
+});
+
+describe('home paths', () => {
+  it('expands and shortens ~', () => {
+    expect(expandHome('~/Development/spring', '/home/dev')).toBe('/home/dev/Development/spring');
+    expect(expandHome('~', '/home/dev')).toBe('/home/dev');
+    expect(expandHome('/srv/app', '/home/dev')).toBe('/srv/app');
+    expect(expandHome('~other/x', '/home/dev')).toBe('~other/x');
+    expect(tildify('/home/dev/Development/spring', '/home/dev')).toBe('~/Development/spring');
   });
 });

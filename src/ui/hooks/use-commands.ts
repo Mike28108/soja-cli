@@ -4,13 +4,13 @@ import type { PickerSpec } from '../overlays/types.js';
 import { useFlows } from './use-flows.js';
 
 /** The command palette: every major action, filterable by typing. */
-export function useCommandPalette(): () => void {
-  const { openOverlay, go, route, quit } = useAppState();
+export function useCommandPalette(newTaskProjectId: string | null): () => void {
+  const { openOverlay, go, quit } = useAppState();
   const flows = useFlows();
 
   return () => {
     const commands: { id: string; label: string; key?: string; run: () => unknown }[] = [
-      { id: 'new-task', label: 'New task', key: 'n', run: () => openOverlay({ kind: 'new-task', projectId: route.name === 'project' ? route.projectId : null }) },
+      { id: 'new-task', label: 'New task', key: 'n', run: () => openOverlay({ kind: 'new-task', projectId: newTaskProjectId }) },
       ...TASK_FILTERS.map((filter) => ({
         id: `filter-${filter}`,
         label: FILTER_LABELS[filter],
@@ -24,6 +24,8 @@ export function useCommandPalette(): () => void {
       { id: 'workspaces', label: 'Workspaces', key: 'w', run: () => go({ type: 'push', route: { name: 'workspaces' } }) },
       { id: 'new-workspace', label: 'New workspace', run: () => flows.newWorkspace() },
       { id: 'add-developer', label: 'Add developer', run: () => flows.addDeveloper() },
+      { id: 'parent-folders', label: 'Parent folders', run: () => flows.manageParentFolders() },
+      { id: 'git-log', label: 'Git log', run: () => openOverlay({ kind: 'git-log' }) },
       { id: 'help', label: 'Help', key: '?', run: () => go({ type: 'push', route: { name: 'help' } }) },
       { id: 'quit', label: 'Quit', key: 'q', run: quit },
     ];

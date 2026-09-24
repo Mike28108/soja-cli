@@ -2,9 +2,12 @@
 import { ValidationError } from '../domain/errors.js';
 import { toDisplayError } from '../utils/errors.js';
 import { devCommand } from './commands/dev.js';
+import { foldersCommand } from './commands/folders.js';
+import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
 import { printHelp, printVersion } from './commands/info.js';
 import { projectCommand } from './commands/project.js';
 import { taskCommand } from './commands/task.js';
+import { startCommand } from './commands/start.js';
 import { runInterface } from './commands/tui.js';
 import { switchWorkspace, workspaceCommand } from './commands/workspace.js';
 import { printError } from './output.js';
@@ -34,12 +37,33 @@ async function main(argv: string[]): Promise<void> {
       return workspaceCommand(rest);
     case 'use':
       return switchWorkspace(rest);
+    case 'start':
+      return startCommand(rest);
+    case 'folders':
+    case 'folder':
+      return foldersCommand(rest);
+    case 'commit':
+      return commitCommand(rest);
+    case 'merge':
+      return mergeCommand(rest);
+    case 'branch':
+      return branchCommand(rest);
+    case 'push':
+      return pushCommand(rest);
+    case 'pr':
+      return pullRequestCommand(rest);
     case 'dev':
       return devCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }
 }
+
+// `soja task list | head` closes the pipe early; that is not an error.
+process.stdout.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EPIPE') process.exit(0);
+  throw error;
+});
 
 main(process.argv.slice(2)).catch((error: unknown) => {
   printError(toDisplayError(error));

@@ -35,17 +35,19 @@ interface AppProps {
   services: AppServices;
   /** How long the launch splash stays at least. Any key skips it. */
   splashMs?: number;
+  /** Working directory for Git features. */
+  cwd?: string;
 }
 
-export function App({ services, splashMs = 700 }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd() }: AppProps) {
   return (
     <KeyProvider>
-      <Boot services={services} splashMs={splashMs} />
+      <Boot services={services} splashMs={splashMs} cwd={cwd} />
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs }: Required<AppProps>) {
+function Boot({ services, splashMs, cwd }: Required<AppProps>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
@@ -102,7 +104,7 @@ function Boot({ services, splashMs }: Required<AppProps>) {
       );
     case 'ready':
       return (
-        <AppStateProvider services={services} initialSession={phase.session}>
+        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session}>
           <Shell />
         </AppStateProvider>
       );
