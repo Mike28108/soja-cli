@@ -19,7 +19,7 @@ import { ScreenFrame } from './ScreenFrame.js';
 const LABEL_WIDTH = 14;
 
 export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: string }) {
-  const { services, session, cwd, detectMerges } = useAppState();
+  const { services, session, cwd, detectMerges, openOverlay, run } = useAppState();
   useEffect(() => {
     void detectMerges(taskRef);
   }, [detectMerges, taskRef]);
@@ -28,6 +28,38 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const [scroll, setScroll] = useState(0);
   const query = useQuery(() => services.tasks.get(session, taskRef), `task:${session.workspace.id}:${taskRef}`);
   const task = query.data;
+  // Remote mode: conflicts and rejections the last syncs reported for this task.
+  const notices = useQuery(
+    async () => (services.sync && query.data ? services.sync.notices(session.workspace.id, query.data.id) : []),
+    `notices:${taskRef}:${query.data?.id ?? ''}`,
+  );
+  const openNotices = () => {
+    const sync = services.sync;
+    const list = notices.data ?? [];
+    if (!sync || list.length === 0 || !task) return;
+    openOverlay({
+      kind: 'picker',
+      title: 'Sync notices',
+      context: task.ref,
+      options: list.flatMap((notice) => [
+        ...(notice.kind === 'conflict' && notice.field
+          ? [{ value: `restore:${notice.id}`, label: `Restore ${notice.field} to ${JSON.stringify(notice.overwritten)}`, hint: 'their value' }]
+          : []),
+        { value: `dismiss:${notice.id}`, label: `Dismiss: ${notice.message}`, dim: true },
+      ]),
+      onSelect: (value) => {
+        const [action, id] = value.split(':');
+        const notice = list.find((candidate) => candidate.id === id);
+        if (!notice) return;
+        return run(async () => {
+          if (action === 'restore' && notice.field) {
+            await services.tasks.update(session, task, { [notice.field]: notice.overwritten } as Parameters<typeof services.tasks.update>[2]);
+          }
+          await sync.dismissNotice(notice.id);
+        }, action === 'restore' ? `${task.ref}: ${notice.field} restored` : 'Notice dismissed');
+      },
+    });
+  };
   // Git state loads on its own so the task shows instantly even in big repositories.
   const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
 
@@ -56,6 +88,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         c: () => actions.comment(task),
         e: () => actions.edit(task),
         x: () => actions.toggleDone(task),
+        '!': openNotices,
         b: () => actions.branch(task),
         g: () => actions.gitMenu(task),
         C: () => actions.commit(task),
@@ -71,7 +104,9 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     active,
   );
 
+  const noticeCount = notices.data?.length ?? 0;
   const hints = [
+    ...(noticeCount ? ([['!', `${noticeCount} sync notice${noticeCount === 1 ? '' : 's'}`]] as const) : []),
     ['s', 'status'],
     ['p', 'priority'],
     ['a', 'assign'],
@@ -120,6 +155,11 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         <GitFields state={git.data} fallbackBranch={task.branch ?? task.suggestedBranch} recorded={task.branch !== null} closed={isClosed(task.status)} />
       </Box>
 
+      {(notices.data ?? []).slice(0, 2).map((notice) => (
+        <Text key={notice.id} color={notice.kind === 'conflict' ? palette.warning : palette.danger} wrap="truncate-end">
+          {`! ${notice.message}`}
+        </Text>
+      ))}
       <Box marginTop={1} flexDirection="column" paddingLeft={2}>
         {descriptionLines.length ? (
           descriptionLines.map((line, index) => <Text key={index}>{line}</Text>)

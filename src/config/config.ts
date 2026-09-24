@@ -6,10 +6,10 @@ import { ConfigError } from '../domain/errors.js';
 const remoteSchema = z.object({
   /** SOJA server, e.g. https://api.soja.dev (the token lives in credentials.json). */
   apiUrl: z.string().url(),
+  /** Signed-in user on that server, so SOJA can open offline from the replica. */
+  userId: z.string().min(1).optional(),
   /** Active workspace on the server. */
   workspaceId: z.string().min(1).optional(),
-  /** Project id → local repository folder. Paths differ per developer, so they never go to the server. */
-  repositoryPaths: z.record(z.string(), z.string()).default({}),
 });
 
 /**

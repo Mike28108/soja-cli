@@ -80,8 +80,16 @@ export interface Task {
 /** Human identifier prefix. Numbers are sequential per workspace. */
 export const TASK_REF_PREFIX = 'SOJA';
 
+/**
+ * `SOJA-12`. Tasks created offline in remote mode get provisional negative
+ * numbers until the server assigns the real one: -1 shows as `SOJA-?1`.
+ */
 export function formatTaskRef(number: number): string {
-  return `${TASK_REF_PREFIX}-${number}`;
+  return number < 0 ? `${TASK_REF_PREFIX}-?${-number}` : `${TASK_REF_PREFIX}-${number}`;
+}
+
+export function isProvisional(number: number): boolean {
+  return number < 0;
 }
 
 /**
@@ -92,12 +100,13 @@ export function taskMentionPattern(number: number): string {
   return `${TASK_REF_PREFIX}-${number}([^0-9]|$)`;
 }
 
-/** Accepts `SOJA-12`, `soja-12`, `#12` or `12`. */
+/** Accepts `SOJA-12`, `soja-12`, `#12` or `12`, and provisional `SOJA-?1` / `?1`. */
 export function parseTaskRef(input: string): number | null {
-  const match = /^(?:soja-|#)?(\d{1,9})$/i.exec(input.trim());
-  if (!match?.[1]) return null;
-  const value = Number(match[1]);
-  return value > 0 ? value : null;
+  const match = /^(?:soja-|#)?(\?)?(\d{1,9})$/i.exec(input.trim());
+  if (!match?.[2]) return null;
+  const value = Number(match[2]);
+  if (value <= 0) return null;
+  return match[1] ? -value : value;
 }
 
 export function isClosed(status: TaskStatus): boolean {

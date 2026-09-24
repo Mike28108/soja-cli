@@ -66,7 +66,7 @@ export async function loginCommand(args: string[]): Promise<void> {
       mode: 'remote',
       remote: {
         apiUrl: server,
-        repositoryPaths: sameServer ? (current?.remote?.repositoryPaths ?? {}) : {},
+        userId: poll.body.user.id,
         ...(sameServer && current?.remote?.workspaceId ? { workspaceId: current.remote.workspaceId } : {}),
       },
     });

@@ -5,7 +5,7 @@ import { useFlows } from './use-flows.js';
 
 /** The command palette: every major action, filterable by typing. */
 export function useCommandPalette(newTaskProjectId: string | null): () => void {
-  const { openOverlay, go, quit } = useAppState();
+  const { openOverlay, go, quit, services, session, run } = useAppState();
   const flows = useFlows();
 
   return () => {
@@ -26,6 +26,9 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       { id: 'add-developer', label: 'Add developer', run: () => flows.addDeveloper() },
       { id: 'parent-folders', label: 'Parent folders', run: () => flows.manageParentFolders() },
       { id: 'git-log', label: 'Git log', run: () => openOverlay({ kind: 'git-log' }) },
+      ...(services.sync
+        ? [{ id: 'sync', label: 'Sync now', run: () => run(async () => services.sync?.syncNow(session.workspace.id), 'Synced') }]
+        : []),
       { id: 'help', label: 'Help', key: '?', run: () => go({ type: 'push', route: { name: 'help' } }) },
       { id: 'quit', label: 'Quit', key: 'q', run: quit },
     ];

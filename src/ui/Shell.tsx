@@ -7,6 +7,7 @@ import { useLayout } from './hooks/use-layout.js';
 import { useQuery } from './hooks/use-query.js';
 import { Layer } from './input/dispatcher.js';
 import { useKeys } from './input/KeyProvider.js';
+import type { SyncStatus } from '../data/sync/engine.js';
 import type { Route } from './navigation/routes.js';
 import { CommitOverlay } from './overlays/CommitOverlay.js';
 import { GitLogOverlay } from './overlays/GitLogOverlay.js';
@@ -28,7 +29,7 @@ import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
  * selection you left.
  */
 export function Shell() {
-  const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges } = useAppState();
+  const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges, syncStatus } = useAppState();
   const { width } = useLayout();
   // New tasks default to the open project, or to the project linked to the repository SOJA runs in.
   const here = useQuery(async () => (await services.projects.findByRepository(session, cwd))?.id ?? null, `cwd:${session.workspace.id}`);
@@ -72,6 +73,7 @@ export function Shell() {
         username={session.user.username}
         width={width}
         server={services.environment.mode === 'remote' ? new URL(services.environment.server).host : undefined}
+        syncLabel={syncLabelFor(syncStatus)}
       />
       <Box marginTop={1} flexDirection="column">
         {stack.map((entry, index) => {
@@ -139,4 +141,12 @@ function headerContext(route: Route, projectName: string | null | undefined): st
     case 'home':
       return undefined;
   }
+}
+
+function syncLabelFor(status: SyncStatus | null): { text: string; warn: boolean } | undefined {
+  if (!status) return undefined;
+  if (status.syncing) return { text: 'syncing…', warn: false };
+  if (status.online === false) return { text: `offline${status.pending ? ` · ${status.pending} pending` : ''}`, warn: true };
+  if (status.pending) return { text: `${status.pending} pending`, warn: Boolean(status.lastError) };
+  return undefined;
 }

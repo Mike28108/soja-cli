@@ -59,7 +59,12 @@ export interface ProjectRepository {
 }
 
 export type NewTask = Omit<Task, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt'> &
-  Partial<Pick<Task, 'startedAt' | 'completedAt'>>;
+  Partial<Pick<Task, 'startedAt' | 'completedAt'>> & {
+    /** Chosen by the caller (offline replica); random otherwise. */
+    id?: string;
+    /** Explicit number (provisional, negative, in the offline replica); next free otherwise. */
+    number?: number;
+  };
 
 export type TaskPatch = Partial<
   Pick<
@@ -107,7 +112,7 @@ export interface TaskRepository {
 }
 
 export interface CommentRepository {
-  create(input: { taskId: string; userId: string; body: string }): Promise<TaskComment>;
+  create(input: { id?: string; taskId: string; userId: string; body: string }): Promise<TaskComment>;
   listByTask(taskId: string): Promise<TaskComment[]>;
 }
 
