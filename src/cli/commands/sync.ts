@@ -18,7 +18,7 @@ export async function syncCommand(args: string[]): Promise<void> {
     const status = await sync.status(workspaceId);
     if (!report.online) print(color('yellow', `Offline. ${status.pending} change${status.pending === 1 ? '' : 's'} queued; they are sent when you reconnect.`));
     else if (report.error) print(color('yellow', `Synced partially: ${report.error}`));
-    else success(`Synced ${bold(session.workspace.name)} ${dim(`· sent ${report.pushed}, received ${report.pulledTasks} task update${report.pulledTasks === 1 ? '' : 's'}`)}`);
+    else success(`Synced ${bold(session.workspace.name)} ${dim(`· sent ${report.pushed}, received ${report.pulledTasks} task update${report.pulledTasks === 1 ? '' : 's'}${report.pulledMessages ? ` and ${report.pulledMessages} message${report.pulledMessages === 1 ? '' : 's'}` : ''}`)}`);
     if (status.lastSyncAt) print(dim(`  last sync ${formatRelative(status.lastSyncAt)}`));
 
     const notices = await sync.notices(workspaceId);

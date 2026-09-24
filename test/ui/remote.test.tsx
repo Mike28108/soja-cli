@@ -32,6 +32,7 @@ describe('remote mode in the interface', () => {
       credentials,
       fetch: server.fetch,
       replicaFile: ':memory:',
+      WebSocket: server.WebSocket,
     });
 
     ui = render(<App services={runtime.services} splashMs={0} cwd={dir.path} />);
@@ -53,4 +54,81 @@ describe('remote mode in the interface', () => {
     expect(frame).not.toContain('SOJA-?1');
     expect(server.tasks.size).toBe(1);
   });
+
+  it('chats in real time: unread badge, send, live messages, replies and tasks from messages', async () => {
+    dir = tempDir();
+    const server = new FakeSojaServer();
+    const userId = server.addUser('michael');
+    const angelId = server.addUser('angel');
+    server.serverMessage(server.general, angelId, 'hi @michael, SOJA-1 is flaky');
+    const credentials = new CredentialStore(join(dir.path, 'credentials.json'));
+    credentials.save('https://soja.test', server.tokenFor(userId), 'michael');
+    runtime = await bootstrap({
+      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+      config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: 'https://soja.test', userId } }),
+      credentials,
+      fetch: server.fetch,
+      replicaFile: ':memory:',
+      WebSocket: server.WebSocket,
+    });
+    const type = async (text: string) => {
+      for (const char of text) {
+        ui?.stdin.write(char);
+        await settle(5);
+      }
+    };
+
+    ui = render(<App services={runtime.services} splashMs={0} cwd={dir.path} />);
+    await settle(400);
+    expect(ui.lastFrame()).toContain('✉ 1 · @1');
+
+    ui.stdin.write('#');
+    await settle(150);
+    expect(ui.lastFrame()).toContain('#general');
+    expect(ui.lastFrame()).toContain('hi @michael, SOJA-1 is flaky');
+
+    await type('on it');
+    ui.stdin.write('\r');
+    await settle(80);
+    expect(ui.lastFrame()).toContain('on it');
+    await settle(1200);
+    expect([...server.messages.values()].map((m) => m.body)).toContain('on it');
+    expect(server.reads.get(userId)?.get(server.general)).toBeGreaterThan(0);
+
+    // Someone else writes: it arrives over the live connection.
+    server.serverMessage(server.general, angelId, 'thanks!');
+    await settle(150);
+    expect(ui.lastFrame()).toContain('thanks!');
+
+    // tab → messages; k up to angel's first message; r replies to it.
+    ui.stdin.write('\t');
+    await settle(40);
+    ui.stdin.write('k');
+    await settle(40);
+    ui.stdin.write('k');
+    await settle(40);
+    ui.stdin.write('r');
+    await settle(60);
+    expect(ui.lastFrame()).toContain('Replying to @angel');
+    await type('looking');
+    ui.stdin.write('\r');
+    await settle(1200);
+    const first = [...server.messages.values()].find((m) => String(m.body).startsWith('hi @michael'));
+    const reply = [...server.messages.values()].find((m) => m.body === 'looking');
+    expect(reply?.replyToId).toBe(first?.id);
+
+    // A task from the same message, with the reply naming its real number.
+    ui.stdin.write('\t');
+    await settle(40);
+    for (const _ of [1, 2, 3, 4]) {
+      ui.stdin.write('k');
+      await settle(30);
+    }
+    ui.stdin.write('t');
+    await settle(100);
+    expect(ui.lastFrame()).toContain('Created SOJA-?1 from the message');
+    await settle(1500);
+    expect([...server.tasks.values()].map((task) => task.title)).toEqual(['hi @michael, SOJA-1 is flaky']);
+    expect([...server.messages.values()].map((m) => m.body)).toContain('→ SOJA-1 hi @michael, SOJA-1 is flaky');
+    }, 20_000);
 });

@@ -13,10 +13,12 @@ interface HeaderProps {
   server?: string | undefined;
   /** Remote mode sync state, e.g. "2 pending" or "offline". */
   syncLabel?: { text: string; warn: boolean } | undefined;
+  /** Remote mode chat: unread messages and mentions of you. */
+  chat?: { unread: number; mentions: number } | undefined;
 }
 
 /** The discreet line that stays on top during normal use. */
-export function Header({ workspace, context, username, width, server, syncLabel }: HeaderProps) {
+export function Header({ workspace, context, username, width, server, syncLabel, chat }: HeaderProps) {
   const roomy = width >= 60;
   return (
     <Box justifyContent="space-between" width={width}>
@@ -34,6 +36,12 @@ export function Header({ workspace, context, username, width, server, syncLabel 
             {syncLabel ? (
               <Text color={syncLabel.warn ? palette.warning : undefined} dimColor={!syncLabel.warn}>{` · ${syncLabel.text}`}</Text>
             ) : null}
+          </Text>
+        ) : null}
+        {chat && chat.unread > 0 ? (
+          <Text>
+            <Text color={palette.accent}>{`${symbols.unread} ${chat.unread}`}</Text>
+            {chat.mentions > 0 ? <Text color={palette.warning}>{` ${symbols.dot} @${chat.mentions}`}</Text> : null}
           </Text>
         ) : null}
         <Text dimColor>@{username}</Text>

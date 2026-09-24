@@ -1,6 +1,9 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import type { Database } from '../../database/client.js';
 import {
+  chatChannels,
+  chatMessages,
+  chatReads,
   projects,
   syncNotices,
   syncOutbox,
@@ -14,17 +17,23 @@ import {
   workspaces,
 } from '../../database/schema.js';
 import type { TaskActivity } from '../../domain/activity.js';
+import type { Channel, ChatMessage } from '../../domain/chat.js';
 import type { Project, TaskComment, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
 import type { Task } from '../../domain/task.js';
 
-export type OpType = 'task.create' | 'task.change' | 'task.comment' | 'task.git_event';
+export type TaskOpType = 'task.create' | 'task.change' | 'task.comment' | 'task.git_event';
+export type ChatOpType = 'message.send' | 'message.edit' | 'message.delete' | 'channel.read';
+export type OpType = TaskOpType | ChatOpType;
+
+export const isChatOp = (type: OpType): type is ChatOpType => !type.startsWith('task.');
 
 export interface QueuedOp {
   seq: number;
   opId: string;
   workspaceId: string;
   type: OpType;
-  taskId: string;
+  /** Null for chat operations. */
+  taskId: string | null;
   payload: Record<string, unknown>;
   base: Record<string, unknown> | null;
   occurredAt: Date;
@@ -195,4 +204,82 @@ export class ReplicaStore {
   async dismissNotice(id: string): Promise<void> {
     await this.db.update(syncNotices).set({ dismissedAt: new Date() }).where(eq(syncNotices.id, id));
   }
+
+  // ── Chat ─────────────────────────────────────────────────────────────────
+
+  async upsertChannel(channel: Channel): Promise<void> {
+    const row = pickChannel(channel);
+    const { id: _id, ...rest } = row;
+    await this.db.insert(chatChannels).values(row).onConflictDoUpdate({ target: chatChannels.id, set: rest });
+  }
+
+  async channels(workspaceId: string): Promise<Channel[]> {
+    return this.db.select().from(chatChannels).where(eq(chatChannels.workspaceId, workspaceId)).orderBy(asc(chatChannels.name));
+  }
+
+  async findChannel(id: string): Promise<Channel | null> {
+    return (await this.db.select().from(chatChannels).where(eq(chatChannels.id, id)).get()) ?? null;
+  }
+
+  async upsertMessage(message: ChatMessage): Promise<void> {
+    const row = pickMessage(message);
+    const { id: _id, ...rest } = row;
+    await this.db.insert(chatMessages).values(row).onConflictDoUpdate({ target: chatMessages.id, set: rest });
+  }
+
+  async patchMessage(id: string, fields: Partial<Pick<ChatMessage, 'body' | 'editedAt' | 'deletedAt'>>): Promise<void> {
+    await this.db.update(chatMessages).set(fields).where(eq(chatMessages.id, id));
+  }
+
+  async deleteMessage(id: string): Promise<void> {
+    await this.db.delete(chatMessages).where(eq(chatMessages.id, id));
+  }
+
+  async findMessage(id: string): Promise<ChatMessage | null> {
+    return (await this.db.select().from(chatMessages).where(eq(chatMessages.id, id)).get()) ?? null;
+  }
+
+  async messagesIn(channelId: string): Promise<ChatMessage[]> {
+    return this.db.select().from(chatMessages).where(eq(chatMessages.channelId, channelId));
+  }
+
+  /** Messages whose text contains `fragment` (a cheap prefilter; callers check the exact match). */
+  async messagesContaining(workspaceId: string, fragment: string): Promise<ChatMessage[]> {
+    return this.db
+      .select()
+      .from(chatMessages)
+      .where(and(eq(chatMessages.workspaceId, workspaceId), like(chatMessages.body, `%${fragment.replace(/[%_]/g, '')}%`)));
+  }
+
+  async reads(): Promise<Map<string, number>> {
+    const rows = await this.db.select().from(chatReads);
+    return new Map(rows.map((row) => [row.channelId, row.lastReadSeq]));
+  }
+
+  /** Read marks only move forward, as on the server. */
+  async markRead(channelId: string, lastReadSeq: number): Promise<void> {
+    const current = (await this.reads()).get(channelId) ?? 0;
+    if (lastReadSeq <= current) return;
+    await this.db.insert(chatReads).values({ channelId, lastReadSeq }).onConflictDoUpdate({ target: chatReads.channelId, set: { lastReadSeq } });
+  }
+
+  /** Drops a queued operation that was never sent (e.g. an older read mark superseded by a newer one). */
+  async dropQueued(opId: string): Promise<void> {
+    await this.db.delete(syncOutbox).where(eq(syncOutbox.opId, opId));
+  }
+
+  async updateQueuedPayload(opId: string, payload: Record<string, unknown>): Promise<void> {
+    await this.db.update(syncOutbox).set({ payload }).where(eq(syncOutbox.opId, opId));
+  }
 }
+
+const CHANNEL_COLUMNS = ['id', 'workspaceId', 'name', 'topic', 'createdBy', 'createdAt', 'updatedAt', 'archivedAt'] as const satisfies readonly (keyof Channel)[];
+const MESSAGE_COLUMNS = [
+  'id', 'seq', 'workspaceId', 'channelId', 'authorId', 'body', 'replyToId', 'createdAt', 'editedAt', 'deletedAt',
+] as const satisfies readonly (keyof ChatMessage)[];
+
+/** Server views may carry extra fields (e.g. `lastReadSeq` on channels). */
+const pickChannel = (channel: Channel): Channel =>
+  Object.fromEntries(CHANNEL_COLUMNS.map((column) => [column, channel[column] ?? null])) as unknown as Channel;
+const pickMessage = (message: ChatMessage): ChatMessage =>
+  Object.fromEntries(MESSAGE_COLUMNS.map((column) => [column, message[column] ?? null])) as unknown as ChatMessage;

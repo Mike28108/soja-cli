@@ -29,7 +29,7 @@ export async function withSession<T>(work: (services: AppServices, session: Sess
       const status = await sync.status(session.workspace.id);
       if (!report.online) printStatus(`offline · ${plural(status.pending, 'change')} queued, sent when you reconnect`);
       else if (status.pending > 0) printStatus(`${plural(status.pending, 'change')} not synced yet: ${report.error ?? 'will retry'}`);
-      if (report.conflicts || report.rejected) printStatus('some changes need your attention: run `soja sync`');
+      if (report.conflicts || report.rejected || report.chatRejected) printStatus('some changes need your attention: run `soja sync`');
     }
     return result;
   });

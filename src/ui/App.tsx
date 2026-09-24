@@ -7,6 +7,7 @@ import { AppStateProvider } from './app-state.js';
 import { Splash } from './branding/Splash.js';
 import { Layer } from './input/dispatcher.js';
 import { KeyProvider, useKeys } from './input/KeyProvider.js';
+import type { Route } from './navigation/routes.js';
 import { SetupScreen } from './screens/SetupScreen.js';
 import { Shell } from './Shell.js';
 import { palette, symbols } from './theme/theme.js';
@@ -37,17 +38,19 @@ interface AppProps {
   splashMs?: number;
   /** Working directory for Git features. */
   cwd?: string;
+  /** Screen to open on top of home, e.g. the chat for `soja chat`. */
+  initialRoute?: Route;
 }
 
-export function App({ services, splashMs = 700, cwd = process.cwd() }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute }: AppProps) {
   return (
     <KeyProvider>
-      <Boot services={services} splashMs={splashMs} cwd={cwd} />
+      <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} />
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs, cwd }: Required<AppProps>) {
+function Boot({ services, splashMs, cwd, initialRoute }: Required<Omit<AppProps, 'initialRoute'>> & Pick<AppProps, 'initialRoute'>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
@@ -104,7 +107,7 @@ function Boot({ services, splashMs, cwd }: Required<AppProps>) {
       );
     case 'ready':
       return (
-        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session}>
+        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})}>
           <Shell />
         </AppStateProvider>
       );

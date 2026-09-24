@@ -28,7 +28,7 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 ## Alcance de la próxima etapa
 
 - Publicado: v0.2 (Git) y v0.3–v0.4 (modo remoto, `soja-backend`, sincronización offline) en v0.4.0.
-- v0.5 es el chat asociado al trabajo (ver `ROADMAP.md`). Ya decidido: **tiempo real por WebSocket** mientras SOJA está abierto, con la sincronización normal como respaldo si se corta. El chat es un dominio propio, separado de `task_comments`.
+- v0.5 (chat en tiempo real) está implementado en `main` con `soja-backend` 0.3.0 desplegado; falta publicarlo como v0.5.0 tras probarlo contra producción. El chat es un dominio propio (`ChatOperations`, solo en modo remoto), separado de `task_comments`; sus operaciones viajan por la misma cola de sincronización y el WebSocket solo notifica.
 - El backend está desplegado en Railway con PostgreSQL en Supabase. Toda tabla nueva del backend activa RLS (su test lo exige).
 - No adelantes la API de GitHub ni CI (v0.6).
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
