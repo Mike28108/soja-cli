@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.2.0** |
-| Versión del documento | **0.2.0** (revisión 3), con cambios de v0.3 y v0.4 aún sin publicar |
+| Versión del documento | **0.2.0** (revisión 4), con cambios de v0.3 y v0.4 aún sin publicar |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -697,6 +697,7 @@ soja workspace create "Bravos Development"   # el primero de tu equipo
 soja workspace add angel                     # angel debe haber hecho `soja login` antes
 ```
 
+- **La URL del servidor** puede pegarse tal cual: `https://host`, `https://host/` o `https://host/v1/health` se entienden igual. Si la dirección no responde como un servidor SOJA, `soja login` lo dice antes de pedir el código.
 - **Login con GitHub** (*device flow*, como `gh auth login`): SOJA muestra un código que apruebas en el navegador. SOJA no ve tu contraseña y no guarda tu token de GitHub.
 - El token de SOJA se guarda en `~/.config/soja/credentials.json` con permisos `0600`, separado de `config.json`.
 - Tu username es tu login de GitHub.
@@ -1200,6 +1201,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.2.0 r4 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: `soja login` acepta la URL completa (p. ej. con `/v1/health`) y valida que sea un servidor SOJA. |
 | 0.2.0 r3 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: trabajo sin conexión (réplica, números provisionales, conflictos, `soja sync`); tablas de sincronización; config remota con `userId`; arquitectura `data/sync/`. |
 | 0.2.0 r2 | 0.2.0 + v0.3 sin publicar | 2026-09-24 | Nueva §9 *Modo remoto (equipo)* (secciones siguientes renumeradas); `soja login/logout/mode/whoami`, `workspace create/add`; config con modos local/remoto y `credentials.json`; contratos de servicio y `data/remote/`. |
 | 0.2.0 r1 | 0.2.0 | 2026-09-24 | Publicación de v0.2.0: cabecera, estado actual y §8 describen el flujo Git como publicado. |
