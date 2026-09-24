@@ -124,7 +124,7 @@ export class TaskService {
     };
   }
 
-  async create(session: Session, input: CreateTaskInput): Promise<TaskView> {
+  async create(session: Session, input: CreateTaskInput, options: { id?: string; number?: number } = {}): Promise<TaskView> {
     const data = parseInput(createTaskSchema, input);
     const assigneeId = data.assigneeId === undefined ? session.user.id : data.assigneeId;
     const projectId = data.projectId ?? null;
@@ -134,6 +134,8 @@ export class TaskService {
     const now = this.clock();
     const task = await this.repos.transaction(async () => {
       const created = await this.repos.tasks.create({
+        ...(options.id ? { id: options.id } : {}),
+        ...(options.number !== undefined ? { number: options.number } : {}),
         workspaceId: session.workspace.id,
         projectId,
         title: data.title,
@@ -251,11 +253,11 @@ export class TaskService {
     return this.update(session, task, { status: 'todo' });
   }
 
-  async comment(session: Session, target: TaskTarget, body: string): Promise<void> {
+  async comment(session: Session, target: TaskTarget, body: string, options: { id?: string } = {}): Promise<void> {
     const text = parseInput(commentSchema, body);
     const task = await this.resolve(session, target);
     await this.repos.transaction(async () => {
-      const comment = await this.repos.comments.create({ taskId: task.id, userId: session.user.id, body: text });
+      const comment = await this.repos.comments.create({ ...(options.id ? { id: options.id } : {}), taskId: task.id, userId: session.user.id, body: text });
       await this.repos.activity.record(task.id, session.user.id, {
         type: 'comment_added',
         metadata: { commentId: comment.id },

@@ -127,3 +127,56 @@ export const taskActivity = sqliteTable(
   },
   (t) => [index('task_activity_task').on(t.taskId), check('task_activity_type', oneOf('type', ACTIVITY_TYPES))],
 );
+
+// ── Remote mode replica (v0.4 offline sync). Unused in local mode. ─────────
+
+/** Operations waiting to be sent to the SOJA server, in the order they were made. */
+export const syncOutbox = sqliteTable(
+  'sync_outbox',
+  {
+    seq: integer('seq').primaryKey({ autoIncrement: true }),
+    opId: text('op_id').notNull().unique(),
+    workspaceId: text('workspace_id').notNull(),
+    type: text('type').notNull(),
+    taskId: text('task_id').notNull(),
+    payload: text('payload', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    base: text('base', { mode: 'json' }).$type<Record<string, unknown>>(),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+  },
+  (t) => [index('sync_outbox_workspace').on(t.workspaceId, t.seq)],
+);
+
+/** Activity rows written optimistically for an operation; replaced by the server's once acknowledged. */
+export const syncPendingActivity = sqliteTable('sync_pending_activity', {
+  activityId: text('activity_id').primaryKey(),
+  opId: text('op_id').notNull(),
+});
+
+/** Pull cursor per workspace. */
+export const syncState = sqliteTable('sync_state', {
+  workspaceId: text('workspace_id').primaryKey(),
+  cursor: integer('cursor').notNull().default(0),
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp_ms' }),
+  lastError: text('last_error'),
+});
+
+/** Conflicts and rejections the user should see. */
+export const syncNotices = sqliteTable(
+  'sync_notices',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    taskId: text('task_id'),
+    taskRef: text('task_ref').notNull(),
+    kind: text('kind', { enum: ['conflict', 'rejected'] }).notNull(),
+    message: text('message').notNull(),
+    field: text('field'),
+    /** For conflicts: the value your change replaced, to restore it. */
+    overwritten: text('overwritten', { mode: 'json' }).$type<unknown>(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    dismissedAt: integer('dismissed_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('sync_notices_workspace').on(t.workspaceId)],
+);

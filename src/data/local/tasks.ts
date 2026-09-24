@@ -17,6 +17,7 @@ export class LocalTaskRepository implements TaskRepository {
   async create(input: NewTask): Promise<Task> {
     const now = this.clock();
     // Computing the number inside the INSERT keeps it atomic in SQLite.
+    // Provisional (negative) numbers never count towards the next real one.
     const nextNumber = sql<number>`(SELECT COALESCE(MAX(${tasks.number}), 0) + 1 FROM ${tasks} WHERE ${tasks.workspaceId} = ${input.workspaceId})`;
     const [task] = await this.db
       .insert(tasks)
@@ -24,8 +25,8 @@ export class LocalTaskRepository implements TaskRepository {
         startedAt: null,
         completedAt: null,
         ...input,
-        id: randomUUID(),
-        number: nextNumber,
+        id: input.id ?? randomUUID(),
+        number: input.number ?? nextNumber,
         createdAt: now,
         updatedAt: now,
       })

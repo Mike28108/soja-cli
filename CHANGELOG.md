@@ -9,9 +9,16 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ### Added
 
+- **Trabajo sin conexión en modo remoto (v0.4):** réplica local del workspace. Crear y editar tasks, comentar y el flujo Git funcionan sin red; los cambios se encolan y se envían al reconectar, una sola vez cada uno. Las tasks nuevas aparecen como `SOJA-?1` hasta recibir su número real.
+- **Conflictos visibles:** campo por campo gana el último en llegar al servidor, y quien llegó último recibe un aviso con opción de restaurar (`!` en el detalle de la task). Los cambios rechazados por el servidor se deshacen con un aviso.
+- `soja sync [--dismiss]`; la CLI sincroniza antes y después de cada comando en modo remoto, y el header de la interfaz muestra `offline · N pending` / `syncing…`.
 - **Modo remoto (v0.3, en desarrollo):** trabajo en equipo contra `soja-backend`. `soja login --server <url>` (GitHub device flow), `soja logout`, `soja mode [local|remote]`, `soja whoami`. La interfaz y los comandos son los mismos; el header muestra `⇄ servidor`.
 - `soja workspace create <nombre>` y `soja workspace add <username>`.
-- `config.json` guarda ambos modos a la vez (bloque `remote` con servidor, workspace y rutas locales de repositorios); los tokens van en `credentials.json` con permisos `0600`.
+- `config.json` guarda ambos modos a la vez (bloque `remote` con servidor, usuario y workspace); los tokens van en `credentials.json` con permisos `0600`. Las rutas locales de los repositorios viven en la réplica.
+
+### Fixed
+
+- Con un pipe cerrado antes de tiempo (`soja … | head`), SOJA ya no termina de golpe: deja de escribir y completa el comando (en modo remoto, su sincronización).
 
 ### Changed
 

@@ -1,5 +1,11 @@
 import { ConflictError, NotFoundError, SojaError, ValidationError } from '../../domain/errors.js';
 
+/** The server could not be reached at all (as opposed to answering with an error). */
+export class OfflineError extends SojaError {}
+
+/** The server rejected the session token. */
+export class SessionExpiredError extends SojaError {}
+
 export interface ApiErrorBody {
   error?: { code?: string; message?: string; hint?: string };
 }
@@ -56,7 +62,7 @@ export class ApiClient {
         signal: AbortSignal.timeout(20_000),
       });
     } catch (error) {
-      throw new SojaError(`Could not reach the SOJA server at ${this.baseUrl}.`, {
+      throw new OfflineError(`Could not reach the SOJA server at ${this.baseUrl}.`, {
         hint: 'Check your connection. Remote mode needs the server (offline work arrives in v0.4); `soja mode local` works offline.',
         cause: error,
       });
@@ -72,7 +78,7 @@ export class ApiClient {
     const message = error?.message ?? `The SOJA server answered ${response.status}.`;
     const options = { ...(error?.hint ? { hint: error.hint } : {}) };
     if (response.status === 401) {
-      throw new SojaError(message, { hint: error?.hint ?? 'Run `soja login`.' });
+      throw new SessionExpiredError(message, { hint: error?.hint ?? 'Run `soja login`.' });
     }
     if (response.status === 400) throw new ValidationError(message, options);
     if (response.status === 404) throw new NotFoundError(message, options);
