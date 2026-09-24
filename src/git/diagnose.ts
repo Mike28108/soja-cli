@@ -1,3 +1,4 @@
+import { terminalSafe } from '../utils/text.js';
 import type { GitErrorCode } from './types.js';
 
 export interface Diagnosis {
@@ -105,7 +106,8 @@ const RULES: Rule[] = [
 ];
 
 /** Turns Git's (or gh's) output into a friendly message and next steps. */
-export function diagnose(output: string, fallback: string): Diagnosis {
+export function diagnose(raw: string, fallback: string): Diagnosis {
+  const output = terminalSafe(raw);
   for (const rule of RULES) if (rule.test.test(output)) return rule.diagnose(output);
   const line = output
     .split('\n')
