@@ -8,7 +8,7 @@ import { CliGit } from './git/cli-git.js';
 import { GitConsole } from './git/console.js';
 import { CredentialStore } from './config/credentials.js';
 import { ApiClient } from './data/remote/api-client.js';
-import { createRemoteServices } from './data/remote/index.js';
+import { createReplicaServices, replicaFile } from './data/sync/index.js';
 import { SojaError } from './domain/errors.js';
 import type { GitClient } from './git/types.js';
 
@@ -26,6 +26,8 @@ export interface BootstrapOptions {
   git?: GitClient;
   /** HTTP for remote mode (tests pass the server app's fetch). */
   fetch?: typeof fetch;
+  /** Replica database for remote mode (tests use ':memory:'). */
+  replicaFile?: string;
 }
 
 /**
@@ -49,7 +51,15 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
       });
     }
     const api = new ApiClient(loaded.remote.apiUrl, token, options.fetch);
-    return { services: createRemoteServices(api, config, git, gitConsole), paths, close: () => undefined };
+    // The replica is plain SQLite with the local schema plus sync tables.
+    const replica = openDatabase(options.replicaFile ?? replicaFile(paths.dataDir, loaded.remote.apiUrl), { foreignKeys: false });
+    try {
+      await runMigrations(replica);
+    } catch (error) {
+      replica.close();
+      throw error;
+    }
+    return { services: createReplicaServices(api, replica, config, git, gitConsole), paths, close: () => replica.close() };
   }
 
   const handle = openDatabase(paths.databaseFile);

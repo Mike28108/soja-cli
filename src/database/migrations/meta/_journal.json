@@ -22,6 +22,13 @@
       "when": 1790271413249,
       "tag": "0002_merge-detection",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790277009822,
+      "tag": "0003_sync-replica",
+      "breakpoints": true
     }
   ]
 }

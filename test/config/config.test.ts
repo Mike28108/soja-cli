@@ -67,7 +67,7 @@ describe('FileConfigStore', () => {
       userId: 'u',
       workspaceId: 'w',
       parentFolders: [],
-      remote: { apiUrl: 'https://api.soja.dev', workspaceId: 'rw', repositoryPaths: { p1: '/code/x' } },
+      remote: { apiUrl: 'https://api.soja.dev', userId: 'ru', workspaceId: 'rw' },
     };
     writeFileSync(file, JSON.stringify(config));
     expect(new FileConfigStore(file).load()).toEqual(config);

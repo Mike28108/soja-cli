@@ -28,6 +28,7 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['logout', 'Sign out and go back to local mode'],
   ['mode [local|remote]', 'Show or switch where SOJA keeps data'],
   ['whoami', 'Current user, workspace and mode'],
+  ['sync [--dismiss]', 'Sync now (remote mode); shows conflicts and rejected changes'],
   ['folders [list]', 'Parent folders and their subfolders, like ls -1'],
   ['folders add|remove <path>', 'Register or forget a folder that contains repositories'],
   ['workspace list', 'Your workspaces'],

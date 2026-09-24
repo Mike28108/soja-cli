@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink';
-import { symbols } from '../theme/theme.js';
+import { palette, symbols } from '../theme/theme.js';
 import { CompactLogo } from './CompactLogo.js';
 import { VersionBadge } from './VersionBadge.js';
 
@@ -11,10 +11,12 @@ interface HeaderProps {
   width: number;
   /** Host of the SOJA server in remote mode. */
   server?: string | undefined;
+  /** Remote mode sync state, e.g. "2 pending" or "offline". */
+  syncLabel?: { text: string; warn: boolean } | undefined;
 }
 
 /** The discreet line that stays on top during normal use. */
-export function Header({ workspace, context, username, width, server }: HeaderProps) {
+export function Header({ workspace, context, username, width, server, syncLabel }: HeaderProps) {
   const roomy = width >= 60;
   return (
     <Box justifyContent="space-between" width={width}>
@@ -26,7 +28,14 @@ export function Header({ workspace, context, username, width, server }: HeaderPr
         </Text>
       </Box>
       <Box gap={2} flexShrink={0}>
-        {server ? <Text dimColor>{`⇄ ${server}`}</Text> : null}
+        {server ? (
+          <Text>
+            <Text dimColor>{`⇄ ${server}`}</Text>
+            {syncLabel ? (
+              <Text color={syncLabel.warn ? palette.warning : undefined} dimColor={!syncLabel.warn}>{` · ${syncLabel.text}`}</Text>
+            ) : null}
+          </Text>
+        ) : null}
         <Text dimColor>@{username}</Text>
         {roomy ? <VersionBadge /> : null}
       </Box>

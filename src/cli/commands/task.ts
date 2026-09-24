@@ -91,7 +91,7 @@ async function create(args: string[]): Promise<void> {
       : await services.projects.findByRepository(session, process.cwd());
     const projectId = project?.id ?? null;
     const assigneeId = await resolveAssignee(services, session, values.assignee);
-    const task = await services.tasks.create(session, {
+    const created = await services.tasks.create(session, {
       title,
       projectId,
       ...(type ? { type } : {}),
@@ -101,6 +101,9 @@ async function create(args: string[]): Promise<void> {
       requester: values.requester ?? null,
       description: values.description ?? null,
     });
+    // Remote mode: send it now so the real number shows when online (offline it stays SOJA-?n).
+    if (services.sync) await services.sync.syncNow(session.workspace.id);
+    const task = services.sync ? await services.tasks.get(session, created) : created;
     success(`Created ${bold(task.ref)}  ${task.title}`);
     const details = [
       task.project?.name,
