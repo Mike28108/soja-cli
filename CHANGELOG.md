@@ -7,6 +7,12 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-24
+
+### Security
+
+- **El texto de otras personas ya no puede manipular tu terminal.** En modo remoto, un título, descripción, comentario o nombre con secuencias de escape ANSI podía imitar la salida de SOJA, cambiar el título de la ventana o escribir en el portapapeles (OSC 52), y en la CLI llegaba a la terminal sin filtro. Ahora se eliminan los caracteres de control y *bidi* de todo lo que llega del servidor, de los mensajes y autores de commits, del log de Git y de sus errores. Se recomienda actualizar a todo el equipo.
+
 ## [0.4.0] - 2026-09-24
 
 Trabajo en equipo: incluye los hitos **v0.3** (modo remoto con `soja-backend`, login con GitHub) y **v0.4** (trabajo sin conexión con sincronización). No hubo release 0.3.0 separada. Requiere `soja-backend` ≥ 0.2.0.
@@ -87,7 +93,8 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Mike28108/soja-cli/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/Mike28108/soja-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Mike28108/soja-cli/releases/tag/v0.1.0

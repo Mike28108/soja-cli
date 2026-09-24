@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **0.4.0** |
-| Versión del documento | **0.4.0** (revisión 1) |
+| Versión de la app | **0.4.1** |
+| Versión del documento | **0.4.1** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,7 +57,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.4.0)
+### Estado actual (v0.4.1)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub y trabajo sin conexión (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina.
 
@@ -768,6 +768,15 @@ Si el servidor **rechaza** un cambio que hiciste sin conexión (por ejemplo, asi
 
 El protocolo completo está en `soja-backend/docs/SYNC.md`.
 
+### Texto de otras personas en tu terminal
+
+En modo remoto, SOJA muestra texto que escriben otros: títulos, descripciones, comentarios, nombres. Una secuencia de escape ANSI escondida en ese texto podría manipular tu terminal: imitar la salida de SOJA con colores, cambiar el título de la ventana o, en terminales como kitty, **escribir en tu portapapeles**. Por eso SOJA elimina los caracteres de control (salvo saltos de línea y tabuladores) y los caracteres de dirección de texto (*bidi*):
+
+- de **todo** lo que llega del servidor, en un único punto (el cliente HTTP), antes de guardarlo en la réplica;
+- de los **mensajes y autores de commits** que muestra (pueden venir de commits ajenos traídos con `git pull`), de la salida de Git en el log en vivo y de los errores de Git.
+
+Un intento queda visible como texto inofensivo (por ejemplo `[2J`), sin efecto. El servidor, además, rechaza caracteres de control al guardar.
+
 ---
 
 ## 10. Configuración y datos locales
@@ -1044,6 +1053,7 @@ El problema previsto en v0.1 se resolvió como se recomendaba: en modo remoto, l
 | En `soja start`, primero Git y después la base de datos | Un fallo de Git nunca deja una task "iniciada" con una branch que no existe. |
 | `soja start` reutiliza `TaskService.start` | Las reglas de "tomar una task" viven en un solo lugar, para la CLI y la TUI. |
 | Modo remoto detrás de los mismos contratos de servicio | La UI y los comandos no saben de dónde salen los datos; añadir el modo remoto no tocó ninguna pantalla. |
+| Texto remoto y de Git limpiado de caracteres de control y *bidi* al entrar | Un compañero (o un token robado) no puede manipular la terminal de otros; un único punto de entrada para los datos del servidor. |
 | Réplica local con el mismo esquema y servicios que el modo local | El modo remoto funciona sin conexión y reutiliza reglas ya probadas; solo el `SyncEngine` es nuevo. |
 | Números provisionales negativos (`SOJA-?1`) | Sin cambiar el tipo de `number` en todo el código; nunca chocan con números reales. |
 | Rutas de repositorio en la réplica (solo en la máquina) | Cada developer tiene el repositorio en su carpeta; el servidor solo comparte la URL. |
@@ -1128,12 +1138,13 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Persistencia | `test/data/persistence.test.ts` | Cerrar y reabrir sobre un archivo SQLite real |
 | UI (lógica) | `test/ui/input.test.ts`, `test/ui/layout.test.ts` | Edición de texto, navegación de listas, dispatcher, columnas responsive, pila de navegación, helpers de texto y tiempo |
 | Operaciones Git | `test/git/git-operations.test.ts`, `test/git/diagnose.test.ts` | Commit de archivos elegidos (nuevos, borrados, renombrados), rama incorrecta y validaciones; merge `--no-ff` en la base registrada, cambios sin guardar, conflictos con abort; borrar (mergeada, sin mergear con force, cambiando de branch); push a un remoto real local con log; PR con título y cuerpo; diagnóstico de 11 tipos de error; parser de `git status -z` |
+| Seguridad de terminal | `test/security.test.ts` | Secuencias hostiles (limpiar pantalla, título, portapapeles OSC 52, colores, C1, *bidi*) eliminadas del texto del servidor, de la réplica tras sincronizar, de commits ajenos, del log de Git y de los errores; saltos de línea, tabuladores y Unicode normal intactos |
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **152 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado.
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **158 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado.
 
 ---
 
@@ -1202,6 +1213,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.4.1 r1 | 0.4.1 | 2026-09-24 | §9: texto de otras personas limpiado antes de mostrarse en la terminal (seguridad); decisiones y tests. |
 | 0.4.0 r1 | 0.4.0 | 2026-09-24 | Publicación de v0.4.0 (hitos v0.3 y v0.4): cabecera, estado actual, §9 y roadmap como publicados. |
 | 0.2.0 r5 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: la vista se actualiza al terminar cualquier sincronización. |
 | 0.2.0 r4 | 0.2.0 + v0.3/v0.4 sin publicar | 2026-09-24 | §9: `soja login` acepta la URL completa (p. ej. con `/v1/health`) y valida que sea un servidor SOJA. |
