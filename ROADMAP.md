@@ -33,7 +33,7 @@ Crear `soja-backend` en **otro repositorio**, con API, autenticación, workspace
 
 Conservar SQLite como estado local del cliente remoto, definir una cola de operaciones, sincronización reintentable y resolución visible de conflictos. Separar el ID interno estable del número humano asignado por el servidor. Probar creación y cambios simultáneos desde dos clientes offline, cierre y reapertura, reconexión y conflictos. Protocolo y garantías definidos en `soja-backend/docs/SYNC.md` (último en llegar por campo con aviso, números provisionales, offline solo para tasks y comentarios).
 
-## v0.5 — Chat asociado al trabajo (implementado, pendiente de publicar)
+## v0.5 — Chat asociado al trabajo (publicado en v0.5.0)
 
 Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias a tareas. Enlazar tareas con mensajes y crear una tarea desde una conversación. El chat es un dominio propio, separado de `task_comments`, y solo existe en modo remoto.
 
@@ -45,7 +45,7 @@ Decisiones (2026-09-24), con el diseño completo en `soja-backend/docs/CHAT.md`:
 - **Avisos dentro de SOJA:** no leídos por canal y menciones en el header; sin notificaciones del sistema.
 - Seguridad: el texto remoto se limpia de secuencias de escape antes de mostrarse en la terminal.
 
-## v0.6 — GitHub, PR y CI
+## v0.6 — GitHub, PR y CI (siguiente hito)
 
 Integración autenticada con la API de GitHub para enlazar branches, commits, pull requests y checks con tareas y conversaciones: estado de PRs y CI dentro de SOJA, revisiones, y la evaluación de una GitHub App con permisos mínimos. La apertura básica de PRs con la CLI `gh` se adelantó a v0.2; los flujos Git locales deben seguir funcionando sin GitHub.
 
