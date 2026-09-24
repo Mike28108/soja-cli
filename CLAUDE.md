@@ -1,6 +1,7 @@
 # SOJA — guía para agentes
 
 Lee `docs/SOJA.md` antes de cambiar código: es la documentación viva del proyecto.
+Lee [`ROADMAP.md`](ROADMAP.md) antes de planificar una nueva etapa: contiene los hitos propuestos y sus límites. El roadmap no describe funcionalidades implementadas; verifica el estado real en `docs/SOJA.md` y el código.
 
 ## Documentación versionada (obligatorio)
 
@@ -23,6 +24,12 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 - TypeScript estricto, sin `any`. Los errores para el usuario son `SojaError` con `message` y `hint`.
 - Cambios de esquema: edita `src/database/schema.ts` y ejecuta `npm run db:generate -- --name <x>`.
 - `soja-cli` y `soja-backend` son repositorios separados. El cliente nunca habla directo con Postgres.
+
+## Alcance de la próxima etapa
+
+- v0.2 se centra en Git local y trabajo offline. `soja task start <id>` ya asigna y cambia el estado; `soja start <id>` debe añadir el flujo de branch sin duplicar esa lógica.
+- No adelantes GitHub API, `soja-backend`, sincronización ni chat a v0.2.
+- Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar
 
