@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **0.1.0** |
-| Versión del documento | **0.1.0** (revisión 6), con cambios de v0.2 aún sin publicar |
+| Versión de la app | **0.2.0** |
+| Versión del documento | **0.2.0** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -56,9 +56,9 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.1.0 + v0.2 sin publicar)
+### Estado actual (v0.2.0)
 
-Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. La rama de desarrollo incluye el flujo Git local de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión. La arquitectura ya está preparada para un futuro `soja-backend` (ver [§11.4](#114-evolución-hacia-modo-remoto)).
+Local-first. Todo vive en un archivo SQLite en la máquina del developer y no hay backend ni sincronización. Incluye el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)), que funciona sin conexión salvo push y PR. La arquitectura ya está preparada para un futuro `soja-backend` (ver [§11.4](#114-evolución-hacia-modo-remoto)).
 
 ---
 
@@ -496,7 +496,7 @@ soja task list | grep URGENT
 
 ## 8. Flujo de trabajo con Git
 
-Disponible en la rama de desarrollo de v0.2. SOJA ejecuta `git` (y la CLI `gh` para los PR) en tu máquina. Vincular, iniciar, commit, merge y borrar branch funcionan **offline**; push y PR necesitan conexión. SOJA nunca hace fetch ni pull por su cuenta.
+Desde v0.2.0. SOJA ejecuta `git` (y la CLI `gh` para los PR) en tu máquina. Vincular, iniciar, commit, merge y borrar branch funcionan **offline**; push y PR necesitan conexión. SOJA nunca hace fetch ni pull por su cuenta.
 
 ### Carpetas padre
 
@@ -1030,7 +1030,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-El flujo Git local de v0.2 ya está implementado en la rama de desarrollo (ver [§8](#8-flujo-de-trabajo-con-git)). El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
+El flujo Git de v0.2 está publicado (ver [§8](#8-flujo-de-trabajo-con-git)). El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1069,6 +1069,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.2.0 r1 | 0.2.0 | 2026-09-24 | Publicación de v0.2.0: cabecera, estado actual y §8 describen el flujo Git como publicado. |
 | 0.1.0 r6 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Detección de merges hechos fuera de SOJA (→ Done), aviso y *Forget branch* para branches borradas sin merge, columna `branch_start` y evento `git_merge_detected` (migración `0002`). |
 | 0.1.0 r5 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Operaciones Git desde la task (commit con selección de archivos, push, PR, merge, abort, borrar branch), log en vivo, errores con sugerencias, autenticación delegada; comandos CLI `commit`, `merge`, `branch delete`, `push`, `pr`; columna `base_branch` y 5 eventos nuevos. |
 | 0.1.0 r4 | 0.1.0 + v0.2 sin publicar | 2026-09-24 | Carpetas padre y selector visual de repositorio (§8), `soja folders`, `project link` por nombre, `parentFolders` en la config (§9). |
