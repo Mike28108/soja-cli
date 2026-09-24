@@ -1,4 +1,5 @@
 import type { TaskView } from '../../application/types.js';
+import { pullRequestWarnings } from '../../application/services/index.js';
 import {
   isClosed,
   PRIORITY_LABELS,
@@ -317,6 +318,44 @@ export function useTaskActions() {
           }),
       );
     },
+    /** Merges the task's PR on GitHub after showing what is still pending; optionally deletes the branch. */
+    async mergePullRequest(task: TaskView) {
+      const state = await services.git.pullRequest(session, task, cwd);
+      if (state.status !== 'found') {
+        notify(state.reason, state.status === 'unavailable' ? 'error' : 'info', state.status === 'unavailable' ? state.hint : 'Open one from the Git menu (g).');
+        return;
+      }
+      const { pr } = state;
+      if (pr.state !== 'open') {
+        notify(`Pull request #${pr.number} is already ${pr.state}.`, 'info');
+        return;
+      }
+      const warnings = pullRequestWarnings(pr);
+      const execute = (deleteBranch: boolean) =>
+        openOverlay({
+          kind: 'git-run',
+          title: `Merge PR #${pr.number}`,
+          context: `${pr.head} → ${pr.base}`,
+          run: async () => {
+            const result = await services.git.mergePullRequest(session, task, { cwd, deleteBranch });
+            return `Merged PR #${result.pr.number} into ${result.pr.base} on GitHub. ${task.ref} is Done.${deleteBranch ? ` ${pr.head} deleted.` : ''}`;
+          },
+        });
+      openOverlay({
+        kind: 'picker',
+        title: `Merge PR #${pr.number} on GitHub?`,
+        context: `${pr.head} → ${pr.base} · merge commit${warnings.length ? ` · ${warnings.join(', ')}` : ''}`,
+        options: [
+          { value: 'no', label: 'Cancel' },
+          { value: 'merge', label: `Merge PR #${pr.number}`, color: warnings.length ? 'yellow' : 'green' },
+          { value: 'merge-delete', label: `Merge and delete ${pr.head}`, color: 'yellow' },
+        ],
+        onSelect: (value) => {
+          if (value === 'merge') execute(false);
+          else if (value === 'merge-delete') execute(true);
+        },
+      });
+    },
     /** Everything Git in one menu. */
     gitMenu(task: TaskView) {
       const items = [
@@ -324,6 +363,7 @@ export function useTaskActions() {
         ['commit', 'Commit…', 'C'],
         ['push', 'Push branch', ''],
         ['pullRequest', 'Open pull request…', ''],
+        ['mergePullRequest', 'Merge pull request on GitHub…', ''],
         ['merge', 'Merge into base…', ''],
         ['abortMerge', 'Abort merge', ''],
         ['deleteBranch', 'Delete branch…', ''],
@@ -340,6 +380,7 @@ export function useTaskActions() {
           else if (value === 'commit') actions.commit(task);
           else if (value === 'push') actions.push(task);
           else if (value === 'pullRequest') actions.pullRequest(task);
+          else if (value === 'mergePullRequest') void actions.mergePullRequest(task);
           else if (value === 'merge') void actions.merge(task);
           else if (value === 'abortMerge') actions.abortMerge(task);
           else if (value === 'deleteBranch') actions.deleteBranch(task);

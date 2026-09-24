@@ -59,7 +59,17 @@ export function createServices(repos: Repositories, config: ConfigStore, options
   };
 }
 
-export type { MergeDetection, MergePlan, StartPlan, StartResult, TaskGitState, WorkingState } from './git-workflow-service.js';
+export type {
+  MergeDetection,
+  MergePlan,
+  PullRequestUpdate,
+  StartPlan,
+  StartResult,
+  TaskGitState,
+  TaskPullRequestState,
+  WorkingState,
+} from './git-workflow-service.js';
+export { pullRequestWarnings } from './git-workflow-service.js';
 export type { FolderEntry, ParentFolder } from './folder-service.js';
 export type { CreateProjectInput } from './project-service.js';
 export type { SetupInput } from './session-service.js';

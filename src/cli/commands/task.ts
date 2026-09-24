@@ -142,6 +142,12 @@ async function show(args: string[]): Promise<void> {
     const task = await services.tasks.get(session, ref);
     printDetails(task);
     printGit(task.ref, await services.git.inspect(session, task, process.cwd()));
+    if (task.branch) {
+      const pr = await services.git.pullRequest(session, task, process.cwd());
+      if (pr.status === 'found') {
+        print(`  PR ${bold(`#${pr.pr.number}`)} ${pr.pr.state}  ${dim(pr.pr.url)}  ${dim(`details: soja pr status ${task.ref}`)}`);
+      } else if (pr.status === 'unavailable') print(dim(`  PR: ${pr.reason}`));
+    }
   });
 }
 

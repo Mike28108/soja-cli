@@ -66,6 +66,45 @@ export interface GitClient {
   ): Promise<string>;
   /** Runs `gh auth login` attached to the terminal. */
   loginGitHub(): Promise<void>;
+
+  // ── GitHub pull requests, through the GitHub CLI (v0.6). ──
+
+  /** The newest pull request whose head is `branch`, or null when there is none. */
+  pullRequestFor(root: string, branch: string): Promise<PullRequest | null>;
+  /** Recent pull requests of the repository (open, merged and closed), newest first. */
+  pullRequests(root: string, limit: number): Promise<PullRequest[]>;
+  /** Merges the pull request on GitHub with a merge commit; optionally deletes its branch (remote and local). */
+  mergePullRequest(root: string, number: number, options: { deleteBranch: boolean }): Promise<void>;
+}
+
+export type PullRequestState = 'open' | 'merged' | 'closed';
+export type ReviewState = 'approved' | 'changes_requested' | 'review_required' | null;
+
+/** CI on the pull request's latest commit. */
+export interface CheckSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  pending: number;
+  /** Names of the failing checks. */
+  failing: string[];
+}
+
+export interface PullRequest {
+  number: number;
+  url: string;
+  title: string;
+  state: PullRequestState;
+  draft: boolean;
+  base: string;
+  head: string;
+  /** Latest commit of the head branch. */
+  headSha: string;
+  review: ReviewState;
+  /** Whether GitHub can merge it as is (`unknown` while GitHub computes it). */
+  mergeable: 'mergeable' | 'conflicting' | 'unknown';
+  checks: CheckSummary;
+  mergedAt: Date | null;
 }
 
 export type ChangeKind = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'typechange';
@@ -93,6 +132,8 @@ export type GitErrorCode =
   | 'offline'
   | 'no_remote'
   | 'pr_exists'
+  | 'not_github'
+  | 'blocked'
   | 'wrong_branch'
   | 'failed';
 

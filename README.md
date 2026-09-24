@@ -6,7 +6,7 @@
 ▄▄▄▄▄▄█▀  ▀█▄▄▄▄█▀  ▀█▄▄▄▄█▀  ██    ██ ▄▄▄
 ```
 
-**Software Operations & Job Assistant** · v0.5.0 · by Enmauel.biz
+**Software Operations & Job Assistant** · v0.6.0 · by Enmauel.biz
 
 > No dashboards. No browser. No bullshit. Just work.
 
@@ -17,7 +17,7 @@ SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. 
 - **Trazable:** cada cambio queda en el timeline de la task, junto a los comentarios.
 - **Local-first:** tus datos viven en SQLite en tu máquina. En equipo, `soja login` conecta con [`soja-backend`](https://github.com/Mike28108/soja-backend) y sigue funcionando sin conexión.
 - **Chat del equipo** (modo remoto): canales en tiempo real junto al trabajo, con menciones, referencias `SOJA-12` y tasks creadas desde un mensaje. `#` lo abre.
-- **Git-aware:** branch, commit, push, PR y merge desde la task, con log en vivo y errores con sugerencias. Usa tus credenciales de Git y `gh`.
+- **Git-aware:** branch, commit, push, PR y merge desde la task, con log en vivo y errores con sugerencias. Ve el estado de cada PR y su CI en GitHub y hace el merge sin salir de la terminal. Usa tus credenciales de Git y `gh`.
 - **Scriptable:** una CLI no interactiva que usa los mismos servicios que la interfaz.
 
 ## Inicio rápido
