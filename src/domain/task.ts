@@ -67,6 +67,10 @@ export interface Task {
   creatorId: string;
   requester: string | null;
   branch: string | null;
+  /** Branch the task branch was created from; merges go back into it. */
+  baseBranch: string | null;
+  /** Commit the task branch started at, so "merged" means its own work reached the base. */
+  branchStart: string | null;
   createdAt: Date;
   updatedAt: Date;
   startedAt: Date | null;
@@ -78,6 +82,14 @@ export const TASK_REF_PREFIX = 'SOJA';
 
 export function formatTaskRef(number: number): string {
   return `${TASK_REF_PREFIX}-${number}`;
+}
+
+/**
+ * Extended regex (for `git log --grep -E -i`) matching a mention of the task
+ * in a commit message: `SOJA-12` but not `SOJA-123`.
+ */
+export function taskMentionPattern(number: number): string {
+  return `${TASK_REF_PREFIX}-${number}([^0-9]|$)`;
 }
 
 /** Accepts `SOJA-12`, `soja-12`, `#12` or `12`. */

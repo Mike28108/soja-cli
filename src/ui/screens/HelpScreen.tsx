@@ -33,12 +33,21 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
     ],
   ],
   [
+    'Git (in a task)',
+    [
+      ['b', 'Start / switch branch'],
+      ['g', 'Git menu'],
+      ['C', 'Commit (pick files)'],
+    ],
+  ],
+  [
     'Go to',
     [
       ['/', 'Search'],
       [': or ctrl+k', 'Commands'],
       ['p', 'Projects'],
       ['w', 'Workspaces'],
+      ['r', 'Link repo (in Projects)'],
     ],
   ],
   [

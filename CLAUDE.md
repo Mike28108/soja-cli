@@ -11,7 +11,7 @@ se refleja **en el mismo commit** en:
 1. `docs/SOJA.md`: la sección afectada y la fila del historial de revisiones (sube la revisión `rN`).
 2. `CHANGELOG.md`: una entrada bajo `## [Unreleased]` (Added / Changed / Fixed / Removed).
 
-Al publicar una versión, sigue §15 de `docs/SOJA.md`: sube la versión en `package.json`,
+Al publicar una versión, sigue §16 de `docs/SOJA.md`: sube la versión en `package.json`,
 mueve Unreleased a la versión nueva con fecha, actualiza la cabecera de `docs/SOJA.md`,
 y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 
@@ -28,7 +28,7 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 ## Alcance de la próxima etapa
 
 - v0.2 se centra en Git local y trabajo offline. `soja task start <id>` ya asigna y cambia el estado; `soja start <id>` debe añadir el flujo de branch sin duplicar esa lógica.
-- No adelantes GitHub API, `soja-backend`, sincronización ni chat a v0.2.
+- v0.2 incluye además commit, merge, borrado de branch, push y PR (con `git` y la CLI `gh`, sin credenciales propias), con log en vivo y errores con sugerencias. No adelantes la API de GitHub, CI, `soja-backend`, sincronización ni chat a v0.2.
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar

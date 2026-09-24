@@ -11,6 +11,13 @@ const localConfigSchema = z.object({
   mode: z.literal('local'),
   userId: z.string().min(1),
   workspaceId: z.string().min(1),
+  /**
+   * Machine-specific folders that contain project repositories (e.g.
+   * ~/workspace/products, ~/workspace/services). Their subfolders feed the
+   * repository picker. Lives in the config, not the database, because paths
+   * differ per computer.
+   */
+  parentFolders: z.array(z.string().min(1)).default([]),
 });
 
 export const configSchema = localConfigSchema;

@@ -1,9 +1,13 @@
+import { existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import type { Repositories } from '../../data/repositories.js';
 import type { Project } from '../../domain/entities.js';
-import { ConflictError, NotFoundError } from '../../domain/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../domain/errors.js';
 import { deriveProjectKey, makeUnique } from '../../domain/naming.js';
 import { activeCount, emptyStatusCounts } from '../../domain/task.js';
+import { GitError, type GitClient } from '../../git/types.js';
+import { expandHome, tildify } from '../../utils/text.js';
 import type { ProjectSummary, Session } from '../types.js';
 import { optionalText, parseInput } from '../validation.js';
 
@@ -24,7 +28,10 @@ const createProjectSchema = z.object({
 export type CreateProjectInput = z.input<typeof createProjectSchema>;
 
 export class ProjectService {
-  constructor(private readonly repos: Repositories) {}
+  constructor(
+    private readonly repos: Repositories,
+    private readonly git: GitClient,
+  ) {}
 
   async list(session: Session): Promise<ProjectSummary[]> {
     const [projects, rows] = await Promise.all([
@@ -65,6 +72,46 @@ export class ProjectService {
       throw new NotFoundError('That project does not exist in this workspace.');
     }
     return project;
+  }
+
+  /**
+   * Links a project to the local Git repository containing `path` (the
+   * top-level directory is stored). Fills the repository URL from `origin`
+   * when the project does not have one yet.
+   */
+  async linkRepository(session: Session, project: Project, path: string): Promise<Project> {
+    const absolute = resolve(expandHome(path.trim()));
+    if (!existsSync(absolute) || !statSync(absolute).isDirectory()) {
+      throw new ValidationError(`${tildify(absolute)} does not exist or is not a folder.`);
+    }
+    const root = await this.git.repositoryRoot(absolute);
+    if (!root) {
+      throw new ValidationError(`${tildify(absolute)} is not inside a Git repository.`, {
+        hint: 'Run `git init` there first, or point to the repository folder.',
+      });
+    }
+    await this.get(session, project.id);
+    const repositoryUrl = project.repositoryUrl ?? (await this.git.originUrl(root));
+    return this.repos.projects.update(project.id, { repositoryPath: root, repositoryUrl });
+  }
+
+  async unlinkRepository(session: Session, project: Project): Promise<Project> {
+    await this.get(session, project.id);
+    return this.repos.projects.update(project.id, { repositoryPath: null });
+  }
+
+  /** The project linked to the repository containing `path`, if any. Never throws for non-repositories. */
+  async findByRepository(session: Session, path: string): Promise<Project | null> {
+    let root: string | null;
+    try {
+      root = await this.git.repositoryRoot(path);
+    } catch (error) {
+      if (error instanceof GitError) return null;
+      throw error;
+    }
+    if (!root) return null;
+    const projects = await this.repos.projects.listByWorkspace(session.workspace.id);
+    return projects.find((project) => project.repositoryPath === root) ?? null;
   }
 
   /** Finds a project by key (`ENROLL`) or name (`EnrollBridge`), case-insensitively. */

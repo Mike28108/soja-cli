@@ -6,6 +6,7 @@ import {
   formatTaskRef,
   parseTaskRef,
   suggestBranchName,
+  taskMentionPattern,
   type Task,
 } from '../../src/domain/task.js';
 
@@ -81,5 +82,15 @@ describe('naming', () => {
   it('slugifies names', () => {
     expect(slugify('Bravos Development')).toBe('bravos-development');
     expect(slugify('  Él Niño & Co. ')).toBe('el-nino-co');
+  });
+});
+
+describe('taskMentionPattern', () => {
+  it('matches the task reference but not longer numbers', () => {
+    const pattern = new RegExp(taskMentionPattern(12), 'i');
+    expect(pattern.test('Fix webhook (SOJA-12)')).toBe(true);
+    expect(pattern.test('soja-12: tests')).toBe(true);
+    expect(pattern.test('ends with SOJA-12')).toBe(true);
+    expect(pattern.test('SOJA-123 unrelated')).toBe(false);
   });
 });

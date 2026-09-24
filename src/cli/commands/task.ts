@@ -6,7 +6,9 @@ import { ValidationError } from '../../domain/errors.js';
 import { activeCount, countStatuses, TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES, TYPE_LABELS } from '../../domain/task.js';
 import { priorityStyles, statusStyles, symbols } from '../../ui/theme/theme.js';
 import { clampLines, wrapText } from '../../utils/text.js';
-import { formatStamp } from '../../utils/time.js';
+import { formatRelative, formatStamp } from '../../utils/time.js';
+import type { TaskGitState } from '../../application/services/index.js';
+import { tildify } from '../../utils/text.js';
 import { bold, color, dim, print, success, taskLine, token } from '../output.js';
 import { withSession } from '../runtime.js';
 import { oneOf, parseCommand, requireArg } from './args.js';
@@ -44,6 +46,7 @@ async function list(args: string[]): Promise<void> {
   const filter: TaskFilter = status ?? (values.all ? 'all' : 'mine');
 
   await withSession(async (services, session) => {
+    await reportMerges(services, session);
     const project = values.project ? await services.projects.resolve(session, values.project) : null;
     const tasks = await services.tasks.list(session, filter, project ? { projectId: project.id } : {});
     const heading = filter === 'mine' ? 'MY WORK' : FILTER_LABELS[filter].toUpperCase();
@@ -82,7 +85,11 @@ async function create(args: string[]): Promise<void> {
   const title = positionals.join(' ').trim() || (await askTitle());
 
   await withSession(async (services, session) => {
-    const projectId = values.project ? (await services.projects.resolve(session, values.project)).id : null;
+    // Inside a linked repository, its project is the default.
+    const project = values.project
+      ? await services.projects.resolve(session, values.project)
+      : await services.projects.findByRepository(session, process.cwd());
+    const projectId = project?.id ?? null;
     const assigneeId = await resolveAssignee(services, session, values.assignee);
     const task = await services.tasks.create(session, {
       title,
@@ -127,7 +134,12 @@ async function askTitle(): Promise<string> {
 async function show(args: string[]): Promise<void> {
   const { positionals } = parseCommand(args, {});
   const ref = requireArg(positionals[0], 'task ID', 'soja task show SOJA-12');
-  await withSession(async (services, session) => printDetails(await services.tasks.get(session, ref)));
+  await withSession(async (services, session) => {
+    await reportMerges(services, session, ref);
+    const task = await services.tasks.get(session, ref);
+    printDetails(task);
+    printGit(task.ref, await services.git.inspect(session, task, process.cwd()));
+  });
 }
 
 function printDetails(task: TaskDetails): void {
@@ -159,6 +171,40 @@ function printDetails(task: TaskDetails): void {
       for (const line of more) print(`${' '.repeat(7 + actorWidth + 2)}${line}`);
     }
   }
+}
+
+/** Closes tasks whose branch was merged outside SOJA and says so before the output. */
+async function reportMerges(services: AppServices, session: Session, only?: string): Promise<void> {
+  const results = await services.git.detectMerges(session, process.cwd(), only ? { only } : {}).catch(() => []);
+  for (const result of results) {
+    if (result.kind === 'merged') success(`${bold(result.task.ref)} was merged into ${result.into} outside SOJA ${symbols.arrow} Done`);
+    else print(dim(`${result.task.ref}: branch ${result.branch} was deleted with no merge found`));
+  }
+  if (results.length) print();
+}
+
+function printGit(ref: string, state: TaskGitState): void {
+  print();
+  print(dim(bold('GIT')));
+  if (state.status === 'unavailable') {
+    print(dim(`  ${state.reason}${state.hint ? `  ${state.hint}` : ''}`));
+    return;
+  }
+  const where = dim(`in ${tildify(state.root)}`);
+  if (!state.branchExists) {
+    print(`  ${dim(state.recorded ? 'branch deleted, no merge found:' : 'not started:')} ${state.branch} ${where}`);
+    print(dim(`  run \`soja start ${ref}\` to create it${state.recorded ? ', or forget it from the Git menu (g)' : ''}`));
+  } else {
+    const checkout = state.checkedOut
+      ? color('green', `${symbols.active} checked out`)
+      : dim(`not checked out (on ${state.currentBranch ?? 'detached HEAD'})`);
+    print(`  ${state.branch}  ${checkout}  ${where}`);
+  }
+  if (state.uncommitted > 0) print(dim(`  ${state.uncommitted} uncommitted change${state.uncommitted === 1 ? '' : 's'}`));
+  for (const commit of state.commits.slice(0, 5)) {
+    print(`  ${color('yellow', commit.shortHash)} ${commit.subject} ${dim(`${commit.author}, ${formatRelative(commit.date)}`)}`);
+  }
+  if (state.commits.length > 5) print(dim(`  ${symbols.ellipsis} ${state.commits.length - 5} more`));
 }
 
 async function transition(action: 'done' | 'start' | 'reopen', args: string[]): Promise<void> {

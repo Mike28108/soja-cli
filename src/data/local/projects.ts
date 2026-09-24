@@ -3,7 +3,8 @@ import { and, asc, eq } from 'drizzle-orm';
 import type { Database } from '../../database/client.js';
 import { projects } from '../../database/schema.js';
 import type { Project } from '../../domain/entities.js';
-import type { NewProject, ProjectRepository } from '../repositories.js';
+import { NotFoundError } from '../../domain/errors.js';
+import type { NewProject, ProjectPatch, ProjectRepository } from '../repositories.js';
 import type { Clock } from './clock.js';
 import { must } from './users.js';
 
@@ -45,5 +46,15 @@ export class LocalProjectRepository implements ProjectRepository {
       })
       .returning();
     return must(project);
+  }
+
+  async update(id: string, patch: ProjectPatch): Promise<Project> {
+    const [project] = await this.db
+      .update(projects)
+      .set({ ...patch, updatedAt: this.clock() })
+      .where(eq(projects.id, id))
+      .returning();
+    if (!project) throw new NotFoundError('That project no longer exists.');
+    return project;
   }
 }

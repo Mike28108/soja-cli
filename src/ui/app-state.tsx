@@ -1,5 +1,5 @@
 import { useApp } from 'ink';
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import type { AppServices } from '../application/services/index.js';
 import type { Session } from '../application/types.js';
 import { toDisplayError } from '../utils/errors.js';
@@ -15,6 +15,8 @@ export interface Flash {
 
 export interface AppState {
   services: AppServices;
+  /** Directory SOJA was opened from; Git features use it to find the repository. */
+  cwd: string;
   session: Session;
   setSession(session: Session): void;
   stack: readonly Route[];
@@ -33,6 +35,13 @@ export interface AppState {
    * on failure shows a friendly error. Resolves to whether it worked.
    */
   run(action: () => Promise<unknown>, success?: string): Promise<boolean>;
+  /** Reloads screen data after changes made outside `run` (e.g. Git operations). */
+  refresh(): void;
+  /**
+   * Looks for task branches merged outside SOJA and closes those tasks.
+   * Full scans are throttled; `only` checks one task right away.
+   */
+  detectMerges(only?: string): Promise<void>;
   quit(): void;
 }
 
@@ -40,11 +49,12 @@ const AppStateContext = createContext<AppState | null>(null);
 
 interface ProviderProps {
   services: AppServices;
+  cwd: string;
   initialSession: Session;
   children: ReactNode;
 }
 
-export function AppStateProvider({ services, initialSession, children }: ProviderProps) {
+export function AppStateProvider({ services, cwd, initialSession, children }: ProviderProps) {
   const { exit } = useApp();
   const [session, setSession] = useState(initialSession);
   const [stack, dispatch] = useReducer(navigate, [{ name: 'home' }] as Route[]);
@@ -78,6 +88,33 @@ export function AppStateProvider({ services, initialSession, children }: Provide
     [notify],
   );
 
+  const lastScan = useRef(0);
+  const detectMerges = useCallback(
+    async (only?: string) => {
+      if (!only) {
+        if (Date.now() - lastScan.current < 10_000) return;
+        lastScan.current = Date.now();
+      }
+      try {
+        const merged = (await services.git.detectMerges(session, cwd, only ? { only } : {})).filter(
+          (result) => result.kind === 'merged',
+        );
+        const [first] = merged;
+        if (!first) return;
+        notify(
+          merged.length === 1
+            ? `${first.task.ref} was merged into ${first.into} outside SOJA → Done`
+            : `${merged.length} tasks were merged outside SOJA → Done`,
+          'success',
+        );
+        setRevision((value) => value + 1);
+      } catch {
+        // Detection is best effort; the task views report Git problems themselves.
+      }
+    },
+    [services, session, cwd, notify],
+  );
+
   const changeSession = useCallback((next: Session) => {
     setSession(next);
     dispatch({ type: 'reset' });
@@ -87,6 +124,7 @@ export function AppStateProvider({ services, initialSession, children }: Provide
   const value = useMemo<AppState>(
     () => ({
       services,
+      cwd,
       session,
       setSession: changeSession,
       stack,
@@ -99,9 +137,11 @@ export function AppStateProvider({ services, initialSession, children }: Provide
       notify,
       revision,
       run,
+      refresh: () => setRevision((value) => value + 1),
+      detectMerges,
       quit: exit,
     }),
-    [services, session, changeSession, stack, overlay, flash, notify, revision, run, exit],
+    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, exit],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

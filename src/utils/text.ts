@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+
 /** Greedy word wrap by character count. Long words are hard-split. */
 export function wrapText(text: string, width: number): string[] {
   const size = Math.max(1, width);
@@ -31,4 +33,14 @@ export function clampLines(lines: readonly string[], max: number): string[] {
 export function truncate(text: string, width: number): string {
   if (text.length <= width) return text;
   return width <= 1 ? text.slice(0, width) : `${text.slice(0, width - 1)}…`;
+}
+
+/** Expands a leading `~` (typed in the interface, where no shell does it). */
+export function expandHome(path: string, home: string = homedir()): string {
+  return path === '~' || path.startsWith('~/') ? `${home}${path.slice(1)}` : path;
+}
+
+/** Shortens paths under the home directory to `~/…`. */
+export function tildify(path: string, home: string = homedir()): string {
+  return path === home || path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }

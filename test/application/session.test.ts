@@ -21,7 +21,12 @@ describe('first-run setup', () => {
 
     expect(session.user).toMatchObject({ username: 'michael', displayName: 'Michael' });
     expect(session.workspace).toMatchObject({ name: 'Bravos Development', slug: 'bravos-development' });
-    expect(app.config.load()).toEqual({ mode: 'local', userId: session.user.id, workspaceId: session.workspace.id });
+    expect(app.config.load()).toEqual({
+      mode: 'local',
+      userId: session.user.id,
+      workspaceId: session.workspace.id,
+      parentFolders: [],
+    });
 
     const members = await app.services.workspaces.members(session);
     expect(members).toMatchObject([{ username: 'michael', role: 'owner' }]);

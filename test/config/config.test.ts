@@ -32,8 +32,15 @@ describe('FileConfigStore', () => {
     dir = tempDir();
     const store = new FileConfigStore(join(dir.path, 'nested', 'config.json'));
     expect(store.load()).toBeNull();
-    store.save({ mode: 'local', userId: 'u', workspaceId: 'w' });
-    expect(store.load()).toEqual({ mode: 'local', userId: 'u', workspaceId: 'w' });
+    store.save({ mode: 'local', userId: 'u', workspaceId: 'w', parentFolders: ['/code/products'] });
+    expect(store.load()).toEqual({ mode: 'local', userId: 'u', workspaceId: 'w', parentFolders: ['/code/products'] });
+  });
+
+  it('reads v0.1 config files, which have no parent folders', () => {
+    dir = tempDir();
+    const file = join(dir.path, 'config.json');
+    writeFileSync(file, JSON.stringify({ mode: 'local', userId: 'u', workspaceId: 'w' }));
+    expect(new FileConfigStore(file).load()?.parentFolders).toEqual([]);
   });
 
   it('explains broken JSON instead of crashing', () => {
