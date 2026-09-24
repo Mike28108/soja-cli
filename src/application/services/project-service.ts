@@ -1,0 +1,84 @@
+import { z } from 'zod';
+import type { Repositories } from '../../data/repositories.js';
+import type { Project } from '../../domain/entities.js';
+import { ConflictError, NotFoundError } from '../../domain/errors.js';
+import { deriveProjectKey, makeUnique } from '../../domain/naming.js';
+import { activeCount, emptyStatusCounts } from '../../domain/task.js';
+import type { ProjectSummary, Session } from '../types.js';
+import { optionalText, parseInput } from '../validation.js';
+
+const projectKeySchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z][A-Z0-9]{1,9}$/, { error: 'Keys are 2–10 letters or digits and start with a letter (e.g. ENROLL).' });
+
+const createProjectSchema = z.object({
+  name: z.string().trim().min(1, { error: 'Name the project.' }).max(60),
+  key: projectKeySchema.optional(),
+  description: optionalText(500),
+  repositoryUrl: optionalText(500),
+  repositoryPath: optionalText(500),
+});
+
+export type CreateProjectInput = z.input<typeof createProjectSchema>;
+
+export class ProjectService {
+  constructor(private readonly repos: Repositories) {}
+
+  async list(session: Session): Promise<ProjectSummary[]> {
+    const [projects, rows] = await Promise.all([
+      this.repos.projects.listByWorkspace(session.workspace.id),
+      this.repos.tasks.countByProjectAndStatus(session.workspace.id),
+    ]);
+    return projects.map((project) => {
+      const counts = emptyStatusCounts();
+      for (const row of rows) if (row.projectId === project.id) counts[row.status] += row.count;
+      return { ...project, counts, active: activeCount(counts) };
+    });
+  }
+
+  async create(session: Session, input: CreateProjectInput): Promise<Project> {
+    const { name, key, ...rest } = parseInput(createProjectSchema, input);
+    return this.repos.transaction(async () => {
+      const existing = await this.repos.projects.listByWorkspace(session.workspace.id);
+      if (existing.some((project) => project.name.toLowerCase() === name.toLowerCase())) {
+        throw new ConflictError(`${name} already exists in ${session.workspace.name}.`);
+      }
+      const keys = new Set(existing.map((project) => project.key));
+      if (key && keys.has(key)) throw new ConflictError(`The key ${key} is already used by another project.`);
+
+      return this.repos.projects.create({
+        workspaceId: session.workspace.id,
+        name,
+        key: key ?? makeUnique(deriveProjectKey(name), (candidate) => keys.has(candidate)),
+        description: rest.description ?? null,
+        repositoryUrl: rest.repositoryUrl ?? null,
+        repositoryPath: rest.repositoryPath ?? null,
+      });
+    });
+  }
+
+  async get(session: Session, id: string): Promise<Project> {
+    const project = await this.repos.projects.findById(id);
+    if (!project || project.workspaceId !== session.workspace.id) {
+      throw new NotFoundError('That project does not exist in this workspace.');
+    }
+    return project;
+  }
+
+  /** Finds a project by key (`ENROLL`) or name (`EnrollBridge`), case-insensitively. */
+  async resolve(session: Session, keyOrName: string): Promise<Project> {
+    const needle = keyOrName.trim().toLowerCase();
+    const projects = await this.repos.projects.listByWorkspace(session.workspace.id);
+    const project =
+      projects.find((candidate) => candidate.key.toLowerCase() === needle) ??
+      projects.find((candidate) => candidate.name.toLowerCase() === needle);
+    if (!project) {
+      throw new NotFoundError(`No project called “${keyOrName}” in ${session.workspace.name}.`, {
+        hint: 'List them with `soja project list`.',
+      });
+    }
+    return project;
+  }
+}
