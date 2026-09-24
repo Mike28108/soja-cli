@@ -45,7 +45,7 @@ Decisiones (2026-09-24), con el diseño completo en `soja-backend/docs/CHAT.md`:
 - **Avisos dentro de SOJA:** no leídos por canal y menciones en el header; sin notificaciones del sistema.
 - Seguridad: el texto remoto se limpia de secuencias de escape antes de mostrarse en la terminal.
 
-## v0.6 — GitHub, PR y CI (siguiente hito)
+## v0.6 — GitHub, PR y CI (publicado en v0.6.0)
 
 Integración autenticada con la API de GitHub para enlazar branches, commits, pull requests y checks con tareas y conversaciones: estado de PRs y CI dentro de SOJA, revisiones, y la evaluación de una GitHub App con permisos mínimos. La apertura básica de PRs con la CLI `gh` se adelantó a v0.2; los flujos Git locales deben seguir funcionando sin GitHub.
 
@@ -54,7 +54,7 @@ Decisiones (2026-09-24):
 - **Ver y hacer merge:** estado del PR, revisión y checks en el detalle y en la lista; merge del PR en GitHub desde SOJA (con confirmación), que cierra la task. Aprobar, pedir cambios y leer reviews siguen en GitHub.
 - **Compartido con el equipo** en modo remoto a través del timeline: PR mergeado en GitHub (cierra la task aunque nadie haga pull) y checks fallidos por commit. Requiere eventos nuevos en `soja-backend`.
 
-## v1.0 — Workspace colaborativo
+## v1.0 — Workspace colaborativo (siguiente hito)
 
 Consolidar tareas, Git, chat, trabajo remoto y operación sin conexión en una experiencia estable. La fecha y el alcance final se deciden después de validar los hitos anteriores.
 
