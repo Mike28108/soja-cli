@@ -7,6 +7,8 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-24
+
 GitHub en SOJA (hito v0.6), a través de la CLI `gh`. En modo remoto, requiere `soja-backend` ≥ 0.4.0 para compartir los eventos de PR.
 
 ### Added
