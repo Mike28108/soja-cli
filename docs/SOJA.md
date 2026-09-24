@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.1.0** |
-| Versión del documento | **0.1.0** (revisión 1) |
+| Versión del documento | **0.1.0** (revisión 2) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -773,21 +773,11 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Es
 
 ### Roadmap propuesto
 
-**v0.2 — Git**
-- `soja start <id>`: asigna, pasa a In Progress y crea la branch sugerida en `repository_path`.
-- Descripción con `$EDITOR`.
-- `soja task comment`.
-- Editar y archivar proyectos; cancelar y borrar tasks.
+El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-**v0.3 — Flujo de PR**
-- `soja pr <id>`: detecta branch, commits, pull request y checks.
-
-**v1.0 — Remoto**
-- `soja-backend` (Node + Fastify/Hono, PostgreSQL/Supabase).
-- `data/remote/`, `mode: "remote"` y autenticación.
+Para v0.2, `soja task start <id>` ya asigna y pasa a In Progress. El nuevo `soja start <id>` agregará el flujo de branch Git local y seguirá funcionando sin internet. El backend, la sincronización, el chat y GitHub permanecen en hitos posteriores.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
-
 ---
 
 ## 15. Versionado y mantenimiento de este documento
@@ -822,3 +812,4 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
+| 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
