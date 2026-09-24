@@ -27,8 +27,10 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 
 ## Alcance de la próxima etapa
 
-- v0.2 se centra en Git local y trabajo offline. `soja task start <id>` ya asigna y cambia el estado; `soja start <id>` debe añadir el flujo de branch sin duplicar esa lógica.
-- v0.2 incluye además commit, merge, borrado de branch, push y PR (con `git` y la CLI `gh`, sin credenciales propias), con log en vivo y errores con sugerencias. No adelantes la API de GitHub, CI, `soja-backend`, sincronización ni chat a v0.2.
+- Publicado: v0.2 (Git) y v0.3–v0.4 (modo remoto, `soja-backend`, sincronización offline) en v0.4.0.
+- v0.5 es el chat asociado al trabajo (ver `ROADMAP.md`). Ya decidido: **tiempo real por WebSocket** mientras SOJA está abierto, con la sincronización normal como respaldo si se corta. El chat es un dominio propio, separado de `task_comments`.
+- El backend está desplegado en Railway con PostgreSQL en Supabase. Toda tabla nueva del backend activa RLS (su test lo exige).
+- No adelantes la API de GitHub ni CI (v0.6).
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar
