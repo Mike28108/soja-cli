@@ -24,6 +24,11 @@ function reviveDates(key: string, value: unknown): unknown {
   return terminalSafe(value);
 }
 
+/** Parses JSON from the server the same way the HTTP client does (safe text, Dates). */
+export function parseServerJson<T>(text: string): T {
+  return JSON.parse(text, reviveDates) as T;
+}
+
 /**
  * JSON over HTTPS to a SOJA server. Server errors become the same error
  * classes local mode throws, so the interface shows them the same way.
@@ -31,7 +36,7 @@ function reviveDates(key: string, value: unknown): unknown {
 export class ApiClient {
   constructor(
     readonly baseUrl: string,
-    private readonly token: string | null,
+    readonly token: string | null,
     private readonly fetcher: typeof fetch = fetch,
   ) {}
 

@@ -19,11 +19,56 @@ export class FakeSojaServer {
   readonly comments = new Map<string, Record<string, unknown>>();
   readonly activity: Record<string, unknown>[] = [];
   readonly projects = new Map<string, Record<string, unknown>>();
+  readonly channels = new Map<string, Record<string, unknown>>();
+  readonly messages = new Map<string, Record<string, unknown>>();
+  /** userId → channelId → lastReadSeq */
+  readonly reads = new Map<string, Map<string, number>>();
+  /** Answers at most this many chat messages per /ops request, leaving the rest unanswered (rate limit). */
+  messageLimit: number | null = null;
+  /** Connected fake WebSockets, authenticated. */
+  readonly sockets = new Set<FakeSocket>();
+  readonly general: string;
+  private messageSeq = 0;
   private readonly applied = new Map<string, unknown>();
   private readonly feed: { seq: number; entity: string; id: string }[] = [];
   private seq = 0;
   private number = 0;
   opRequests = 0;
+
+  constructor() {
+    this.general = this.addChannel('general');
+  }
+
+  addChannel(name: string, archived = false): string {
+    const id = randomUUID();
+    this.channels.set(id, { id, workspaceId: this.workspace.id, name, topic: null, createdBy: null, createdAt: iso(), updatedAt: iso(), archivedAt: archived ? iso() : null });
+    this.log('channel', id);
+    return id;
+  }
+
+  /** Someone else writes in the chat directly on the server; live sockets hear about it. */
+  serverMessage(channelId: string, authorId: string, body: string): Record<string, unknown> {
+    const message = { id: randomUUID(), seq: (this.messageSeq += 1), workspaceId: this.workspace.id, channelId, authorId, body, replyToId: null, createdAt: iso(), editedAt: null, deletedAt: null };
+    this.messages.set(message.id, message);
+    this.log('message', message.id);
+    this.broadcast({ type: 'message.created', message });
+    return message;
+  }
+
+  broadcast(event: unknown): void {
+    for (const socket of this.sockets) socket.deliver(event);
+  }
+
+  /** A WebSocket class bound to this server, for `bootstrap({ WebSocket })`. */
+  get WebSocket(): typeof WebSocket {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const server = this;
+    return class extends FakeSocket {
+      constructor(url: string | URL) {
+        super(server, String(url));
+      }
+    } as unknown as typeof WebSocket;
+  }
 
   addUser(username: string): string {
     const id = randomUUID();
@@ -63,8 +108,33 @@ export class FakeSojaServer {
 
     if (path === '/v1/me') return json({ user: me, workspaces: [{ ...this.workspace, role: 'owner' }] });
     if (path === `${ws}/ops` && this.opsFailWith) return json({ error: { code: 'internal', message: 'Server trouble.' } }, this.opsFailWith);
-    if (path === `${ws}/ops`) return json({ results: (body.ops as Op[]).map((op) => this.apply(op, userId)) });
-    if (path === `${ws}/changes`) return json(this.changes(Number(url.searchParams.get('after') ?? 0), Number(url.searchParams.get('limit') ?? 500)));
+    if (path === `${ws}/ops`) {
+      let chatBudget = this.messageLimit ?? Infinity;
+      const results: unknown[] = [];
+      for (const op of body.ops as Op[]) {
+        if (op.type.startsWith('message.') && !this.applied.has(op.opId) && (chatBudget -= 1) < 0) break;
+        results.push(this.apply(op, userId));
+      }
+      if (results.length) this.broadcast({ type: 'changes.available' });
+      return json({ results });
+    }
+    if (path === `${ws}/channels` && init?.method === 'POST') {
+      const name = String(body.name);
+      if ([...this.channels.values()].some((channel) => channel.name === name)) return json({ error: { code: 'channel_exists', message: `#${name} already exists.` } }, 409);
+      const id = this.addChannel(name);
+      return json({ ...this.channels.get(id), lastReadSeq: 0 }, 201);
+    }
+    const history = new RegExp(`^${ws}/channels/([^/]+)/messages$`).exec(path);
+    if (history) {
+      const before = url.searchParams.get('before');
+      const limit = Number(url.searchParams.get('limit') ?? 50);
+      const rows = [...this.messages.values()]
+        .filter((message) => message.channelId === history[1] && (before === null || (message.seq as number) < Number(before)))
+        .sort((a, b) => (b.seq as number) - (a.seq as number))
+        .slice(0, limit);
+      return json(rows);
+    }
+    if (path === `${ws}/changes`) return json(this.changes(Number(url.searchParams.get('after') ?? 0), Number(url.searchParams.get('limit') ?? 500), userId));
     if (path === `${ws}/members` && init?.method === 'POST') {
       const user = [...this.users.values()].find((candidate) => candidate.username === body.username);
       return user ? json({ ...user, role: 'member' }, 201) : json({ error: { code: 'user_not_found', message: 'Not found' } }, 404);
@@ -93,6 +163,8 @@ export class FakeSojaServer {
     if (this.rejectNext) {
       result = reject(this.rejectNext, 'Rejected by the server.');
       this.rejectNext = null;
+    } else if (op.type.startsWith('message.') || op.type === 'channel.read') {
+      result = this.applyChat(op, userId, reject);
     } else if (op.type === 'task.create') {
       if (this.tasks.has(op.taskId)) result = reject('id_taken', 'A task with this id already exists.');
       else if (!String(op.payload.title ?? '').trim()) result = reject('invalid_input', 'title: A task needs a title.');
@@ -138,7 +210,42 @@ export class FakeSojaServer {
     return result;
   }
 
-  private changes(after: number, limit: number) {
+  private applyChat(op: Op, userId: string, reject: (code: string, message: string) => unknown): unknown {
+    const payload = op.payload;
+    if (op.type === 'channel.read') {
+      const reads = this.reads.get(userId) ?? new Map<string, number>();
+      this.reads.set(userId, reads);
+      const lastReadSeq = Math.max(reads.get(String(payload.channelId)) ?? 0, Number(payload.lastReadSeq));
+      reads.set(String(payload.channelId), lastReadSeq);
+      return { opId: op.opId, status: 'applied', read: { channelId: payload.channelId, lastReadSeq } };
+    }
+    const messageId = String(payload.messageId);
+    if (op.type === 'message.send') {
+      const channel = this.channels.get(String(payload.channelId));
+      if (!channel) return reject('channel_not_found', 'That channel does not exist.');
+      if (channel.archivedAt) return reject('channel_archived', `#${channel.name as string} is archived.`);
+      const existing = this.messages.get(messageId);
+      if (existing) return { opId: op.opId, status: 'applied', message: existing };
+      const message = {
+        id: messageId, seq: (this.messageSeq += 1), workspaceId: this.workspace.id, channelId: channel.id, authorId: userId,
+        body: payload.body, replyToId: payload.replyToId ?? null, createdAt: op.occurredAt, editedAt: null, deletedAt: null,
+      };
+      this.messages.set(messageId, message);
+      this.log('message', messageId);
+      this.broadcast({ type: 'message.created', message });
+      return { opId: op.opId, status: 'applied', message };
+    }
+    const message = this.messages.get(messageId);
+    if (!message) return reject('message_not_found', 'That message does not exist.');
+    if (message.authorId !== userId) return reject('forbidden', 'Only the author can change a message.');
+    if (op.type === 'message.edit') Object.assign(message, { body: payload.body, editedAt: op.occurredAt });
+    else Object.assign(message, { body: '', deletedAt: op.occurredAt });
+    this.log('message', messageId);
+    this.broadcast({ type: 'message.updated', message });
+    return { opId: op.opId, status: 'applied', message };
+  }
+
+  private changes(after: number, limit: number, userId?: string) {
     const page = this.feed.filter((entry) => entry.seq > after).slice(0, limit + 1);
     const hasMore = page.length > limit;
     const slice = page.slice(0, limit);
@@ -151,6 +258,9 @@ export class FakeSojaServer {
       activity: this.activity.filter((item) => ids('activity').has(item.id as string)),
       projects: [...this.projects.values()].filter((project) => ids('project').has(project.id as string)),
       members: [...this.users.values()].filter((user) => ids('member').has(user.id)).map((user) => ({ ...user, role: 'member' })),
+      channels: [...this.channels.values()].filter((channel) => ids('channel').has(channel.id as string)),
+      messages: [...this.messages.values()].filter((message) => ids('message').has(message.id as string)),
+      reads: [...(this.reads.get(userId ?? '') ?? new Map<string, number>()).entries()].map(([channelId, lastReadSeq]) => ({ channelId, lastReadSeq })),
     };
   }
 
@@ -167,6 +277,54 @@ export class FakeSojaServer {
 
   private log(entity: string, id: string): void {
     this.feed.push({ seq: (this.seq += 1), entity, id });
+  }
+}
+
+/** Minimal WebSocket stand-in speaking the /v1/live protocol against the fake server. */
+class FakeSocket extends EventTarget {
+  readyState = 0;
+  sent: unknown[] = [];
+
+  constructor(
+    private readonly server: FakeSojaServer,
+    readonly url: string,
+  ) {
+    super();
+    queueMicrotask(() => {
+      if (!this.server.online) return this.finish(1006);
+      this.readyState = 1;
+      this.dispatchEvent(new Event('open'));
+    });
+  }
+
+  send(data: string): void {
+    const message = JSON.parse(data) as { type: string; token?: string; workspaceId?: string };
+    this.sent.push(message);
+    if (message.type !== 'auth') return;
+    const userId = String(message.token).replace('soja_fake_token_for_', '');
+    if (!this.server.users.has(userId) || message.workspaceId !== this.server.workspace.id) return this.finish(4403);
+    this.server.sockets.add(this);
+    this.deliver({ type: 'ready', workspaceId: message.workspaceId });
+  }
+
+  deliver(event: unknown): void {
+    queueMicrotask(() => this.dispatchEvent(Object.assign(new Event('message'), { data: JSON.stringify(event) })));
+  }
+
+  close(code = 1000): void {
+    this.finish(code);
+  }
+
+  /** The server drops the connection (e.g. a deploy). */
+  drop(): void {
+    this.finish(1006);
+  }
+
+  private finish(code: number): void {
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    this.server.sockets.delete(this);
+    queueMicrotask(() => this.dispatchEvent(Object.assign(new Event('close'), { code })));
   }
 }
 

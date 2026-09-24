@@ -26,6 +26,7 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       { id: 'add-developer', label: 'Add developer', run: () => flows.addDeveloper() },
       { id: 'parent-folders', label: 'Parent folders', run: () => flows.manageParentFolders() },
       { id: 'git-log', label: 'Git log', run: () => openOverlay({ kind: 'git-log' }) },
+      ...(services.chat ? [{ id: 'chat', label: 'Chat', key: '#', run: () => go({ type: 'push', route: { name: 'chat' } }) }] : []),
       ...(services.sync
         ? [{ id: 'sync', label: 'Sync now', run: () => run(async () => services.sync?.syncNow(session.workspace.id), 'Synced') }]
         : []),

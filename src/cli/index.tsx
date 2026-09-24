@@ -4,6 +4,7 @@ import { toDisplayError } from '../utils/errors.js';
 import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
+import { chatCommand } from './commands/chat.js';
 import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
 import { printHelp, printVersion } from './commands/info.js';
 import { projectCommand } from './commands/project.js';
@@ -66,6 +67,8 @@ async function main(argv: string[]): Promise<void> {
       return modeCommand(rest);
     case 'sync':
       return syncCommand(rest);
+    case 'chat':
+      return chatCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }
