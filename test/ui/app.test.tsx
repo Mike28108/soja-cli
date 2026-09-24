@@ -5,6 +5,9 @@ import { App } from '../../src/ui/App.js';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { commitFile, createRepo, createSetUpApp, createTestApp, git, tempDir, type TestApp } from '../helpers.js';
+import { CliGit } from '../../src/git/cli-git.js';
+import { GitConsole } from '../../src/git/console.js';
+import { ghPr, installFakeGh } from '../git/fake-gh.js';
 
 const ESC = '\u001B';
 const ENTER = '\r';
@@ -262,8 +265,8 @@ describe('repository picker', () => {
 });
 
 describe('git operations in the interface', () => {
-  async function started() {
-    const testApp = await createSetUpApp();
+  async function started(client?: CliGit) {
+    const testApp = await createSetUpApp(client);
     const repoDir = tempDir();
     const repo = createRepo(realpathSync(repoDir.path));
     const project = await testApp.services.projects.create(testApp.session, { name: 'EnrollBridge' });
@@ -299,12 +302,42 @@ describe('git operations in the interface', () => {
     }
   });
 
+  it('shows the GitHub pull request with its checks, and merges it from the Git menu', async () => {
+    const ghDir = tempDir();
+    const fake = installFakeGh(realpathSync(ghDir.path));
+    fake.write({ prs: [ghPr('fix/SOJA-1-webhook')] });
+    const { stdin, lastFrame, repo, testApp, cleanup } = await started(new CliGit(new GitConsole(), { git: 'git', gh: fake.gh }));
+    try {
+      await settle(400);
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain('#12 open');
+      expect(frame).toContain('1 failing: lint');
+      expect(frame).toContain('checks failed on PR #12 (aaaaaaa): lint');
+
+      await press(stdin, 'g');
+      await press(stdin, '5'); // Merge pull request on GitHub…
+      await settle(300);
+      expect(lastFrame()).toContain('Merge PR #12 on GitHub?');
+      expect(lastFrame()).toContain('1 check failing');
+      await press(stdin, '3'); // merge and delete the branch
+      await settle(800);
+      expect(lastFrame()).toContain('Merged PR #12 into main on GitHub');
+      expect(fake.calls()).toContain('pr merge 12 --merge --delete-branch');
+      expect(git(repo, 'branch', '--list', 'fix/*')).toBe('');
+      expect((await testApp.services.tasks.get(testApp.session, 'SOJA-1')).status).toBe('done');
+    } finally {
+      cleanup();
+      ghDir.cleanup();
+      delete process.env.FAKE_GH_STATE;
+    }
+  });
+
   it('merges after confirmation and offers to delete the branch and finish the task', async () => {
     const { stdin, lastFrame, repo, testApp, cleanup } = await started();
     try {
       commitFile(repo, 'fix.txt', 'fix', 'Fix (SOJA-1)');
       await press(stdin, 'g');
-      await press(stdin, '5'); // Merge into base…
+      await press(stdin, '6'); // Merge into base…
       await settle(200);
       expect(lastFrame()).toContain('Merge into main?');
       await press(stdin, ENTER); // default is Cancel
@@ -312,7 +345,7 @@ describe('git operations in the interface', () => {
       expect(git(repo, 'branch', '--show-current')).toBe('fix/SOJA-1-webhook');
 
       await press(stdin, 'g');
-      await press(stdin, '5');
+      await press(stdin, '6');
       await settle(200);
       await press(stdin, '2'); // confirm
       await settle(500);
@@ -333,7 +366,7 @@ describe('git operations in the interface', () => {
     try {
       commitFile(repo, 'wip.txt', 'wip', 'Unmerged');
       await press(stdin, 'g');
-      await press(stdin, '7'); // Delete branch…
+      await press(stdin, '8'); // Delete branch…
       await settle(150);
       await press(stdin, '2');
       await settle(400);

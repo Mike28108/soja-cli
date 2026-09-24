@@ -3,7 +3,17 @@ import type { GitConsole } from './console.js';
 import { diagnose } from './diagnose.js';
 import type { LoggedCommit } from './merge-evidence.js';
 import { terminalSafe } from '../utils/text.js';
-import { GitError, type ChangedFile, type ChangeKind, type GitClient, type GitCommit, type RemoteOptions } from './types.js';
+import {
+  GitError,
+  type ChangedFile,
+  type ChangeKind,
+  type CheckSummary,
+  type GitClient,
+  type GitCommit,
+  type PullRequest,
+  type RemoteOptions,
+  type ReviewState,
+} from './types.js';
 
 interface RunResult {
   code: number;
@@ -227,6 +237,30 @@ export class CliGit implements GitClient {
     await this.attached(this.binaries.gh, ['auth', 'login'], 'GitHub login did not finish.');
   }
 
+  async pullRequestFor(root: string, branch: string): Promise<PullRequest | null> {
+    // `gh pr view <branch>` only finds open ones; the list also finds merged and closed.
+    const result = await this.run(
+      this.binaries.gh,
+      ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '1', '--json', PR_FIELDS],
+      { cwd: root, failure: 'Could not read the pull request from GitHub.' },
+    );
+    return parsePullRequests(result.stdout)[0] ?? null;
+  }
+
+  async pullRequests(root: string, limit: number): Promise<PullRequest[]> {
+    const result = await this.run(
+      this.binaries.gh,
+      ['pr', 'list', '--state', 'all', '--limit', String(limit), '--json', PR_FIELDS],
+      { cwd: root, failure: 'Could not read pull requests from GitHub.' },
+    );
+    return parsePullRequests(result.stdout);
+  }
+
+  async mergePullRequest(root: string, number: number, options: { deleteBranch: boolean }): Promise<void> {
+    const args = ['pr', 'merge', String(number), '--merge', ...(options.deleteBranch ? ['--delete-branch'] : [])];
+    await this.run(this.binaries.gh, args, { cwd: root, stream: true, failure: `Could not merge pull request #${number}.` });
+  }
+
   // ── Process plumbing ────────────────────────────────────────────────────
 
   private git(args: string[], options: RunOptions = {}): Promise<RunResult> {
@@ -360,4 +394,76 @@ function parseLog(output: string): GitCommit[] {
       // Commits pulled from others can carry escape sequences in their messages.
       return [{ hash, shortHash, subject: terminalSafe(subject), author: terminalSafe(author), date: new Date(Number(timestamp) * 1000) }];
     });
+}
+
+const PR_FIELDS = 'number,url,title,state,isDraft,baseRefName,headRefName,headRefOid,reviewDecision,mergeable,statusCheckRollup,mergedAt';
+
+interface GhCheck {
+  __typename?: string;
+  name?: string;
+  context?: string;
+  /** CheckRun: QUEUED, IN_PROGRESS, COMPLETED… */
+  status?: string;
+  /** CheckRun: SUCCESS, FAILURE, NEUTRAL, SKIPPED, CANCELLED, TIMED_OUT, ACTION_REQUIRED… */
+  conclusion?: string;
+  /** StatusContext: SUCCESS, FAILURE, ERROR, PENDING, EXPECTED. */
+  state?: string;
+}
+
+interface GhPullRequest {
+  number: number;
+  url: string;
+  title: string;
+  state: string;
+  isDraft?: boolean;
+  baseRefName: string;
+  headRefName: string;
+  headRefOid?: string;
+  reviewDecision?: string | null;
+  mergeable?: string;
+  statusCheckRollup?: GhCheck[] | null;
+  mergedAt?: string | null;
+}
+
+const PASSED = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
+const FAILED = new Set(['FAILURE', 'ERROR', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
+
+/** Parses `gh pr list --json …`. Text from GitHub is made terminal-safe (anyone can title a PR). */
+export function parsePullRequests(output: string): PullRequest[] {
+  const rows = JSON.parse(output || '[]') as GhPullRequest[];
+  return rows.map((row) => ({
+    number: row.number,
+    url: terminalSafe(row.url),
+    title: terminalSafe(row.title),
+    state: row.state === 'MERGED' ? 'merged' : row.state === 'CLOSED' ? 'closed' : 'open',
+    draft: row.isDraft ?? false,
+    base: terminalSafe(row.baseRefName),
+    head: terminalSafe(row.headRefName),
+    headSha: row.headRefOid ?? '',
+    review: reviewState(row.reviewDecision),
+    mergeable: row.mergeable === 'MERGEABLE' ? 'mergeable' : row.mergeable === 'CONFLICTING' ? 'conflicting' : 'unknown',
+    checks: summarizeChecks(row.statusCheckRollup ?? []),
+    mergedAt: row.mergedAt ? new Date(row.mergedAt) : null,
+  }));
+}
+
+function reviewState(decision: string | null | undefined): ReviewState {
+  if (decision === 'APPROVED') return 'approved';
+  if (decision === 'CHANGES_REQUESTED') return 'changes_requested';
+  if (decision === 'REVIEW_REQUIRED') return 'review_required';
+  return null;
+}
+
+function summarizeChecks(checks: readonly GhCheck[]): CheckSummary {
+  const summary: CheckSummary = { total: checks.length, passed: 0, failed: 0, pending: 0, failing: [] };
+  for (const check of checks) {
+    // Check runs report a conclusion once completed; commit statuses report a state.
+    const outcome = check.__typename === 'StatusContext' || check.state ? check.state : check.status === 'COMPLETED' ? check.conclusion : 'PENDING';
+    if (outcome && PASSED.has(outcome)) summary.passed += 1;
+    else if (outcome && FAILED.has(outcome)) {
+      summary.failed += 1;
+      summary.failing.push(terminalSafe(check.name ?? check.context ?? 'check'));
+    } else summary.pending += 1;
+  }
+  return summary;
 }

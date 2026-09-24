@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline/promises';
 import type { AppServices } from '../../application/services/index.js';
+import { pullRequestWarnings } from '../../application/services/index.js';
 import type { Session } from '../../application/types.js';
 import { ValidationError } from '../../domain/errors.js';
 import { GitError } from '../../git/types.js';
@@ -139,6 +140,9 @@ export async function pushCommand(args: string[]): Promise<void> {
 
 /** `soja pr <id> [--yes]` */
 export async function pullRequestCommand(args: string[]): Promise<void> {
+  const [sub, ...rest] = args;
+  if (sub === 'status') return pullRequestStatus(rest);
+  if (sub === 'merge') return mergePullRequest(rest);
   const { values, positionals } = parseCommand(args, { yes: { type: 'boolean', short: 'y' } });
   const ref = requireArg(positionals[0], 'task ID', 'soja pr SOJA-12');
   await withGit(async (services, session) => {
@@ -147,5 +151,55 @@ export async function pullRequestCommand(args: string[]): Promise<void> {
     const result = await services.git.openPullRequest(session, ref, { cwd: process.cwd(), interactive: interactive() });
     success(`Pull request ${result.branch} ${symbols.arrow} ${result.base}`);
     print(`  ${result.url}`);
+  });
+}
+
+/** `soja pr status <id>`: the task's pull request as GitHub sees it (through gh). */
+async function pullRequestStatus(args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const ref = requireArg(positionals[0], 'task ID', 'soja pr status SOJA-12');
+  await withGit(async (services, session) => {
+    const state = await services.git.pullRequest(session, ref, process.cwd());
+    if (state.status === 'unavailable') throw new GitError(state.reason, state.hint ? { hint: state.hint } : {});
+    if (state.status === 'none') return print(dim(state.reason));
+    const { pr } = state;
+    const stateText = pr.state === 'merged' ? color('magenta', 'merged') : pr.state === 'open' ? color('cyan', pr.draft ? 'draft' : 'open') : dim('closed');
+    print(`${bold(`#${pr.number}`)} ${stateText} ${dim(`${pr.head} ${symbols.arrow} ${pr.base}`)}  ${pr.title}`);
+    print(`  ${pr.url}`);
+    if (pr.state !== 'open') return;
+    const review = pr.review === 'approved' ? color('green', 'approved') : pr.review === 'changes_requested' ? color('red', 'changes requested') : dim(pr.review ? 'review required' : 'no review rules');
+    print(`  review  ${review}`);
+    const { checks } = pr;
+    const checkText =
+      checks.total === 0
+        ? dim('none')
+        : checks.failed > 0
+          ? color('red', `${symbols.cross} ${checks.failed} failing: ${checks.failing.join(', ')}`)
+          : checks.pending > 0
+            ? color('yellow', `${symbols.running} ${checks.passed}/${checks.total} passed, ${checks.pending} running`)
+            : color('green', `${symbols.check} ${checks.passed}/${checks.total} passed`);
+    print(`  checks  ${checkText}`);
+    if (pr.mergeable === 'conflicting') print(`  ${color('red', 'conflicts with the base')}`);
+    // Learn what the team should see too (merged elsewhere, new CI failure).
+    await services.git.followPullRequests(session, process.cwd(), { only: ref });
+  });
+}
+
+/** `soja pr merge <id> [--delete-branch] [-y]`: merges the PR on GitHub and closes the task. */
+async function mergePullRequest(args: string[]): Promise<void> {
+  const { values, positionals } = parseCommand(args, { yes: { type: 'boolean', short: 'y' }, 'delete-branch': { type: 'boolean', short: 'd' } });
+  const ref = requireArg(positionals[0], 'task ID', 'soja pr merge SOJA-12 [--delete-branch]');
+  await withGit(async (services, session) => {
+    const state = await services.git.pullRequest(session, ref, process.cwd());
+    if (state.status === 'unavailable') throw new GitError(state.reason, state.hint ? { hint: state.hint } : {});
+    if (state.status === 'none') throw new GitError(`${ref}: ${state.reason}`, { hint: `Open one with \`soja pr ${ref}\`.` });
+    const { pr } = state;
+    const warnings = pullRequestWarnings(pr);
+    if (warnings.length) print(color('yellow', `! ${warnings.join(', ')}`));
+    const deleteBranch = values['delete-branch'] ?? false;
+    const question = `Merge PR ${bold(`#${pr.number}`)} (${pr.head} ${symbols.arrow} ${pr.base}) on GitHub${deleteBranch ? ' and delete the branch' : ''}?`;
+    if (!(await confirm(question, values.yes))) return print(dim('Cancelled.'));
+    const result = await services.git.mergePullRequest(session, ref, { cwd: process.cwd(), deleteBranch });
+    success(`Merged PR #${result.pr.number} into ${result.pr.base}. ${result.task.ref} is Done.`);
   });
 }

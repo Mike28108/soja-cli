@@ -7,6 +7,18 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+GitHub en SOJA (hito v0.6), a través de la CLI `gh`. En modo remoto, requiere `soja-backend` ≥ 0.4.0 para compartir los eventos de PR.
+
+### Added
+
+- **Estado del pull request en la task:** número, estado, revisión, checks del último commit y conflictos, leídos con `gh` al abrir la task.
+- **Marca de PR en las listas** (`#12✓`, `#12✕`, `#12◌`), con una sola consulta a GitHub por repositorio cada minuto.
+- **Merge del PR en GitHub desde SOJA:** menú Git → *Merge pull request on GitHub…* o `soja pr merge <id> [--delete-branch]`. Muestra antes lo pendiente (checks, aprobación, conflictos), hace un merge commit, opcionalmente borra la branch y marca la task Done.
+- **Lo que pasa en GitHub llega a SOJA:** un PR mergeado en GitHub cierra su task (una sola vez) y los checks fallidos quedan en el timeline una vez por commit, con aviso. En equipo, todos los ven.
+- `soja pr status <id>` y la línea de PR en `soja task show`.
+- Eventos `pr_merged` y `pr_checks_failed` (migración `0005`).
+- Errores de `gh` explicados: repositorio fuera de GitHub, sin conexión con GitHub, reglas del repositorio que bloquean el merge, conflictos del PR.
+
 ## [0.5.0] - 2026-09-24
 
 Chat del equipo en tiempo real (hito v0.5). Requiere `soja-backend` ≥ 0.3.0 para el chat; con servidores anteriores, el resto del modo remoto sigue funcionando.
