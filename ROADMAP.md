@@ -35,7 +35,15 @@ Conservar SQLite como estado local del cliente remoto, definir una cola de opera
 
 ## v0.5 — Chat asociado al trabajo (siguiente hito)
 
-Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias a tareas. Enlazar tareas con mensajes y crear una tarea desde una conversación. Diseñar el chat como dominio propio, separado de `task_comments`. Empezar por canales; agregar jerarquía de equipos solo si un caso real la requiere. La experiencia offline del chat dependerá de las garantías alcanzadas en v0.4.
+Canales por workspace, mensajes, respuestas, menciones de usuarios y referencias a tareas. Enlazar tareas con mensajes y crear una tarea desde una conversación. El chat es un dominio propio, separado de `task_comments`, y solo existe en modo remoto.
+
+Decisiones (2026-09-24), con el diseño completo en `soja-backend/docs/CHAT.md`:
+- **Canales abiertos** del workspace (`#general` por defecto). Mensajes directos y canales privados quedan para después.
+- **Respuestas citadas** en el canal; sin hilos aparte.
+- **Tiempo real por WebSocket** mientras SOJA está abierto; también acelera la sincronización de tasks.
+- **Sin conexión:** leer lo descargado y enviar en cola (reutiliza la cola de v0.4).
+- **Avisos dentro de SOJA:** no leídos por canal y menciones en el header; sin notificaciones del sistema.
+- Seguridad: el texto remoto se limpia de secuencias de escape antes de mostrarse en la terminal.
 
 ## v0.6 — GitHub, PR y CI
 
