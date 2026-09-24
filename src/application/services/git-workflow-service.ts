@@ -1,15 +1,14 @@
 import { existsSync } from 'node:fs';
-import type { Repositories } from '../../data/repositories.js';
 import type { Project } from '../../domain/entities.js';
 import { SojaError } from '../../domain/errors.js';
 import { formatTaskRef, isClosed, suggestBranchName, taskMentionPattern, type Task } from '../../domain/task.js';
 import { findMergeEvidence } from '../../git/merge-evidence.js';
-import type { ActivityEvent } from '../../domain/activity.js';
+import type { GitActivityEvent } from '../../domain/activity.js';
 import { ValidationError } from '../../domain/errors.js';
 import { GitError, type ChangedFile, type GitClient, type GitCommit, type RemoteOptions } from '../../git/types.js';
 import type { Session, TaskView } from '../types.js';
-import type { ProjectService } from './project-service.js';
-import type { TaskService, TaskTarget } from './task-service.js';
+import type { ProjectOperations, TaskOperations } from '../ports.js';
+import type { TaskTarget } from './task-service.js';
 
 /** What `start` would do, computed without touching the repository. */
 export interface StartPlan {
@@ -84,9 +83,8 @@ const COMMIT_LIMIT = 10;
  */
 export class GitWorkflowService {
   constructor(
-    private readonly repos: Repositories,
-    private readonly tasks: TaskService,
-    private readonly projects: ProjectService,
+    private readonly tasks: TaskOperations,
+    private readonly projects: ProjectOperations,
     private readonly git: GitClient,
   ) {}
 
@@ -97,7 +95,7 @@ export class GitWorkflowService {
    */
   async plan(session: Session, target: TaskTarget, cwd: string): Promise<StartPlan> {
     const task = await this.tasks.get(session, target);
-    const { root, linkProject } = await this.repositoryFor(task, cwd);
+    const { root, linkProject } = await this.repositoryFor(session, task, cwd);
     const branch = task.branch ?? suggestBranchName(task);
     if (!(await this.git.isValidBranchName(root, branch))) {
       throw new GitError(`“${branch}” is not a valid Git branch name.`, {
@@ -319,13 +317,12 @@ export class GitWorkflowService {
       await this.git.deleteBranch(context.root, branch, true);
     }
 
-    await this.repos.transaction(async () => {
-      await this.repos.tasks.update(context.task.id, { branch: null, baseBranch: null, branchStart: null });
-      await this.repos.activity.record(context.task.id, session.user.id, {
-        type: 'git_branch_deleted',
-        metadata: { branch, merged },
-      });
-    });
+    await this.tasks.recordGitEvent(
+      session,
+      context.task,
+      { type: 'git_branch_deleted', metadata: { branch, merged } },
+      { branch: null, baseBranch: null, branchStart: null },
+    );
     return { branch, merged, switchedTo };
   }
 
@@ -386,7 +383,7 @@ export class GitWorkflowService {
     for (const task of candidates) {
       const branch = task.branch;
       if (!branch || isClosed(task.status)) continue;
-      const found = await this.checkMerged({ ...task, branch }, cwd).catch(() => null);
+      const found = await this.checkMerged(session, { ...task, branch }, cwd).catch(() => null);
       if (!found) continue;
       if (found.kind === 'deleted') {
         results.push({ kind: 'deleted', task, branch });
@@ -447,7 +444,7 @@ export class GitWorkflowService {
   /** Repository and branch facts for operations on an already-linked task. */
   private async context(session: Session, target: TaskTarget, cwd: string): Promise<TaskContext> {
     const task = await this.tasks.get(session, target);
-    const { root, linkProject } = await this.repositoryFor(task, cwd);
+    const { root, linkProject } = await this.repositoryFor(session, task, cwd);
     if (linkProject) {
       throw new GitError(`${linkProject.name} has no repository linked.`, {
         suggestions: ['Press b to link it and start the task, or r in Projects.'],
@@ -487,18 +484,16 @@ export class GitWorkflowService {
     }
   }
 
-  private async record(session: Session, task: Task, event: ActivityEvent): Promise<void> {
-    await this.repos.transaction(async () => {
-      await this.repos.activity.record(task.id, session.user.id, event);
-      await this.repos.tasks.update(task.id, {});
-    });
+  private async record(session: Session, task: Task, event: GitActivityEvent): Promise<void> {
+    await this.tasks.recordGitEvent(session, task, event);
   }
 
   private async checkMerged(
+    session: Session,
     task: Task & { branch: string },
     cwd: string,
   ): Promise<{ kind: 'merged'; into: string; hash: string | null } | { kind: 'deleted' } | null> {
-    const { root, linkProject } = await this.repositoryFor(task, cwd);
+    const { root, linkProject } = await this.repositoryFor(session, task, cwd);
     if (linkProject) return null;
     const into = task.baseBranch ?? (await this.git.defaultBranch(root));
     if (!into || into === task.branch) return null;
@@ -516,9 +511,9 @@ export class GitWorkflowService {
     return exists ? null : { kind: 'deleted' };
   }
 
-  private async repositoryFor(task: Task, cwd: string): Promise<{ root: string; linkProject: Project | null }> {
+  private async repositoryFor(session: Session, task: Task, cwd: string): Promise<{ root: string; linkProject: Project | null }> {
     const ref = formatTaskRef(task.number);
-    const project = task.projectId ? await this.repos.projects.findById(task.projectId) : null;
+    const project = task.projectId ? await this.projects.get(session, task.projectId).catch(() => null) : null;
 
     if (project?.repositoryPath) {
       const path = project.repositoryPath;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ConfigStore } from '../../config/config.js';
 import type { Repositories } from '../../data/repositories.js';
+import type { User } from '../../domain/entities.js';
 import type { Session } from '../types.js';
 import { displayNameSchema, parseInput, usernameSchema } from '../validation.js';
 import type { WorkspaceService } from './workspace-service.js';
@@ -20,10 +21,16 @@ export class SessionService {
     private readonly workspaces: WorkspaceService,
   ) {}
 
+  /** The configured user, even without a usable workspace; null before setup. */
+  async user(): Promise<User | null> {
+    const config = this.config.load();
+    return config?.userId ? this.repos.users.findById(config.userId) : null;
+  }
+
   /** The configured user and workspace, or null when setup is needed. */
   async current(): Promise<Session | null> {
     const config = this.config.load();
-    if (!config) return null;
+    if (!config?.userId || !config.workspaceId) return null;
 
     const [user, workspace] = await Promise.all([
       this.repos.users.findById(config.userId),

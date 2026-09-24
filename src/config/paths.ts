@@ -6,6 +6,7 @@ export interface SojaPaths {
   configDir: string;
   databaseFile: string;
   configFile: string;
+  credentialsFile: string;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -23,5 +24,6 @@ export function resolvePaths(env: Env = process.env, home: string = homedir()): 
     configDir,
     databaseFile: join(dataDir, 'soja.db'),
     configFile: join(configDir, 'config.json'),
+    credentialsFile: join(configDir, 'credentials.json'),
   };
 }

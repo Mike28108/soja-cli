@@ -3,25 +3,40 @@ import { dirname } from 'node:path';
 import { z } from 'zod';
 import { ConfigError } from '../domain/errors.js';
 
-/**
- * Only `local` exists today. A future `remote` mode will add
- * `{ mode: 'remote', apiUrl }` as another member of this union.
- */
-const localConfigSchema = z.object({
-  mode: z.literal('local'),
-  userId: z.string().min(1),
-  workspaceId: z.string().min(1),
-  /**
-   * Machine-specific folders that contain project repositories (e.g.
-   * ~/workspace/products, ~/workspace/services). Their subfolders feed the
-   * repository picker. Lives in the config, not the database, because paths
-   * differ per computer.
-   */
-  parentFolders: z.array(z.string().min(1)).default([]),
+const remoteSchema = z.object({
+  /** SOJA server, e.g. https://api.soja.dev (the token lives in credentials.json). */
+  apiUrl: z.string().url(),
+  /** Active workspace on the server. */
+  workspaceId: z.string().min(1).optional(),
+  /** Project id → local repository folder. Paths differ per developer, so they never go to the server. */
+  repositoryPaths: z.record(z.string(), z.string()).default({}),
 });
 
-export const configSchema = localConfigSchema;
+/**
+ * Both modes live side by side so switching never loses the other one:
+ * `local` uses userId/workspaceId against SQLite; `remote` uses the
+ * `remote` block against a SOJA server.
+ */
+export const configSchema = z
+  .object({
+    mode: z.enum(['local', 'remote']).default('local'),
+    userId: z.string().min(1).optional(),
+    workspaceId: z.string().min(1).optional(),
+    /**
+     * Machine-specific folders that contain project repositories (e.g.
+     * ~/workspace/products, ~/workspace/services). Their subfolders feed the
+     * repository picker.
+     */
+    parentFolders: z.array(z.string().min(1)).default([]),
+    remote: remoteSchema.optional(),
+  })
+  .refine((config) => config.mode !== 'remote' || config.remote !== undefined, {
+    error: 'Remote mode needs a server.',
+    path: ['remote'],
+  });
+
 export type SojaConfig = z.infer<typeof configSchema>;
+export type RemoteSettings = z.infer<typeof remoteSchema>;
 
 export interface ConfigStore {
   load(): SojaConfig | null;
@@ -54,8 +69,8 @@ export class FileConfigStore implements ConfigStore {
     if (!parsed.success) {
       const mode = typeof json === 'object' && json !== null && 'mode' in json ? json.mode : undefined;
       if (mode === 'remote') {
-        throw new ConfigError('Remote mode is not available in this version of SOJA.', {
-          hint: `Set "mode": "local" in ${this.file}.`,
+        throw new ConfigError('Remote mode is set but no server is configured.', {
+          hint: 'Run `soja login --server <url>`, or `soja mode local`.',
         });
       }
       throw new ConfigError(`${this.file} has an unexpected shape.`, {

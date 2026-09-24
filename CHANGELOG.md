@@ -7,6 +7,16 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Added
+
+- **Modo remoto (v0.3, en desarrollo):** trabajo en equipo contra `soja-backend`. `soja login --server <url>` (GitHub device flow), `soja logout`, `soja mode [local|remote]`, `soja whoami`. La interfaz y los comandos son los mismos; el header muestra `⇄ servidor`.
+- `soja workspace create <nombre>` y `soja workspace add <username>`.
+- `config.json` guarda ambos modos a la vez (bloque `remote` con servidor, workspace y rutas locales de repositorios); los tokens van en `credentials.json` con permisos `0600`.
+
+### Changed
+
+- Contratos de servicio (`application/ports.ts`): la UI y la CLI no dependen de la fuente de datos; el flujo Git ya no accede a SQLite directamente.
+
 ## [0.2.0] - 2026-09-24
 
 Flujo de trabajo con Git: branches, commits, merges, push y pull requests desde cada task; todo offline salvo push y PR.

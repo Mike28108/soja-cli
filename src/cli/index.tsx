@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { ValidationError } from '../domain/errors.js';
 import { toDisplayError } from '../utils/errors.js';
+import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
 import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
@@ -54,6 +55,14 @@ async function main(argv: string[]): Promise<void> {
       return pullRequestCommand(rest);
     case 'dev':
       return devCommand(rest);
+    case 'login':
+      return loginCommand(rest);
+    case 'logout':
+      return logoutCommand();
+    case 'whoami':
+      return whoamiCommand();
+    case 'mode':
+      return modeCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }

@@ -11,7 +11,7 @@ se refleja **en el mismo commit** en:
 1. `docs/SOJA.md`: la sección afectada y la fila del historial de revisiones (sube la revisión `rN`).
 2. `CHANGELOG.md`: una entrada bajo `## [Unreleased]` (Added / Changed / Fixed / Removed).
 
-Al publicar una versión, sigue §16 de `docs/SOJA.md`: sube la versión en `package.json`,
+Al publicar una versión, sigue §17 de `docs/SOJA.md`: sube la versión en `package.json`,
 mueve Unreleased a la versión nueva con fecha, actualiza la cabecera de `docs/SOJA.md`,
 y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 
