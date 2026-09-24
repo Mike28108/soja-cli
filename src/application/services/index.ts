@@ -1,6 +1,7 @@
 import type { ConfigStore } from '../../config/config.js';
 import type { Repositories } from '../../data/repositories.js';
 import { GitConsole } from '../../git/console.js';
+import type { SyncControl } from '../../data/sync/index.js';
 import type { GitClient } from '../../git/types.js';
 import { FolderService } from './folder-service.js';
 import { GitWorkflowService } from './git-workflow-service.js';
@@ -29,6 +30,8 @@ export interface AppServices {
   gitConsole: GitConsole;
   /** Where the data lives: this machine (SQLite) or a SOJA server. */
   environment: { mode: 'local' } | { mode: 'remote'; server: string };
+  /** Offline sync controls; present only in remote mode. */
+  sync?: SyncControl;
 }
 
 export interface ServiceOptions {

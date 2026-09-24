@@ -1,6 +1,7 @@
 import { useApp } from 'ink';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import type { AppServices } from '../application/services/index.js';
+import type { SyncStatus } from '../data/sync/engine.js';
 import type { Session } from '../application/types.js';
 import { toDisplayError } from '../utils/errors.js';
 import { navigate, type NavigationAction, type Route } from './navigation/routes.js';
@@ -42,6 +43,8 @@ export interface AppState {
    * Full scans are throttled; `only` checks one task right away.
    */
   detectMerges(only?: string): Promise<void>;
+  /** Remote mode: pending changes, connectivity and the last sync. Null in local mode. */
+  syncStatus: SyncStatus | null;
   quit(): void;
 }
 
@@ -72,11 +75,14 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
     setFlash({ id: Date.now(), text, tone, hint });
   }, []);
 
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+
   const run = useCallback(
     async (action: () => Promise<unknown>, success?: string) => {
       try {
         await action();
         setRevision((value) => value + 1);
+        if (services.sync) void services.sync.status(session.workspace.id).then(setSyncStatus);
         if (success) notify(success, 'success');
         return true;
       } catch (error) {
@@ -85,7 +91,7 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
         return false;
       }
     },
-    [notify],
+    [notify, services, session.workspace.id],
   );
 
   const lastScan = useRef(0);
@@ -115,6 +121,37 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
     [services, session, cwd, notify],
   );
 
+  // Remote mode: sync on launch, every 30 s and shortly after changes; refresh views when it finishes.
+  useEffect(() => {
+    const sync = services.sync;
+    if (!sync) return;
+    const workspaceId = session.workspace.id;
+    let active = true;
+    const updateStatus = () => {
+      void sync.status(workspaceId).then((status) => {
+        if (active) setSyncStatus(status);
+      });
+    };
+    const runSync = () =>
+      sync.syncNow(workspaceId).then((report) => {
+        if (!active) return;
+        setRevision((value) => value + 1);
+        if (report.conflicts || report.rejected) {
+          const parts = [report.conflicts && `${report.conflicts} conflict${report.conflicts === 1 ? '' : 's'}`, report.rejected && `${report.rejected} rejected change${report.rejected === 1 ? '' : 's'}`];
+          notify(`Sync: ${parts.filter(Boolean).join(', ')}`, 'error', 'Open the task and press ! to review.');
+        }
+      });
+    const unsubscribe = sync.subscribe(updateStatus);
+    updateStatus();
+    void runSync();
+    const interval = setInterval(() => void runSync(), 30_000);
+    return () => {
+      active = false;
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [services, session.workspace.id, notify]);
+
   const changeSession = useCallback((next: Session) => {
     setSession(next);
     dispatch({ type: 'reset' });
@@ -139,9 +176,10 @@ export function AppStateProvider({ services, cwd, initialSession, children }: Pr
       run,
       refresh: () => setRevision((value) => value + 1),
       detectMerges,
+      syncStatus,
       quit: exit,
     }),
-    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, exit],
+    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, syncStatus, exit],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

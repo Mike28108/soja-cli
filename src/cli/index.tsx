@@ -9,6 +9,7 @@ import { printHelp, printVersion } from './commands/info.js';
 import { projectCommand } from './commands/project.js';
 import { taskCommand } from './commands/task.js';
 import { startCommand } from './commands/start.js';
+import { syncCommand } from './commands/sync.js';
 import { runInterface } from './commands/tui.js';
 import { switchWorkspace, workspaceCommand } from './commands/workspace.js';
 import { printError } from './output.js';
@@ -63,15 +64,18 @@ async function main(argv: string[]): Promise<void> {
       return whoamiCommand();
     case 'mode':
       return modeCommand(rest);
+    case 'sync':
+      return syncCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }
 }
 
-// `soja task list | head` closes the pipe early; that is not an error.
+// `soja task list | head` closes the pipe early; that is not an error. Stop
+// writing but let the command finish: in remote mode it still has to sync.
 process.stdout.on('error', (error: NodeJS.ErrnoException) => {
-  if (error.code === 'EPIPE') process.exit(0);
-  throw error;
+  if (error.code !== 'EPIPE') throw error;
+  process.stdout.write = (() => true) as typeof process.stdout.write;
 });
 
 main(process.argv.slice(2)).catch((error: unknown) => {

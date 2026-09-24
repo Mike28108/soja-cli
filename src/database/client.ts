@@ -19,12 +19,13 @@ export interface DatabaseHandle {
  * Drizzle via the async proxy driver. Being async on the Drizzle side keeps
  * repository signatures identical to a future HTTP-backed implementation.
  */
-export function openDatabase(file: string): DatabaseHandle {
+export function openDatabase(file: string, options: { foreignKeys?: boolean } = {}): DatabaseHandle {
   let sqlite: DatabaseSync;
   try {
     if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
     sqlite = new DatabaseSync(file);
-    sqlite.exec('PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+    // The remote-mode replica mirrors the server, which enforces integrity; rows may arrive in any order.
+    sqlite.exec(`PRAGMA foreign_keys = ${options.foreignKeys === false ? 'OFF' : 'ON'}; PRAGMA busy_timeout = 5000;`);
     if (file !== ':memory:') sqlite.exec('PRAGMA journal_mode = WAL;');
   } catch (error) {
     throw new StorageError(`Could not open the database at ${file}.`, {

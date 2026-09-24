@@ -13,11 +13,11 @@ export class LocalCommentRepository implements CommentRepository {
     private readonly clock: Clock,
   ) {}
 
-  async create(input: { taskId: string; userId: string; body: string }): Promise<TaskComment> {
+  async create(input: { id?: string; taskId: string; userId: string; body: string }): Promise<TaskComment> {
     const now = this.clock();
     const [comment] = await this.db
       .insert(taskComments)
-      .values({ id: randomUUID(), ...input, createdAt: now, updatedAt: now })
+      .values({ ...input, id: input.id ?? randomUUID(), createdAt: now, updatedAt: now })
       .returning();
     return must(comment);
   }
