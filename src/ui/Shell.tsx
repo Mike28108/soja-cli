@@ -66,7 +66,13 @@ export function Shell() {
 
   return (
     <Box flexDirection="column" paddingX={1}>
-      <Header workspace={session.workspace.name} context={headerContext(route, project.data)} username={session.user.username} width={width} />
+      <Header
+        workspace={session.workspace.name}
+        context={headerContext(route, project.data)}
+        username={session.user.username}
+        width={width}
+        server={services.environment.mode === 'remote' ? new URL(services.environment.server).host : undefined}
+      />
       <Box marginTop={1} flexDirection="column">
         {stack.map((entry, index) => {
           const visible = index === stack.length - 1 && !overlay;

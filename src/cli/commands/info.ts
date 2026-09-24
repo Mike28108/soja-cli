@@ -24,9 +24,15 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['branch delete <id> [--force]', 'Delete the task branch (asks first)'],
   ['push <id>', 'Push the task branch to origin'],
   ['pr <id>', 'Push and open a pull request with the GitHub CLI (asks first)'],
+  ['login --server <url>', 'Sign in to a SOJA server with GitHub (remote mode)'],
+  ['logout', 'Sign out and go back to local mode'],
+  ['mode [local|remote]', 'Show or switch where SOJA keeps data'],
+  ['whoami', 'Current user, workspace and mode'],
   ['folders [list]', 'Parent folders and their subfolders, like ls -1'],
   ['folders add|remove <path>', 'Register or forget a folder that contains repositories'],
   ['workspace list', 'Your workspaces'],
+  ['workspace create <name>', 'New workspace (you are the owner)'],
+  ['workspace add <username>', 'Add a developer to the active workspace'],
   ['use <workspace>', 'Switch the active workspace'],
 ];
 

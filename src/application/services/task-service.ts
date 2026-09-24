@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Repositories, TaskPatch } from '../../data/repositories.js';
-import type { ActivityEvent } from '../../domain/activity.js';
+import type { ActivityEvent, GitActivityEvent } from '../../domain/activity.js';
 import type { ProjectRef, UserRef } from '../../domain/entities.js';
 import { NotFoundError, ValidationError } from '../../domain/errors.js';
 import {
@@ -63,7 +63,7 @@ export type CreateTaskInput = z.input<typeof createTaskSchema>;
 export type TaskChanges = z.input<typeof changesSchema>;
 
 /** A task reference as typed by people (`SOJA-12`, `12`) or an already loaded task. */
-export type TaskTarget = string | number | Pick<Task, 'id'>;
+export type TaskTarget = string | number | Pick<Task, 'id' | 'number'>;
 
 export class TaskService {
   constructor(
@@ -263,6 +263,25 @@ export class TaskService {
       // Commenting counts as touching the task.
       await this.repos.tasks.update(task.id, {});
     });
+  }
+
+  /**
+   * Records a Git fact that happened on this machine (commit, merge, push…),
+   * optionally updating the task's branch bookkeeping, in one transaction.
+   */
+  async recordGitEvent(
+    session: Session,
+    target: TaskTarget,
+    event: GitActivityEvent,
+    fields: { branch?: string | null; baseBranch?: string | null; branchStart?: string | null } = {},
+  ): Promise<TaskView> {
+    const task = await this.resolve(session, target);
+    const updated = await this.repos.transaction(async () => {
+      const result = await this.repos.tasks.update(task.id, fields);
+      await this.repos.activity.record(task.id, session.user.id, event);
+      return result;
+    });
+    return this.presentOne(session, updated);
   }
 
   /** Requesters used before in this workspace, most frequent first. Feeds autocomplete. */
