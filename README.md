@@ -60,6 +60,7 @@ soja task done SOJA-12
 
 - 📘 **[docs/SOJA.md](docs/SOJA.md)**: la documentación completa (conceptos, interfaz, atajos, CLI, configuración, modelo de datos, arquitectura y guía de desarrollo).
 - 📝 **[CHANGELOG.md](CHANGELOG.md)**: los cambios de cada versión.
+- 🗺️ **[ROADMAP.md](ROADMAP.md)**: próximos hitos, empezando por Git local en v0.2.
 
 ## Desarrollo
 
