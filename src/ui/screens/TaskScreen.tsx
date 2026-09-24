@@ -1,6 +1,7 @@
 import { Box, Text } from 'ink';
 import { useEffect, useState } from 'react';
-import type { TaskGitState } from '../../application/services/index.js';
+import type { TaskGitState, TaskPullRequestState } from '../../application/services/index.js';
+import { PullRequestSummary } from '../components/PullRequestLabel.js';
 import type { TimelineEntry } from '../../application/types.js';
 import { isClosed, isProvisional, TYPE_LABELS } from '../../domain/task.js';
 import { formatRelative, formatStamp } from '../../utils/time.js';
@@ -19,10 +20,11 @@ import { ScreenFrame } from './ScreenFrame.js';
 const LABEL_WIDTH = 14;
 
 export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: string }) {
-  const { services, session, cwd, detectMerges, openOverlay, run } = useAppState();
+  const { services, session, cwd, detectMerges, followPullRequests, openOverlay, run } = useAppState();
   useEffect(() => {
     void detectMerges(taskRef);
-  }, [detectMerges, taskRef]);
+    void followPullRequests(taskRef);
+  }, [detectMerges, followPullRequests, taskRef]);
   const { width, height } = useLayout();
   const actions = useTaskActions();
   const [scroll, setScroll] = useState(0);
@@ -66,6 +68,11 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     `task-chat:${taskRef}:${query.data?.number ?? ''}`,
   );
   const mentionList = chatMentions.data ?? [];
+  // The pull request comes from GitHub (gh), so it loads on its own too.
+  const pullRequest = useQuery(
+    async () => (query.data?.branch ? services.git.pullRequest(session, taskRef, cwd) : null),
+    `pr:${session.workspace.id}:${taskRef}:${query.data?.branch ?? ''}`,
+  );
   // Git state loads on its own so the task shows instantly even in big repositories.
   const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
 
@@ -73,7 +80,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const titleLines = task ? wrapText(task.title, width).length : 1;
   const descriptionLines = task?.description ? clampLines(wrapText(task.description, width - 2), Math.max(1, Math.min(6, height - 18))) : [];
   const mentionRows = mentionList.length ? mentionList.length + 2 : 0;
-  const fixedRows = 1 + titleLines + 1 + 1 + 5 + 1 + Math.max(1, descriptionLines.length) + 1 + 1 + mentionRows;
+  const fixedRows = 1 + titleLines + 1 + 1 + 6 + 1 + Math.max(1, descriptionLines.length) + 1 + 1 + mentionRows;
   const timelineRows = Math.max(2, height - fixedRows);
   const timeline = task ? timelineLines(task.timeline, width) : [];
   const actorWidth = Math.min(18, Math.max(8, ...timeline.map((line) => line.actor.length)) + 2);
@@ -160,6 +167,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} />
         <Field label="Requested by" value={task.requester ?? undefined} />
         <GitFields state={git.data} fallbackBranch={task.branch ?? task.suggestedBranch} recorded={task.branch !== null} closed={isClosed(task.status)} />
+        <PullRequestField state={task.branch ? pullRequest.data : null} loading={pullRequest.loading} />
       </Box>
 
       {(notices.data ?? []).slice(0, 2).map((notice) => (
@@ -204,6 +212,25 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         </Text>
       ))}
     </ScreenFrame>
+  );
+}
+
+function PullRequestField({ state, loading }: { state: TaskPullRequestState | null | undefined; loading: boolean }) {
+  return (
+    <Box>
+      <Box width={LABEL_WIDTH} flexShrink={0}>
+        <Text dimColor>Pull request</Text>
+      </Box>
+      {state?.status === 'found' ? (
+        <PullRequestSummary pr={state.pr} />
+      ) : state?.status === 'unavailable' ? (
+        <Text dimColor wrap="truncate-end">{`${state.reason}${state.hint ? `  ${state.hint}` : ''}`}</Text>
+      ) : state?.status === 'none' ? (
+        <Text dimColor wrap="truncate-end">{`none · g to open one`}</Text>
+      ) : (
+        <Text dimColor>{loading && state === undefined ? 'checking GitHub…' : '—'}</Text>
+      )}
+    </Box>
   );
 }
 

@@ -1,4 +1,4 @@
-import type { TaskActivity } from '../domain/activity.js';
+import type { ActivityEvent, TaskActivity } from '../domain/activity.js';
 import type { ProjectRef, TaskComment, UserRef } from '../domain/entities.js';
 import { PRIORITY_LABELS, STATUS_LABELS, TYPE_LABELS, type TaskType } from '../domain/task.js';
 import type { TimelineEntry } from './types.js';
@@ -20,7 +20,7 @@ export function buildTimeline(
   for (const item of activity) {
     // The comment itself is a richer entry than "added a comment".
     if (item.type === 'comment_added') continue;
-    entries.push({ kind: 'event', id: item.id, at: item.createdAt, actor: user(item.userId), text: describe(item, lookups) });
+    entries.push({ kind: 'event', id: item.id, at: item.createdAt, actor: user(item.userId), text: describe(item, lookups), event: { type: item.type, metadata: item.metadata } as ActivityEvent });
   }
   for (const comment of comments) {
     entries.push({ kind: 'comment', id: comment.id, at: comment.createdAt, actor: user(comment.userId), body: comment.body });
@@ -66,6 +66,12 @@ export function describe(item: TaskActivity, lookups: TimelineLookups): string {
       return `merge into ${item.metadata.into} detected (done outside SOJA)`;
     case 'pr_opened':
       return `opened a pull request ${item.metadata.url}`;
+    case 'pr_merged':
+      return item.metadata.via === 'soja'
+        ? `merged PR #${item.metadata.number} into ${item.metadata.into} on GitHub`
+        : `PR #${item.metadata.number} was merged into ${item.metadata.into} on GitHub`;
+    case 'pr_checks_failed':
+      return `checks failed on PR #${item.metadata.number} (${item.metadata.sha.slice(0, 7)}): ${item.metadata.checks.join(', ') || 'see GitHub'}`;
     case 'task_updated': {
       const { field, from, to } = item.metadata;
       switch (field) {

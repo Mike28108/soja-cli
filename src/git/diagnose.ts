@@ -80,6 +80,38 @@ const RULES: Rule[] = [
     }),
   },
   {
+    test: /none of the git remotes configured for this repository point to a known GitHub host|no git remotes found/i,
+    diagnose: () => ({
+      code: 'not_github',
+      message: 'This repository is not on GitHub.',
+      suggestions: ['Pull requests and checks need an `origin` on GitHub. Local Git keeps working.'],
+    }),
+  },
+  {
+    test: /error connecting to|dial tcp|i\/o timeout|no such host/i,
+    diagnose: () => ({
+      code: 'offline',
+      message: 'Could not reach GitHub.',
+      suggestions: ['Check your connection. Commit, merge and branches keep working offline.'],
+    }),
+  },
+  {
+    test: /required status check|Required status checks|review is required|At least \d+ approving review|base branch policy prohibits the merge/i,
+    diagnose: () => ({
+      code: 'blocked',
+      message: 'The repository rules do not allow merging this pull request yet.',
+      suggestions: ['It needs passing checks or approvals first. See the pull request on GitHub.'],
+    }),
+  },
+  {
+    test: /cannot be cleanly created|merge conflict between base and head/i,
+    diagnose: () => ({
+      code: 'merge_conflict',
+      message: 'GitHub cannot merge this pull request: it conflicts with its base.',
+      suggestions: ['Merge the base into the branch locally, fix the conflicts, commit and push.'],
+    }),
+  },
+  {
     test: /'origin' does not appear to be a git repository|No such remote|No configured push destination/i,
     diagnose: () => ({
       code: 'no_remote',

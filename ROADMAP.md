@@ -49,9 +49,20 @@ Decisiones (2026-09-24), con el diseño completo en `soja-backend/docs/CHAT.md`:
 
 Integración autenticada con la API de GitHub para enlazar branches, commits, pull requests y checks con tareas y conversaciones: estado de PRs y CI dentro de SOJA, revisiones, y la evaluación de una GitHub App con permisos mínimos. La apertura básica de PRs con la CLI `gh` se adelantó a v0.2; los flujos Git locales deben seguir funcionando sin GitHub.
 
+Decisiones (2026-09-24):
+- **Conexión con la CLI `gh` de cada developer**, la misma que ya abre PRs: sin credenciales nuevas en SOJA ni en el backend, y funciona en modo local y remoto. Sin webhooks: el estado se consulta al abrir la task y periódicamente con la interfaz abierta. Una GitHub App con webhooks queda fuera de v0.6.
+- **Ver y hacer merge:** estado del PR, revisión y checks en el detalle y en la lista; merge del PR en GitHub desde SOJA (con confirmación), que cierra la task. Aprobar, pedir cambios y leer reviews siguen en GitHub.
+- **Compartido con el equipo** en modo remoto a través del timeline: PR mergeado en GitHub (cierra la task aunque nadie haga pull) y checks fallidos por commit. Requiere eventos nuevos en `soja-backend`.
+
 ## v1.0 — Workspace colaborativo
 
 Consolidar tareas, Git, chat, trabajo remoto y operación sin conexión en una experiencia estable. La fecha y el alcance final se deciden después de validar los hitos anteriores.
+
+Prioridades acordadas (2026-09-24), todas dentro de v1.0:
+- **Instalación fácil:** publicar en npm (`npm i -g soja-cli`) y avisar de versiones nuevas.
+- **Deudas de uso:** descripción con `$EDITOR`, comentar desde la CLI, archivar tasks, editar proyectos, tema y archivo de canales.
+- **Pasar datos local → equipo:** migrar tasks y proyectos del modo local a un servidor.
+- **Robustez:** dominio compartido entre cliente y backend, copias de la réplica, pruebas de carga del servidor y E2E automatizados en CI.
 
 ## Regla de alcance
 

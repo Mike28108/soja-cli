@@ -1,5 +1,7 @@
 import { Box, Text } from 'ink';
 import type { TaskView } from '../../application/types.js';
+import type { PullRequest } from '../../git/types.js';
+import { PullRequestMark } from './PullRequestLabel.js';
 import { palette, symbols } from '../theme/theme.js';
 import { PriorityLabel, StatusLabel } from './Labels.js';
 import { layoutTaskColumns } from './task-columns.js';
@@ -12,9 +14,11 @@ interface TaskTableProps {
   width: number;
   showAssignee?: boolean;
   showHeader?: boolean;
+  /** Pull requests by task id, shown before the title. */
+  pullRequests?: ReadonlyMap<string, PullRequest> | undefined;
 }
 
-export function TaskTable({ tasks, selected, offset, height, width, showAssignee = false, showHeader = true }: TaskTableProps) {
+export function TaskTable({ tasks, selected, offset, height, width, showAssignee = false, showHeader = true, pullRequests }: TaskTableProps) {
   const refWidth = Math.max(8, ...tasks.map((task) => task.ref.length));
   const columns = layoutTaskColumns(width, { showAssignee, refWidth });
   const rows = tableRows(height, showHeader);
@@ -35,6 +39,7 @@ export function TaskTable({ tasks, selected, offset, height, width, showAssignee
       ) : null}
       {visible.map((task, position) => {
         const isSelected = offset + position === selected;
+        const pr = pullRequests?.get(task.id);
         return (
           <Box key={task.id}>
             <Box width={2}>
@@ -56,8 +61,11 @@ export function TaskTable({ tasks, selected, offset, height, width, showAssignee
               <Cell width={columns.assignee} dim text={task.assignee ? `@${task.assignee.username}` : '—'} />
             ) : null}
             <Box width={columns.title}>
-              <Text bold={isSelected} wrap="truncate-end" dimColor={task.status === 'cancelled'} strikethrough={task.status === 'cancelled'}>
-                {task.title}
+              <Text wrap="truncate-end">
+                {pr ? <PullRequestMark pr={pr} /> : null}
+                <Text bold={isSelected} dimColor={task.status === 'cancelled'} strikethrough={task.status === 'cancelled'}>
+                  {task.title}
+                </Text>
               </Text>
             </Box>
           </Box>

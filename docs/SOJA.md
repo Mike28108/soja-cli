@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.5.0** |
-| Versión del documento | **0.5.0** (revisión 1) |
+| Versión del documento | **0.5.0** (revisión 2) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -205,7 +205,7 @@ Texto libre que indica qué departamento o persona originó la solicitud (Market
 
 Cada cambio real genera un evento. Si no cambia nada, no se registra nada. Los eventos y los comentarios forman el **timeline** de la task.
 
-Tipos de evento: `task_created`, `task_updated` (título, descripción, tipo, requester o branch), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`, y los de Git: `git_committed`, `git_merged`, `git_branch_deleted`, `git_pushed`, `pr_opened`, `git_merge_detected`.
+Tipos de evento: `task_created`, `task_updated` (título, descripción, tipo, requester o branch), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`, y los de Git: `git_committed`, `git_merged`, `git_branch_deleted`, `git_pushed`, `pr_opened`, `git_merge_detected`, y los de pull requests en GitHub: `pr_merged`, `pr_checks_failed`.
 
 ### Branch sugerida
 
@@ -253,6 +253,7 @@ Responde *¿qué tengo que hacer ahora?*
   - *Mine* son las tasks abiertas asignadas a ti.
   - *All* son todas las abiertas del workspace.
   - Los filtros de estado abarcan a todos los developers.
+- **Pull requests:** una task con PR en GitHub muestra antes del título su número y lo más importante: `#12✓` aprobado (verde) o mergeado (magenta), `#12✕` checks fallando, cambios pedidos o conflictos (rojo), `#12◌` checks corriendo (amarillo), `#12` abierto sin novedades. Sale de un solo `gh pr list` por repositorio, reutilizado durante un minuto (ver [§8](#pull-requests-y-ci-en-github-v06)).
 - **Resumen:** `N active · N in progress · N review · N blocked`, con una frase ocasional.
 - **Empty states** con algo de personalidad (*"No tasks assigned. You're free. Press n to ruin that."*).
 
@@ -506,9 +507,11 @@ soja merge <id> [--delete] [--done] [--yes]
 soja branch delete <id> [--force] [--yes]
 soja push <id>
 soja pr <id> [--yes]
+soja pr status <id>                      # estado del PR en GitHub: revisión y checks
+soja pr merge <id> [--delete-branch] [--yes]   # merge del PR en GitHub y la task a Done
 ```
 
-Las operaciones muestran los comandos Git y su salida en vivo (por stderr). `merge`, `branch delete` y `pr` piden confirmación; sin terminal interactiva exigen `--yes`. `commit` sin archivos ni `--all` lista los archivos cambiados y no hace nada.
+Las operaciones muestran los comandos Git y su salida en vivo (por stderr). `merge`, `branch delete`, `pr` y `pr merge` piden confirmación; sin terminal interactiva exigen `--yes`. `commit` sin archivos ni `--all` lista los archivos cambiados y no hace nada.
 
 Ver [§8](#8-flujo-de-trabajo-con-git).
 
@@ -656,6 +659,7 @@ En el detalle de una task, `g` abre el **menú Git**:
 | Commit… (`C`) | Lista de archivos cambiados con casillas (todos marcados; `espacio` alterna, `a` todos/ninguno), luego el mensaje. Añade `(SOJA-n)` si el mensaje no lo menciona. Solo commitea los archivos marcados, aunque otros ya estuvieran en stage. | — |
 | Push branch | `git push --set-upstream origin <branch>` | — |
 | Open pull request… | Push y luego `gh pr create` hacia la branch base. Título `<título> (SOJA-n)`; en el cuerpo, la descripción, el requester y la referencia. | Sí |
+| Merge pull request on GitHub… | `gh pr merge <n> --merge` (merge commit, como el merge local). Antes muestra lo pendiente (checks fallando o corriendo, sin aprobar, cambios pedidos, conflictos). *Merge and delete* además borra la branch en GitHub y aquí. Marca la task Done. | Sí (Cancel por defecto) |
 | Merge into base… | Cambia a la branch base y `git merge --no-ff`, con el mensaje `Merge SOJA-n: <título>`. Al terminar ofrece `d` (borrar branch y marcar Done) y `x` (solo Done). | Sí (Cancel por defecto) |
 | Abort merge | `git merge --abort` | — |
 | Delete branch… | Borra la branch local (si está activa, primero cambia a la base) y la quita de la task. | Sí; si no está mergeada, una **segunda** confirmación |
@@ -664,6 +668,19 @@ En el detalle de una task, `g` abre el **menú Git**:
 La **branch base** es la branch desde la que `soja start` creó la de la task (se guarda en la task). Si no se conoce, se usa la branch por defecto (`origin/HEAD`, o `main`/`master`).
 
 Commit exige estar en la branch de la task: si no, SOJA lo avisa para que el commit no caiga en otra branch. Merge y borrar exigen no tener cambios sin guardar.
+
+### Pull requests y CI en GitHub (v0.6)
+
+SOJA lee los pull requests con la **CLI `gh`** de tu máquina, la misma que ya usa para abrirlos: no pide credenciales nuevas y funciona igual en modo local y remoto. Si `gh` no está instalado o no inició sesión, SOJA lo dice en la fila *Pull request* y todo lo demás sigue funcionando.
+
+- **En el detalle de la task**, la fila *Pull request* muestra el número, el estado (`open`, `draft`, `merged`, `closed`), la base, la revisión (`✓ approved`, `✕ changes requested`, `review required`), los checks del último commit (`✓ checks 5/5`, `◌ checks 3/5, 2 running`, `✕ 1 failing: lint`) y si tiene conflictos con la base. Se consulta a GitHub al abrir la task.
+- **En las listas**, una marca antes del título (ver [§5](#my-work-home)).
+- **Merge desde SOJA:** menú Git → *Merge pull request on GitHub…*, o `soja pr merge <id>`. Hace un merge commit en GitHub, cierra la task y registra `pr_merged`. Si las reglas del repositorio lo impiden (checks obligatorios, aprobaciones, conflictos), SOJA explica por qué y la task sigue abierta. Aprobar, pedir cambios y leer reviews se hace en GitHub.
+- **Lo que pasa en GitHub llega solo:** al abrir SOJA, al volver a una lista (como mucho cada 2 minutos), cada 3 minutos con la interfaz abierta, al abrir una task y en `soja pr status`:
+  - un PR **mergeado en GitHub** cierra su task aunque nadie haya hecho `pull` (`PR #12 was merged into main on GitHub`). Solo la primera vez: si reabres la task para seguir trabajando, no se vuelve a cerrar;
+  - **checks fallidos** quedan en el timeline una vez por commit (`checks failed on PR #12 (a1b2c3d): lint`), con un aviso.
+- **En equipo** (modo remoto) esos eventos viajan al servidor como cualquier evento Git, así que todo el equipo ve en el timeline que el PR se mergeó o que el CI falló, lo haya visto quien lo haya visto primero. Requiere `soja-backend` ≥ 0.4.0.
+- El texto que viene de GitHub (títulos, nombres de checks) se limpia de secuencias de escape antes de mostrarse, como el resto del texto remoto.
 
 ### Merges hechos fuera de SOJA
 
@@ -1011,6 +1028,8 @@ Payloads de `metadata`:
 | `git_pushed` | `{branch, remote}` |
 | `pr_opened` | `{url}` |
 | `git_merge_detected` | `{branch, into, hash}` |
+| `pr_merged` | `{number, url, into, via}`; `via` es `soja` (merge desde SOJA) o `github` (visto ya mergeado) |
+| `pr_checks_failed` | `{number, url, sha, checks}`; uno por commit con checks fallidos |
 
 ### Tablas de sincronización (solo en la réplica del modo remoto)
 
@@ -1214,11 +1233,12 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Seguridad de terminal | `test/security.test.ts` | Secuencias hostiles (limpiar pantalla, título, portapapeles OSC 52, colores, C1, *bidi*) eliminadas del texto del servidor, de la réplica tras sincronizar, de commits ajenos, del log de Git y de los errores; saltos de línea, tabuladores y Unicode normal intactos |
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
+| Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
-| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
+| UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **170 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy.
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **180 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1233,7 +1253,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - `soja start` no hace fetch: `--from origin/main` usa lo último que descargaste. SOJA tampoco hace pull.
 - Borrar una branch borra solo la local; la del remoto queda (bórrala desde el PR o con `git push origin --delete <branch>`).
 - Los conflictos de merge se resuelven en tu editor; SOJA los lista y permite abortar.
-- Los PR requieren la CLI `gh`. El estado de PRs y CI dentro de SOJA queda para v0.6.
+- Los PR requieren la CLI `gh`. No hay webhooks: lo que pasa en GitHub se ve al abrir la task o en la siguiente consulta periódica (cada 3 minutos con SOJA abierto). Aprobar y comentar reviews se hace en GitHub.
 - La detección de merges externos no reconoce un *rebase and merge* de GitHub (no deja commit de merge ni conserva los commits de la branch); en ese caso, cierra la task con `x`.
 - Las tasks que ya tenían branch antes de esta versión no tienen `branch_start`; para ellas solo cuenta un commit de merge o un squash que las mencione.
 - El prefijo `SOJA-` es el mismo para todos los workspaces.
@@ -1288,6 +1308,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.5.0 r2 | 0.5.0 + v0.6 sin publicar | 2026-09-24 | §8 *Pull requests y CI en GitHub*: estado del PR y checks en el detalle y las listas, merge del PR desde SOJA, PR mergeado en GitHub cierra la task, checks fallidos en el timeline; `soja pr status/merge`; eventos `pr_merged` y `pr_checks_failed` (migración `0005`). |
 | 0.5.0 r1 | 0.5.0 | 2026-09-24 | Publicación de v0.5.0 (chat): cabecera, estado actual y roadmap como publicados. |
 | 0.4.1 r2 | 0.4.1 + v0.5 sin publicar | 2026-09-24 | Chat del equipo: §5 pantalla, §6 teclas, §7 `soja chat`, §9 tiempo real y reglas, §11 tablas `chat_*` y `task_id` opcional en la cola (migración `0004`), §12 `ChatOperations` y `live.ts`, tests, limitaciones. Una sincronización pedida durante otra ya no se pierde. |
 | 0.4.1 r1 | 0.4.1 | 2026-09-24 | §9: texto de otras personas limpiado antes de mostrarse en la terminal (seguridad); decisiones y tests. |

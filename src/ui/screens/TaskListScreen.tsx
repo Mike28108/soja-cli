@@ -28,7 +28,7 @@ interface TaskListScreenProps {
 
 /** "What do I have to do now?" Home is this screen with no project. */
 export function TaskListScreen({ active, projectId, initialFilter }: TaskListScreenProps) {
-  const { services, session, go } = useAppState();
+  const { services, session, go, cwd } = useAppState();
   const actions = useTaskActions();
   const { width, height } = useLayout();
   const [filter, setFilter] = useState<TaskFilter>(initialFilter ?? (projectId ? 'all' : 'mine'));
@@ -37,6 +37,12 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
   const tasks = useQuery(
     () => services.tasks.list(session, filter, scope),
     `tasks:${session.workspace.id}:${filter}:${projectId ?? ''}`,
+  );
+  // GitHub pull requests of the listed tasks (one cached `gh` call per repository).
+  const withBranch = (tasks.data ?? []).filter((task) => task.branch);
+  const pullRequests = useQuery(
+    () => services.git.pullRequestIndex(session, cwd, withBranch),
+    `prs:${withBranch.map((task) => `${task.id}:${task.branch ?? ''}`).join(',')}`,
   );
   const project = useQuery<ProjectSummary | null>(
     async () => (projectId ? ((await services.projects.list(session)).find((p) => p.id === projectId) ?? null) : null),
@@ -108,6 +114,7 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
             height={tableHeight}
             width={width}
             showAssignee={filter !== 'mine'}
+            pullRequests={pullRequests.data}
           />
         )}
       </Box>

@@ -30,7 +30,7 @@ import { ChatScreen } from './screens/ChatScreen.js';
  * selection you left.
  */
 export function Shell() {
-  const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges, syncStatus } = useAppState();
+  const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges, followPullRequests, syncStatus } = useAppState();
   const { width } = useLayout();
   // New tasks default to the open project, or to the project linked to the repository SOJA runs in.
   const here = useQuery(async () => (await services.projects.findByRepository(session, cwd))?.id ?? null, `cwd:${session.workspace.id}`);
@@ -50,8 +50,17 @@ export function Shell() {
   // On launch and whenever you come back to a task list, catch merges done elsewhere.
   const onList = route.name === 'home' || route.name === 'project';
   useEffect(() => {
-    if (onList && !overlay) void detectMerges();
-  }, [onList, overlay, stack.length, detectMerges]);
+    if (onList && !overlay) {
+      void detectMerges();
+      void followPullRequests();
+    }
+  }, [onList, overlay, stack.length, detectMerges, followPullRequests]);
+
+  // With SOJA open, GitHub is checked every few minutes (merges and CI happen there).
+  useEffect(() => {
+    const timer = setInterval(() => void followPullRequests(), 180_000);
+    return () => clearInterval(timer);
+  }, [followPullRequests]);
 
   useKeys(Layer.global, (input, key) => {
     if (input === ':' || (key.ctrl && input === 'k')) openPalette();

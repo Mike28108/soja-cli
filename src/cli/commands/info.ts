@@ -24,6 +24,8 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['branch delete <id> [--force]', 'Delete the task branch (asks first)'],
   ['push <id>', 'Push the task branch to origin'],
   ['pr <id>', 'Push and open a pull request with the GitHub CLI (asks first)'],
+  ['pr status <id>', 'The task PR on GitHub: state, review and checks'],
+  ['pr merge <id> [--delete-branch]', 'Merge the PR on GitHub and mark the task Done (asks first)'],
   ['login --server <url>', 'Sign in to a SOJA server with GitHub (remote mode)'],
   ['logout', 'Sign out and go back to local mode'],
   ['mode [local|remote]', 'Show or switch where SOJA keeps data'],

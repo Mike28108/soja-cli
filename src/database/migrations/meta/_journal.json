@@ -36,6 +36,13 @@
       "when": 1790286496661,
       "tag": "0004_chat-replica",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790288440464,
+      "tag": "0005_pr-events",
+      "breakpoints": true
     }
   ]
 }
