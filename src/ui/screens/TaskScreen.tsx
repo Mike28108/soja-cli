@@ -160,6 +160,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
       <Box gap={3}>
         <StatusLabel status={task.status} />
         <PriorityLabel priority={task.priority} />
+        {task.archivedAt ? <Text color={palette.warning}>{`archived ${formatRelative(task.archivedAt)} · e to restore`}</Text> : null}
       </Box>
 
       <Box marginTop={1} flexDirection="column">

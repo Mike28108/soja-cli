@@ -106,6 +106,46 @@ describe('daily use', () => {
     expect(lastFrame()).toContain('MY WORK');
   });
 
+  it('archives from the Edit menu, finds it in Archived tasks, and deletes it after two confirmations', async () => {
+    const { stdin, lastFrame } = await seeded();
+    await press(stdin, ENTER); // SOJA-1
+    await settle(100);
+    await press(stdin, 'e');
+    await settle(80);
+    await press(stdin, 'G');
+    await press(stdin, 'k'); // Archive
+    await press(stdin, ENTER);
+    await settle(150);
+    expect(lastFrame()).toContain('archived');
+    await press(stdin, ESC);
+    await settle(150);
+    expect(lastFrame()).not.toContain('Fix Stripe webhook');
+
+    await press(stdin, ':');
+    await type(stdin, 'Archived');
+    await press(stdin, ENTER);
+    await settle(150);
+    expect(lastFrame()).toContain('ARCHIVED');
+    expect(lastFrame()).toContain('Fix Stripe webhook');
+
+    await press(stdin, ENTER);
+    await settle(100);
+    await press(stdin, 'e');
+    await settle(80);
+    await press(stdin, 'G'); // Delete permanently…
+    await press(stdin, ENTER);
+    await settle(80);
+    expect(lastFrame()).toContain('Delete this task for good?');
+    await press(stdin, '2');
+    await settle(80);
+    expect(lastFrame()).toContain('Really delete it?');
+    await press(stdin, '2');
+    await settle(200);
+    expect(lastFrame()).toContain('SOJA-1 deleted');
+    expect(lastFrame()).toContain('ARCHIVED');
+    expect(lastFrame()).not.toContain('Fix Stripe webhook');
+  });
+
   it('changes status from the task view and persists it', async () => {
     const { stdin, lastFrame } = await seeded();
     await press(stdin, ENTER);

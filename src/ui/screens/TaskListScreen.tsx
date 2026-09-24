@@ -69,9 +69,10 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
     (input, key) => {
       if (nav.handleKey(input, key)) return true;
       if (key.ctrl || key.meta) return false;
-      const filterIndex = TASK_FILTERS.indexOf(filter);
-      if ((key.tab && !key.shift) || input === 'l' || key.rightArrow) setFilterAt(filterIndex + 1);
-      else if ((key.tab && key.shift) || input === 'h' || key.leftArrow) setFilterAt(filterIndex - 1);
+      // Archived is not a tab: moving right from it lands on the first tab, left on the last.
+      const tabIndex = (TASK_FILTERS as readonly TaskFilter[]).indexOf(filter);
+      if ((key.tab && !key.shift) || input === 'l' || key.rightArrow) setFilterAt(tabIndex + 1);
+      else if ((key.tab && key.shift) || input === 'h' || key.leftArrow) setFilterAt(tabIndex === -1 ? TASK_FILTERS.length - 1 : tabIndex - 1);
       else if (/^[1-7]$/.test(input)) setFilterAt(Number(input) - 1);
       else if (key.return && selected) go({ type: 'push', route: { name: 'task', ref: selected.ref } });
       else if (input === 's' && selected) actions.status(selected);

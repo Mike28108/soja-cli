@@ -43,6 +43,13 @@
       "when": 1790288440464,
       "tag": "0005_pr-events",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790294003288,
+      "tag": "0006_archive",
+      "breakpoints": true
     }
   ]
 }

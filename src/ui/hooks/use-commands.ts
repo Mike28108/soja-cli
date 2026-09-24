@@ -16,6 +16,7 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
         label: FILTER_LABELS[filter],
         run: () => go({ type: 'reset', route: { name: 'home', filter } }),
       })),
+      { id: 'filter-archived', label: 'Archived tasks', run: () => go({ type: 'reset', route: { name: 'home', filter: 'archived' } }) },
       { id: 'search', label: 'Search', key: '/', run: () => openOverlay({ kind: 'search' }) },
       { id: 'projects', label: 'Projects', key: 'p', run: () => go({ type: 'push', route: { name: 'projects' } }) },
       { id: 'switch-project', label: 'Switch project', run: () => flows.pickProject() },
