@@ -32,7 +32,7 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
     // Light or dark palette, from the terminal's own background (SOJA_THEME overrides).
     setThemeMode(await detectThemeMode());
     const instance = render(
-      <App services={runtime.services} updates={() => updates.cachedCheck()} mouse={process.env.SOJA_MOUSE !== '0'} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
+      <App services={runtime.services} welcomeOnLocal={savedConfig?.mode === 'remote' && !hasRemoteToken} updates={() => updates.cachedCheck()} mouse={process.env.SOJA_MOUSE !== '0'} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
     await instance.waitUntilExit();
     reopenInCurrentMode = new FileConfigStore(runtime.paths.configFile).load()?.mode !== runtime.services.environment.mode;
   } finally {
