@@ -20,3 +20,4 @@ export type TaskOperations = PublicApi<TaskService>;
 export type GitOperations = PublicApi<GitWorkflowService>;
 export type FolderOperations = PublicApi<FolderService>;
 export type { ChatOperations } from './chat.js';
+export type { ImportOperations } from './import.js';

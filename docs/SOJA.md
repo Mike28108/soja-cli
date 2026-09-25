@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.6.0** |
-| Versión del documento | **0.6.0** (revisión 3) |
+| Versión del documento | **0.6.0** (revisión 4) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -804,6 +804,22 @@ soja whoami            # usuario, workspace y modo
 
 Los dos modos conviven en `config.json`: cambiar de uno a otro no borra nada. En la interfaz, el header muestra `⇄ servidor` cuando estás en modo remoto.
 
+### Llevar tu trabajo local al equipo
+
+Si usaste SOJA en modo local antes de unirte a un servidor, `soja import-local` sube ese historial al workspace activo del servidor (tras `soja login` SOJA lo sugiere):
+
+```bash
+soja import-local                 # muestra qué subirá y pide confirmación
+soja import-local --from bravos   # otro workspace local (por slug)
+soja import-local --yes           # sin preguntar
+```
+
+- Sube **proyectos, tasks (también archivadas), comentarios y timeline**, con sus fechas. Tu base local solo se lee: no cambia.
+- **Números:** si el workspace del servidor no tiene tasks, se conservan (`SOJA-12` sigue siendo `SOJA-12`, y tus commits `(SOJA-12)` siguen apuntando bien). Si ya tiene, continúan tras la última y SOJA muestra la equivalencia (`SOJA-3 → SOJA-15`).
+- **Developers** se asocian por username con los miembros del workspace. Los que no son miembros se listan: su trabajo queda a tu nombre y sus asignaciones vacías (agrégalos antes con `soja workspace add` si quieres conservarlas).
+- Un proyecto con el mismo nombre que uno del servidor se reutiliza. Las carpetas de repositorio vinculadas en esta máquina se conservan.
+- Es **todo o nada** y no duplica: importar otra vez lo mismo no cambia nada. Solo owners del workspace. Requiere `soja-backend` ≥ 1.0.
+
 ### Qué se comparte y qué no
 
 | Dato | Dónde vive |
@@ -911,7 +927,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 - Se valida con zod al cargar. Si el JSON está roto o la forma es inesperada, SOJA muestra un error claro y sugiere cómo arreglarlo.
 - `parentFolders` (opcional, por defecto `[]`): carpetas que contienen tus repositorios (ver [§8](#8-flujo-de-trabajo-con-git)). Los `config.json` de v0.1, que no tienen este campo, siguen funcionando. Cambiar de workspace conserva la lista.
 - `mode` elige de dónde salen los datos: `local` (SQLite, `userId`/`workspaceId`) o `remote` (bloque `remote`). Ambos bloques conviven; `soja mode` cambia entre ellos.
-- `remote` lo escribe `soja login`. El token **no** está aquí sino en `credentials.json`.
+- `remote` lo escribe `soja login`. El token **no** está aquí sino en `credentials.json`. `remote.imports` recuerda las importaciones hechas con `soja import-local` desde esta máquina, para avisar antes de repetirlas.
 - Si el workspace activo desaparece, SOJA cambia automáticamente a otro workspace del usuario. Si el usuario desaparece (por ejemplo, tras un reset), vuelve a ejecutar el setup.
 
 ### Variables de entorno
@@ -919,6 +935,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 | Variable | Efecto |
 | --- | --- |
 | `SOJA_DEBUG=1` | Muestra stack traces y la cadena de causas de los errores |
+| `VISUAL`, `EDITOR` | Editor para descripciones y comentarios largos (`d`, `soja task describe/comment`); por defecto `vi` |
 | `NO_COLOR` / `FORCE_COLOR` | Control de color de la CLI |
 | `XDG_DATA_HOME`, `XDG_CONFIG_HOME` | Ubicación de los datos (útil para aislar pruebas) |
 
@@ -1252,13 +1269,14 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
+| Importar local → equipo | `test/data/import.test.ts` | Vista previa, importación con números y carpetas conservados, archivadas incluidas, sin duplicar al repetir, sin datos locales |
 | Deudas de uso | `test/application/usability.test.ts`, `test/data/chat.test.ts`, `test/data/sync.test.ts` | `$EDITOR` (preferencia, argumentos, editor que falla), renombrar y describir proyectos sin duplicar nombres y en equipo con conexión, tema y archivo de canales |
 | Archivar y borrar | `test/application/archive.test.ts`, `test/data/sync.test.ts` | Archivadas fuera de listas y contadores pero en la búsqueda, restaurar y timeline; borrar solo owners y sin reutilizar números; en equipo: archivar offline, borrar para todos, borrado rechazado que devuelve la task |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **190 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **192 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. `soja import-local` se verificó con el backend real y PostgreSQL: 15 tasks, 4 comentarios y 33 eventos con sus números, un developer no miembro reportado, la task archivada visible como archivada para otro developer y una segunda importación sin duplicados. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1281,7 +1299,6 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - Chat: sin mensajes directos, canales privados, hilos, búsqueda ni notificaciones del sistema; los canales archivados se leen pero no aceptan mensajes.
 - Los *backlinks* del chat se calculan en tu máquina buscando `SOJA-n` en el texto, así que incluyen mensajes escritos antes de que la task existiera.
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
-- No se migran datos del modo local a un servidor.
 
 ### Roadmap propuesto
 
@@ -1326,6 +1343,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.6.0 r4 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §9 *Llevar tu trabajo local al equipo*: `soja import-local` (proyectos, tasks, comentarios y timeline; números conservados o renumerados; developers por username; idempotente; solo owners); sugerencia tras `soja login`; `remote.imports` en la config. |
 | 0.6.0 r3 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Deudas de uso: descripción en `$EDITOR` (`d`), `soja task comment/describe`, editar proyectos (`e` en Proyectos, `soja project edit`), tema y archivo de canales (selector del chat, `soja chat topic/archive`). |
 | 0.6.0 r2 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §4 *Archivar y borrar*: tasks archivadas (fuera de listas y contadores, en la búsqueda, filtro *Archived*) y borrado definitivo solo para owners con doble confirmación; los números no se reutilizan (`workspaces.last_deleted_number`); `soja task archive/restore/delete`, `task list --archived`; eventos `task_archived`/`task_unarchived`; migración `0006`. |
 | 0.6.0 r1 | 0.6.0 | 2026-09-24 | Publicación de v0.6.0 (GitHub): cabecera, estado actual y roadmap. |
