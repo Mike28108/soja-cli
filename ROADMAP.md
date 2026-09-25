@@ -90,7 +90,7 @@ Pulir la respuesta visual de la interfaz y darle más personalidad, manteniendo 
 
 La sincronización sigue siendo en segundo plano y los cambios nuevos deben reflejarse sin reiniciar la navegación ni recargar pantallas no relacionadas. Las animaciones son decorativas: no bloquean acciones ni sustituyen los estados y avisos accesibles por texto.
 
-## v1.3 — Acceso aprobado y perfiles (en implementación)
+## v1.3 — Acceso aprobado y perfiles (desplegado en v1.3.0)
 
 Rediseñar la entrada a SOJA y el alta de cuentas remotas, coordinando `soja-cli` con `soja-backend`. El modo local seguirá disponible sin cuenta ni capacidades colaborativas. El backend continuará siendo la autoridad para autenticar usuarios, aprobar el acceso y aislar los datos por membresía de workspace.
 
@@ -104,9 +104,9 @@ Alcance solicitado (2026-09-25):
 - **Aislamiento:** cada petición y cada canal de tiempo real seguirá comprobando membresía; aprobar una cuenta no concede membresía ni acceso implícito a workspaces ajenos. La vista CEO de solicitudes no debe ampliar su acceso a los datos de esos workspaces. Preservar como aprobadas las cuentas existentes al migrar el esquema.
 - **Despliegue:** preparar variables de backend para identificar de forma segura al CEO y, si se consulta REST Countries desde el backend, guardar su credencial solo en Railway. Resolver disponibilidad/fallback de la lista de países antes de depender de un servicio externo durante el registro.
 
-Implementado en ambos repositorios: el backend añade estados de acceso, perfil privado, solicitudes, rutas de revisión CEO y protección de las rutas de workspace/WebSocket; la TUI y CLI ofrecen login/local, perfil, selección de workspace y revisión CEO. Falta validar el flujo y la migración en un entorno de prueba antes de desplegar o cerrar el hito.
+Implementado y validado en ambos repositorios: el backend añade estados de acceso, perfil privado, solicitudes, rutas de revisión CEO y protección de las rutas de workspace/WebSocket; la TUI y CLI ofrecen login/local, perfil, selección de workspace y revisión CEO. El backend v1.1.0 está desplegado en Railway y la CLI v1.3.0 está publicada en GitHub Releases. CI pasó pruebas unitarias, e2e, lint y build. El selector de países usa REST Countries v3.1 como alternativa cuando falta la clave v5.
 
-Este hito requiere cambios coordinados de esquema, API, autorización y pantallas iniciales en ambos repositorios, migración que preserve cuentas existentes, pruebas de aislamiento/autorización y actualización de la documentación y changelog de cliente y backend. No desplegar hasta configurar el identificador CEO y validar la migración en un entorno de prueba.
+Criterios de cierre cumplidos: cambios coordinados de esquema, API, autorización y pantallas iniciales; migración que preserva las cuentas existentes; pruebas de aislamiento/autorización; y documentación y changelog actualizados en ambos repositorios.
 
 ## Regla de alcance
 
