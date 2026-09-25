@@ -12,7 +12,9 @@ import { useQuery } from '../hooks/use-query.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
 import { editText, type TextState } from '../input/text-editing.js';
-import { palette, symbols } from '../theme/theme.js';
+import { palette, symbols, toneColors } from '../theme/theme.js';
+import { Clickable } from '../kit/Clickable.js';
+import { Spinner } from '../kit/Spinner.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
 /** Channel list beside the messages from this width on. */
@@ -50,7 +52,7 @@ export function ChatScreen({ active, initialChannel }: { active: boolean; initia
 
 function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: boolean; initialChannel: string | undefined }) {
   const { services, session, run, notify, refresh, openOverlay, go, syncStatus } = useAppState();
-  const { width, height } = useLayout();
+  const { width, height, sidebar: layoutSidebar } = useLayout();
   const [channelId, setChannelId] = useState<string | null>(null);
   const [focus, setFocus] = useState<Focus>('input');
   const [draft, setDraft] = useState<TextState>(EMPTY_DRAFT);
@@ -295,14 +297,12 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
         if (!message.mine) notify('You can only delete your own messages.', 'error');
         else {
           openOverlay({
-            kind: 'picker',
+            kind: 'confirm',
             title: 'Delete this message?',
-            context: oneLine(message.body),
-            options: [
-              { value: 'no', label: 'Cancel' },
-              { value: 'yes', label: 'Delete for everyone', color: 'yellow' },
-            ],
-            onSelect: (value) => (value === 'yes' ? run(() => chat.remove(session, message.id), 'Message deleted') : undefined),
+            message: `“${oneLine(message.body)}” is removed for everyone in the channel.`,
+            confirmLabel: 'Delete for everyone',
+            tone: 'danger',
+            onConfirm: () => run(() => chat.remove(session, message.id), 'Message deleted'),
           });
         }
       } else if (input === 't') {
@@ -320,12 +320,17 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
   );
 
   // ── Layout ───────────────────────────────────────────────────────────────
-  const wide = width >= WIDE;
+  // The app sidebar already lists channels; the chat's own list is for when it is hidden.
+  const wide = width >= WIDE && layoutSidebar === 0;
   const mainWidth = wide ? width - SIDEBAR - 2 : width;
   const composerLines = composerRows(draft, mainWidth - 2).slice(-COMPOSER_LINES);
   const noticeCount = notices.data?.length ?? 0;
   const banner = editing ? 'Editing your message' : replyTo ? `Replying to ${replyTo.author ? `@${replyTo.author.username}` : 'a message'}: ${oneLine(replyTo.body)}` : null;
   const areaRows = Math.max(3, height - 2 - composerLines.length - (banner ? 1 : 0) - (noticeCount ? 1 : 0));
+  const focusMessagesAt = (index: number) => {
+    setSelected(index);
+    setFocus('messages');
+  };
   const rows = messageRows(items, mainWidth - 2);
   // Pinned to the newest message; scrolls up only as far as the selection needs.
   let start = Math.max(0, rows.length - areaRows);
@@ -353,29 +358,39 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
         ] as const);
 
   return (
-    <ScreenFrame hints={hints}>
+    <ScreenFrame
+      title={channel ? `#${channel.name}` : 'Chat'}
+      aside={
+        syncStatus?.online === false
+          ? 'offline · sent when you reconnect'
+          : channel?.archivedAt
+            ? 'archived'
+            : (channel?.topic ?? (wide ? undefined : '# channels'))
+      }
+      hints={hints}
+    >
       <Box>
         {wide ? <Sidebar channels={list} current={channel?.id ?? null} /> : null}
         <Box flexDirection="column" width={mainWidth}>
-          <Box justifyContent="space-between">
-            <Text wrap="truncate-end">
-              <Text bold color={palette.accent}>
-                {channel ? `#${channel.name}` : '#'}
-              </Text>
-              {channel?.topic ? <Text dimColor>{`  ${channel.topic}`}</Text> : null}
-              {channel?.archivedAt ? <Text dimColor>{'  archived'}</Text> : null}
-            </Text>
-            {syncStatus?.online === false ? <Text color={palette.warning}>offline · sent when you reconnect</Text> : !wide ? <Text dimColor>{'# channels'}</Text> : null}
-          </Box>
-          <Box flexDirection="column" height={areaRows} justifyContent="flex-end">
-            {!channel ? (
-              <Text dimColor>{channels.data ? 'No channels yet. They arrive with the first sync.' : 'Loading…'}</Text>
-            ) : items.length === 0 ? (
-              <Text dimColor>{`No messages in #${channel.name} yet. Say hi.`}</Text>
-            ) : (
-              visible.map((row) => <MessageRow key={row.key} row={row} message={items[row.index]} selected={focus === 'messages' && row.index === selected} />)
-            )}
-          </Box>
+          <Clickable
+            onWheel={(direction) => focusMessagesAt(Math.max(0, Math.min(items.length - 1, (focus === 'messages' ? selected : items.length - 1) + direction)))}
+            active={active}
+            flexDirection="column"
+          >
+            <Box flexDirection="column" height={areaRows} justifyContent="flex-end">
+              {!channel ? (
+                channels.data ? <EmptyState lines={['No channels yet.', 'They arrive with the first sync.']} icon={symbols.unread} /> : <Spinner label="Loading…" />
+              ) : items.length === 0 ? (
+                <EmptyState lines={[`No messages in #${channel.name} yet.`, 'Say hi.']} icon={symbols.unread} />
+              ) : (
+                visible.map((row) => (
+                  <Clickable key={row.key} onClick={() => focusMessagesAt(row.index)} active={active}>
+                    <MessageRow row={row} message={items[row.index]} selected={focus === 'messages' && row.index === selected} />
+                  </Clickable>
+                ))
+              )}
+            </Box>
+          </Clickable>
           {noticeCount ? (
             <Text color={palette.danger} wrap="truncate-end">{`! ${notices.data?.[0]?.message ?? ''}${noticeCount > 1 ? ` (+${noticeCount - 1})` : ''} ${symbols.dot} tab, then ! to review`}</Text>
           ) : null}
@@ -384,7 +399,9 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
               {`${symbols.reply} ${banner} ${symbols.dot} esc cancel`}
             </Text>
           ) : null}
-          <Composer lines={composerLines} active={active && focus === 'input'} placeholder={channel ? `Message #${channel.name}` : 'Message'} />
+          <Clickable onClick={() => setFocus('input')} active={active}>
+            <Composer lines={composerLines} active={active && focus === 'input'} placeholder={channel ? `Message #${channel.name}` : 'Message'} />
+          </Clickable>
         </Box>
       </Box>
     </ScreenFrame>
@@ -415,35 +432,52 @@ function Sidebar({ channels, current }: { channels: readonly ChannelSummary[]; c
   );
 }
 
+/** Each author keeps a color, so a conversation reads at a glance. */
+const AUTHOR_TONES = ['info', 'merged', 'warning', 'success', 'danger'] as const;
+function authorColor(message: MessageView): string {
+  if (message.mine) return palette.accent;
+  const name = message.author?.username ?? '';
+  let hash = 0;
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return toneColors(AUTHOR_TONES[hash % AUTHOR_TONES.length] ?? 'info').fg;
+}
+
 function MessageRow({ row, message, selected }: { row: Row; message: MessageView | undefined; selected: boolean }) {
   if (!message) return null;
-  const pointer = <Text color={palette.accent}>{selected && row.kind !== 'quote' ? symbols.pointer : ' '}</Text>;
+  const background = selected ? palette.selection : message.mentionsMe ? palette.warningSoft : undefined;
+  const bg = background ? { backgroundColor: background } : {};
   if (row.kind === 'quote') {
     return (
-      <Text wrap="truncate-end" dimColor>
-        {` ${' '.repeat(row.stamp.length)}${row.text}`}
-      </Text>
+      <Box flexGrow={1} {...bg}>
+        <Text wrap="truncate-end" color={palette.faint}>
+          {` ${' '.repeat(row.stamp.length)}${row.text}`}
+        </Text>
+      </Box>
     );
   }
-  const tone = message.deletedAt ? { dimColor: true, italic: true } : message.mentionsMe ? { color: palette.warning } : {};
+  const textColor = message.deletedAt ? palette.faint : palette.text;
   return (
-    <Text wrap="truncate-end">
-      {pointer}
-      <Text dimColor>{row.stamp}</Text>
-      <Text bold color={message.mine ? palette.accent : undefined}>
-        {row.author}
+    <Box flexGrow={1} {...bg}>
+      <Text wrap="truncate-end">
+        <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
+        <Text color={palette.faint}>{row.stamp}</Text>
+        <Text bold color={authorColor(message)}>
+          {row.author}
+        </Text>
+        <Text color={textColor} italic={Boolean(message.deletedAt)}>
+          {row.text}
+        </Text>
+        {row.kind === 'first' && message.pending ? <Text color={palette.faint}>{` ${symbols.pending}`}</Text> : null}
+        {row.kind === 'first' && message.editedAt && !message.deletedAt ? <Text color={palette.faint}>{' (edited)'}</Text> : null}
       </Text>
-      <Text {...tone}>{row.text}</Text>
-      {row.kind === 'first' && message.pending ? <Text dimColor>{` ${symbols.pending}`}</Text> : null}
-      {row.kind === 'first' && message.editedAt && !message.deletedAt ? <Text dimColor>{' (edited)'}</Text> : null}
-    </Text>
+    </Box>
   );
 }
 
 function Composer({ lines, active, placeholder }: { lines: { text: string; cursor: number | null }[]; active: boolean; placeholder: string }) {
   const empty = lines.length === 1 && lines[0]?.text === '';
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" flexGrow={1} borderStyle="round" borderColor={active ? palette.borderFocus : palette.border} paddingX={1}>
       {lines.map((line, index) => (
         <Text key={index}>
           <Text color={active ? palette.accent : undefined} dimColor={!active}>

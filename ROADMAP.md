@@ -70,6 +70,16 @@ Decisiones (2026-09-24):
 - **Quitar tasks:** archivar (reversible, sincronizado) y borrado definitivo solo para owners, con doble confirmación.
 - **Migración local → equipo:** proyectos, tasks, comentarios y timeline con fechas; conserva los números si el workspace está vacío y, si no, renumera mostrando la equivalencia. Developers asociados por username.
 
+## v1.1 — Interfaz (siguiente hito)
+
+Solo interfaz: pulir la TUI hasta que casi parezca una aplicación gráfica, sin funciones nuevas. Referencias: Codex, lazygit, k9s, btop, instaladores y Charm; InkUI como referencia de patrones (no como dependencia: sus componentes leen el teclado por su cuenta y saltarían el despachador por capas, y traen sus propios colores).
+
+Decisiones (2026-09-25):
+- **Paneles tipo aplicación:** barra superior y barra de estado con fondo, barra lateral con vistas, chat y proyectos con contadores, panel principal con pestañas, vista previa de la task seleccionada, fila seleccionada rellena. Se pliega en terminales pequeñas.
+- **Paleta propia de SOJA** en truecolor (verdes soja, grises cálidos), con variantes clara y oscura detectadas del terminal, y degradación automática a 256/16 colores.
+- **Mouse:** clic para seleccionar, abrir, cambiar de pestaña y elegir en menús; rueda para desplazar. El teclado sigue siendo lo principal.
+- Ventanas flotantes (selectores, formularios, confirmaciones) sobre la pantalla, avisos tipo *toast*, spinners y estados de carga.
+
 ## Regla de alcance
 
 No adelantar backend, GitHub ni chat solo porque aparezcan en el roadmap. Al iniciar cada hito, confirmar el comportamiento existente, acotar los cambios y actualizar [docs/SOJA.md](docs/SOJA.md) y [CHANGELOG.md](CHANGELOG.md) conforme se implementen. No crear integraciones vacías ni simular capacidad remota.

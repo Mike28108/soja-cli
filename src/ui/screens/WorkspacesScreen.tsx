@@ -7,11 +7,14 @@ import { useQuery } from '../hooks/use-query.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
 import { palette, symbols } from '../theme/theme.js';
+import { Badge } from '../kit/Badge.js';
+import { Clickable } from '../kit/Clickable.js';
+import { Panel } from '../kit/Panel.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
 export function WorkspacesScreen({ active }: { active: boolean }) {
   const { services, session } = useAppState();
-  const { height } = useLayout();
+  const { height, width } = useLayout();
   const data = useQuery(async () => {
     const [workspaces, members] = await Promise.all([
       services.workspaces.list(session.user),
@@ -41,41 +44,66 @@ export function WorkspacesScreen({ active }: { active: boolean }) {
     active,
   );
 
+  const wide = width >= 80;
   return (
     <ScreenFrame
+      title="Workspaces"
+      aside={`${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}`}
       hints={[
-        ['j/k', 'move'],
+        ['↑↓', 'move'],
         ['enter', 'switch'],
         ['n', 'new workspace'],
         ['a', 'add developer'],
         ['esc', 'back'],
       ]}
     >
-      <Text bold>WORKSPACES</Text>
-      <Box marginTop={1} flexDirection="column">
-        {workspaces.slice(list.offset, list.offset + listRows).map((workspace, position) => {
-          const selected = list.offset + position === list.index;
-          const current = workspace.id === session.workspace.id;
-          return (
-            <Box key={workspace.id} gap={1}>
-              <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
-              <Text color={palette.accent}>{current ? symbols.active : ' '}</Text>
-              <Text bold={selected}>{workspace.name}</Text>
-              <Text dimColor>{`${workspace.slug} ${symbols.dot} ${workspace.role}`}</Text>
+      <Box flexDirection={wide ? 'row' : 'column'} gap={1}>
+        <Panel title="Your workspaces" flexGrow={1}>
+          {workspaces.slice(list.offset, list.offset + listRows).map((workspace, position) => {
+            const index = list.offset + position;
+            const selected = index === list.index;
+            const current = workspace.id === session.workspace.id;
+            const bg = selected ? { backgroundColor: palette.selection } : {};
+            return (
+              <Clickable
+                key={workspace.id}
+                active={active}
+                onClick={() => (selected ? void flows.switchWorkspace(workspace.id) : list.select(index))}
+              >
+                <Box gap={1} flexGrow={1} {...bg}>
+                  <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
+                  <Text color={palette.text} bold={selected} wrap="truncate-end">
+                    {workspace.name}
+                  </Text>
+                  <Text color={palette.muted} wrap="truncate-end">{`${workspace.slug} ${symbols.dot} ${workspace.role}`}</Text>
+                  {current ? <Badge tone="success">current</Badge> : null}
+                </Box>
+              </Clickable>
+            );
+          })}
+        </Panel>
+        <Panel title={`Developers in ${session.workspace.name}`} aside={`${members.length}`} width={wide ? Math.floor(width * 0.45) : undefined} flexShrink={0}>
+          {members.slice(0, 10).map((member) => (
+            <Box key={member.id} gap={1}>
+              <Text backgroundColor={palette.neutralSoft} color={palette.accent} bold>{` ${initials(member.displayName)} `}</Text>
+              <Text color={palette.text}>{`@${member.username}`}</Text>
+              <Text color={palette.muted} wrap="truncate-end">
+                {member.displayName}
+              </Text>
+              {member.role === 'owner' ? <Badge tone="info">owner</Badge> : null}
             </Box>
-          );
-        })}
-      </Box>
-      <Box marginTop={1} flexDirection="column">
-        <Text dimColor bold>{`DEVELOPERS IN ${session.workspace.name.toUpperCase()}`}</Text>
-        {members.slice(0, 8).map((member) => (
-          <Text key={member.id}>
-            <Text>{`  @${member.username}`}</Text>
-            <Text dimColor>{`  ${member.displayName}${member.role === 'owner' ? ` ${symbols.dot} owner` : ''}`}</Text>
-          </Text>
-        ))}
-        {members.length > 8 ? <Text dimColor>{`  ${symbols.ellipsis} and ${members.length - 8} more`}</Text> : null}
+          ))}
+          {members.length > 10 ? <Text color={palette.faint}>{`${symbols.ellipsis} and ${members.length - 10} more`}</Text> : null}
+          <Box marginTop={1}>
+            <Text color={palette.faint}>a adds a developer</Text>
+          </Box>
+        </Panel>
       </Box>
     </ScreenFrame>
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '?') + (parts[1]?.[0] ?? '')).toUpperCase();
 }

@@ -1,12 +1,13 @@
 import type { TaskView } from '../../application/types.js';
 import type { GitErrorCode } from '../../git/types.js';
-import type { ColorName } from '../theme/theme.js';
+import type { Tone } from '../theme/theme.js';
 
 export interface PickerOption {
   value: string;
   label: string;
   hint?: string;
-  color?: ColorName;
+  /** Emphasis for actions that deserve a second look (delete, force). */
+  tone?: Tone;
   dim?: boolean;
 }
 
@@ -63,8 +64,21 @@ export interface GitRunSpec {
   recover?: Partial<Record<GitErrorCode, GitAction>>;
 }
 
+/** A yes/no question with buttons. Cancel is the default, so Enter never destroys anything by accident. */
+export interface ConfirmSpec {
+  kind: 'confirm';
+  title: string;
+  context?: string;
+  /** What happens, in one or two sentences. */
+  message?: string;
+  confirmLabel: string;
+  tone?: Tone;
+  onConfirm: () => SubmitResult;
+}
+
 export type Overlay =
   | { kind: 'search' }
+  | ConfirmSpec
   | GitRunSpec
   | { kind: 'commit'; task: TaskView }
   | { kind: 'git-log' }

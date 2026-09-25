@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { AppServices } from '../application/services/index.js';
 import type { SyncReport, SyncStatus } from '../data/sync/engine.js';
 import type { Session } from '../application/types.js';
+import type { TaskFilter } from '../application/filters.js';
 import type { UpdateCheck } from '../application/services/update-service.js';
 import { toDisplayError } from '../utils/errors.js';
 import { navigate, type NavigationAction, type Route } from './navigation/routes.js';
@@ -51,6 +52,9 @@ export interface AppState {
   followPullRequests(only?: string): Promise<void>;
   /** Remote mode: pending changes, connectivity and the last sync. Null in local mode. */
   syncStatus: SyncStatus | null;
+  /** The filter of the home list, shared by its tabs and the sidebar. */
+  homeFilter: TaskFilter;
+  setHomeFilter(filter: TaskFilter): void;
   quit(): void;
 }
 
@@ -72,6 +76,7 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [revision, setRevision] = useState(0);
+  const [homeFilter, setHomeFilter] = useState<TaskFilter>(initialRoute?.name === 'home' && initialRoute.filter ? initialRoute.filter : 'mine');
 
   useEffect(() => {
     if (!flash) return;
@@ -244,9 +249,11 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
       detectMerges,
       followPullRequests,
       syncStatus,
+      homeFilter,
+      setHomeFilter,
       quit: exit,
     }),
-    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, followPullRequests, syncStatus, exit],
+    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, followPullRequests, syncStatus, homeFilter, exit],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

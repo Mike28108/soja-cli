@@ -7,6 +7,28 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+Interfaz tipo aplicación (hito v1.1). Solo interfaz: los comandos, los datos y el servidor no cambian.
+
+### Added
+
+- **Marco de aplicación:** barra de título y barra de estado con fondo (pastilla de modo y atajos dibujados como teclas), barra lateral con las vistas de tasks y sus contadores, canales del chat y proyectos (desde 110 columnas), paneles con bordes redondeados y título en el borde, avisos flotantes (*toasts*).
+- **Ventanas flotantes** sobre la pantalla (que sigue visible detrás): selectores con campo de filtro y selección rellena, confirmaciones con botones (*Cancel* por defecto; rojo si borra), formulario de nueva task con campos rellenos y selectores `‹ valor ›`, búsqueda, commit con casillas `☑`, log de Git como consola.
+- **Paleta propia** en truecolor con variantes oscura y clara, detectadas del fondo de la terminal (OSC 11, `COLORFGBG`) o elegidas con `SOJA_THEME`; se degrada a 256/16 colores.
+- **Mouse:** clic para seleccionar y otro para abrir, pestañas, barra lateral, botones y campos del detalle clicables, rueda para desplazar, clic fuera cierra una ventana. `SOJA_MOUSE=0` lo desactiva; `Shift` + arrastrar selecciona texto.
+- Lista de tasks con pestañas, medidor de prioridad (`▰▰▰▱`), estado como etiqueta de color, barra de desplazamiento y **vista previa** de la task seleccionada.
+- Detalle de task en paneles (Details, Description, Activity, Mentioned in chat), con estado y prioridad clicables.
+- Proyectos con barra de progreso, workspaces con miembros, ayuda como rejilla de paneles con una sección de mouse, chat con colores por autor, menciones resaltadas y compositor enmarcado.
+- Asistente de primera configuración tipo instalador (pasos, progreso, *Back*/*Next*) y splash centrado con spinner.
+
+### Fixed
+
+- La paleta de comandos *All Tasks*, *Archived tasks* y demás vistas cambiaba la ruta pero no la lista.
+- Un contexto largo de una ventana (por ejemplo, los avisos antes de mergear un PR) ya no se pierde: se muestra bajo el título.
+
+### Removed
+
+- Header y footer de una línea (los reemplazan la barra de título, la barra de estado y los avisos).
+
 ### Fixed
 
 - La suite E2E no detenía de verdad el servidor en CI (`npx` dejaba vivo el proceso hijo), así que la parte sin conexión no probaba nada. Ahora el servidor corre en su propio grupo de procesos, se detiene entero, y el test falla si sigue respondiendo.

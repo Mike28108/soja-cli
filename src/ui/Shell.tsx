@@ -1,7 +1,11 @@
 import { Box } from 'ink';
 import { useEffect } from 'react';
 import { useAppState } from './app-state.js';
-import { Header } from './branding/Header.js';
+import { ActiveScope, ChromeProvider, useChromeHints } from './chrome/context.js';
+import { Sidebar } from './chrome/Sidebar.js';
+import { StatusBar } from './chrome/StatusBar.js';
+import { Toast } from './chrome/Toast.js';
+import { TopBar } from './chrome/TopBar.js';
 import { useCommandPalette } from './hooks/use-commands.js';
 import { useLayout } from './hooks/use-layout.js';
 import { useQuery } from './hooks/use-query.js';
@@ -10,6 +14,7 @@ import { useKeys } from './input/KeyProvider.js';
 import type { SyncStatus } from '../data/sync/engine.js';
 import type { Route } from './navigation/routes.js';
 import { CommitOverlay } from './overlays/CommitOverlay.js';
+import { ConfirmOverlay } from './overlays/ConfirmOverlay.js';
 import { GitLogOverlay } from './overlays/GitLogOverlay.js';
 import { GitRunOverlay } from './overlays/GitRunOverlay.js';
 import { NewTaskOverlay } from './overlays/NewTaskOverlay.js';
@@ -25,13 +30,22 @@ import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
 import { ChatScreen } from './screens/ChatScreen.js';
 
 /**
- * The running app: compact header, the screen stack and the active overlay.
- * Screens below the top stay mounted (hidden) so going back restores the
- * selection you left.
+ * The running app, laid out like a desktop application: title bar, sidebar,
+ * the screen stack in the main area, status bar, and floating windows and
+ * notices on top. Screens below the top stay mounted (hidden) so going back
+ * restores the selection you left.
  */
 export function Shell() {
+  return (
+    <ChromeProvider>
+      <Frame />
+    </ChromeProvider>
+  );
+}
+
+function Frame() {
   const { session, services, stack, route, overlay, openOverlay, go, quit, cwd, detectMerges, followPullRequests, syncStatus } = useAppState();
-  const { width } = useLayout();
+  const hints = useChromeHints();
   // New tasks default to the open project, or to the project linked to the repository SOJA runs in.
   const here = useQuery(async () => (await services.projects.findByRepository(session, cwd))?.id ?? null, `cwd:${session.workspace.id}`);
   const routeProjectId = route.name === 'project' ? route.projectId : null;
@@ -79,28 +93,45 @@ export function Shell() {
     return true;
   });
 
+  const { columns, rows, sidebar } = useLayout();
+  const { flash } = useAppState();
+  const server = services.environment.mode === 'remote' ? new URL(services.environment.server).host : undefined;
+  const syncLabel = syncLabelFor(syncStatus);
   return (
-    <Box flexDirection="column" paddingX={1}>
-      <Header
+    <Box flexDirection="column" width={columns} height={rows}>
+      <TopBar
+        columns={columns}
         workspace={session.workspace.name}
-        context={headerContext(route, project.data)}
+        trail={trailFor(route, project.data)}
         username={session.user.username}
-        width={width}
-        server={services.environment.mode === 'remote' ? new URL(services.environment.server).host : undefined}
-        syncLabel={syncLabelFor(syncStatus)}
+        server={server}
+        sync={syncLabel}
         chat={route.name === 'chat' ? undefined : (chatTotals.data ?? undefined)}
       />
-      <Box marginTop={1} flexDirection="column">
-        {stack.map((entry, index) => {
-          const visible = index === stack.length - 1 && !overlay;
-          return (
-            <Box key={`${index}:${JSON.stringify(entry)}`} display={visible ? 'flex' : 'none'} flexDirection="column">
-              <ScreenFor route={entry} active={visible} />
-            </Box>
-          );
-        })}
-        {overlay ? <OverlayFor overlay={overlay} /> : null}
+      <Box flexGrow={1} flexShrink={1}>
+        {sidebar ? <Sidebar width={sidebar} height={rows - 2} active={!overlay} /> : null}
+        <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+          {stack.map((entry, index) => {
+            const top = index === stack.length - 1;
+            // The screen under a window stays visible, but only the window takes keys and clicks.
+            const active = top && !overlay;
+            return (
+              <Box key={`${index}:${JSON.stringify(entry)}`} display={top ? 'flex' : 'none'} flexDirection="column" flexGrow={1}>
+                <ActiveScope active={active}>
+                  <ScreenFor route={entry} active={active} />
+                </ActiveScope>
+              </Box>
+            );
+          })}
+        </Box>
       </Box>
+      <StatusBar columns={columns} mode={overlay ? modeForOverlay(overlay) : modeFor(route)} hints={hints} right={server ? undefined : 'local'} />
+      {overlay ? (
+        <ActiveScope active>
+          <OverlayFor overlay={overlay} />
+        </ActiveScope>
+      ) : null}
+      {flash ? <Toast flash={flash} columns={columns} rows={rows} /> : null}
     </Box>
   );
 }
@@ -126,6 +157,8 @@ function ScreenFor({ route, active }: { route: Route; active: boolean }) {
 
 function OverlayFor({ overlay }: { overlay: Overlay }) {
   switch (overlay.kind) {
+    case 'confirm':
+      return <ConfirmOverlay key={overlay.title + (overlay.context ?? '')} spec={overlay} />;
     case 'picker':
       return <PickerOverlay key={overlay.title + (overlay.context ?? '')} spec={overlay} />;
     case 'prompt':
@@ -143,29 +176,55 @@ function OverlayFor({ overlay }: { overlay: Overlay }) {
   }
 }
 
-function headerContext(route: Route, projectName: string | null | undefined): string | undefined {
+function trailFor(route: Route, projectName: string | null | undefined): string[] {
   switch (route.name) {
     case 'project':
-      return projectName ?? undefined;
+      return projectName ? ['Projects', projectName] : ['Projects'];
     case 'task':
-      return route.ref;
+      return [route.ref];
     case 'projects':
-      return 'Projects';
+      return ['Projects'];
     case 'workspaces':
-      return 'Workspaces';
+      return ['Workspaces'];
     case 'help':
-      return 'Help';
+      return ['Help'];
     case 'chat':
-      return 'Chat';
+      return route.channel ? ['Chat', `#${route.channel.replace(/^#/, '')}`] : ['Chat'];
     case 'home':
-      return undefined;
+      return [];
   }
 }
 
-function syncLabelFor(status: SyncStatus | null): { text: string; warn: boolean } | undefined {
+function modeFor(route: Route): string {
+  switch (route.name) {
+    case 'home':
+      return 'Tasks';
+    case 'project':
+      return 'Project';
+    default:
+      return route.name;
+  }
+}
+
+const OVERLAY_MODES: Record<Overlay['kind'], string> = {
+  picker: 'Select',
+  confirm: 'Confirm',
+  prompt: 'Input',
+  search: 'Search',
+  'new-task': 'New task',
+  'git-run': 'Git',
+  commit: 'Commit',
+  'git-log': 'Git log',
+};
+
+function modeForOverlay(overlay: Overlay): string {
+  return OVERLAY_MODES[overlay.kind];
+}
+
+function syncLabelFor(status: SyncStatus | null): { text: string; tone: 'ok' | 'busy' | 'warn' } | undefined {
   if (!status) return undefined;
-  if (status.syncing) return { text: 'syncing…', warn: false };
-  if (status.online === false) return { text: `offline${status.pending ? ` · ${status.pending} pending` : ''}`, warn: true };
-  if (status.pending) return { text: `${status.pending} pending`, warn: Boolean(status.lastError) };
-  return undefined;
+  if (status.syncing) return { text: 'syncing…', tone: 'busy' };
+  if (status.online === false) return { text: `offline${status.pending ? ` · ${status.pending} pending` : ''}`, tone: 'warn' };
+  if (status.pending) return { text: `${status.pending} pending`, tone: status.lastError ? 'warn' : 'busy' };
+  return { text: 'synced', tone: 'ok' };
 }
