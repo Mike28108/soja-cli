@@ -1,9 +1,9 @@
 {
   "name": "soja-cli",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Software Operations & Job Assistant",
   "author": "Enmauel.biz",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Mike28108/soja-cli.git"
@@ -12,13 +12,17 @@
   "bugs": {
     "url": "https://github.com/Mike28108/soja-cli/issues"
   },
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "soja": "./dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "docs/PRIVACY.md",
+    "docs/NPM_PUBLISH.md"
   ],
   "engines": {
     "node": ">=24"
@@ -30,6 +34,7 @@
     "developer-tools"
   ],
   "scripts": {
+    "prepublishOnly": "npm run lint && npm test && npm run build",
     "dev": "tsx src/cli/index.tsx",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-migrations.mjs",
     "start": "node dist/cli/index.js",
@@ -62,5 +67,8 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.1",
     "vitest": "5.0.1"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }

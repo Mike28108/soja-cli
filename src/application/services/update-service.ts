@@ -10,7 +10,7 @@ export interface UpdateCheck {
   available: boolean;
 }
 
-/** Newer versions of SOJA, from its GitHub releases. Checks at most once a day unless asked. */
+/** Newer versions of SOJA from npm. Checks at most once a day unless asked. */
 export class UpdateService {
   constructor(
     private readonly releases: ReleaseSource,
@@ -34,14 +34,14 @@ export class UpdateService {
         return { current: this.current, latest: cached.latest, available: isNewer(cached.latest, this.current) };
       }
     } catch {
-      // No cache yet, or unreadable: ask GitHub.
+      // No cache yet, or unreadable: ask npm.
     }
     return this.check().catch(() => null);
   }
 
   /** Downloads and installs `latest` (the terminal is attached for npm). */
   async install(latest: string): Promise<void> {
-    const file = await this.releases.download(`v${latest}`);
+    const file = await this.releases.download(latest);
     await this.releases.install(file);
   }
 

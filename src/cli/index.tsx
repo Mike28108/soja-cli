@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { ValidationError } from '../domain/errors.js';
 import { toDisplayError } from '../utils/errors.js';
-import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
+import { deleteAccountCommand, loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
 import { accessCommand } from './commands/access.js';
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
@@ -67,6 +67,9 @@ async function main(argv: string[]): Promise<void> {
       return accessCommand(rest);
     case 'logout':
       return logoutCommand();
+    case 'account':
+      if (rest[0] === 'delete') return deleteAccountCommand(rest.slice(1));
+      throw new ValidationError('Use `soja account delete [--yes]`.');
     case 'whoami':
       return whoamiCommand();
     case 'mode':
