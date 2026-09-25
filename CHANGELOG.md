@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Fixed
+
+- La suite E2E no detenía de verdad el servidor en CI (`npx` dejaba vivo el proceso hijo), así que la parte sin conexión no probaba nada. Ahora el servidor corre en su propio grupo de procesos, se detiene entero, y el test falla si sigue respondiendo.
+
 ## [1.0.0] - 2026-09-24
 
 Consolidación (hito v1.0). Para importar datos locales y borrar tasks en equipo requiere `soja-backend` ≥ 1.0.0.
