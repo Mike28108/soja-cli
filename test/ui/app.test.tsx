@@ -51,6 +51,8 @@ async function start(testApp: TestApp) {
 describe('first run', () => {
   it('walks through setup and lands on an empty My Work', async () => {
     const { stdin, lastFrame } = await start(await createTestApp());
+    expect(lastFrame()).toContain('Welcome to SOJA');
+    await press(stdin, 'l');
     expect(lastFrame()).toContain('First setup');
 
     await type(stdin, 'Michael');
@@ -70,6 +72,7 @@ describe('first run', () => {
 
   it('shows validation errors inline and stays on the step', async () => {
     const { stdin, lastFrame } = await start(await createTestApp());
+    await press(stdin, 'l');
     await press(stdin, ENTER);
     expect(lastFrame()).toContain('This one is required.');
   });
