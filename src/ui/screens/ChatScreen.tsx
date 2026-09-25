@@ -19,6 +19,8 @@ import { ScreenFrame } from './ScreenFrame.js';
 const WIDE = 100;
 const SIDEBAR = 24;
 const COMPOSER_LINES = 4;
+const TOPIC = '__topic__';
+const ARCHIVE = '__archive__';
 const EMPTY_DRAFT: TextState = { value: '', cursor: 0 };
 
 type Focus = 'input' | 'messages';
@@ -97,13 +99,28 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
       title: 'Channels',
       filterable: true,
       initial: channel?.id ?? null,
-      options: list.map((candidate) => ({
-        value: candidate.id,
-        label: `#${candidate.name}`,
-        ...(candidate.unread ? { hint: `${candidate.unread} unread${candidate.mentions ? ` ${symbols.dot} @${candidate.mentions}` : ''}` } : {}),
-        ...(candidate.archivedAt ? { dim: true, hint: 'archived' } : {}),
-      })),
+      options: [
+        ...list.map((candidate) => ({
+          value: candidate.id,
+          label: `#${candidate.name}`,
+          ...(candidate.unread ? { hint: `${candidate.unread} unread${candidate.mentions ? ` ${symbols.dot} @${candidate.mentions}` : ''}` } : {}),
+          ...(candidate.archivedAt ? { dim: true, hint: 'archived' } : {}),
+        })),
+        ...(channel
+          ? [
+              { value: TOPIC, label: `Topic of #${channel.name}…`, hint: channel.topic ?? 'none' },
+              ...(channel.name === 'general'
+                ? []
+                : [{ value: ARCHIVE, label: channel.archivedAt ? `Restore #${channel.name}` : `Archive #${channel.name}`, hint: 'owners', dim: true }]),
+            ]
+          : []),
+      ],
       onSelect: (value) => {
+        if (value === TOPIC && channel) return editTopic(channel);
+        if (value === ARCHIVE && channel) {
+          const archived = !channel.archivedAt;
+          return run(() => chat.updateChannel(session, channel.id, { archived }), archived ? `#${channel.name} archived` : `#${channel.name} restored`);
+        }
         const next = list.find((candidate) => candidate.id === value);
         if (next) switchTo(next);
       },
@@ -111,6 +128,16 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
         label: (query) => `Create #${query.trim().toLowerCase().replace(/^#/, '')}`,
         onCreate: (query) => run(() => chat.createChannel(session, query).then((created) => setChannelId(created.id)), 'Channel created'),
       },
+    });
+
+  const editTopic = (target: ChannelSummary) =>
+    openOverlay({
+      kind: 'prompt',
+      title: `Topic of #${target.name}`,
+      initial: target.topic ?? '',
+      placeholder: 'What this channel is for',
+      allowEmpty: true,
+      onSubmit: (topic) => run(() => chat.updateChannel(session, target.id, { topic: topic.trim() || null }), 'Topic saved'),
     });
 
   const reviewNotices = () => {

@@ -42,6 +42,8 @@ export interface ChatOperations {
   markRead(session: Session, channelId: string): Promise<void>;
   /** Needs the server. */
   createChannel(session: Session, name: string, topic?: string | null): Promise<ChannelSummary>;
+  /** Topic (creator or owner) or archive (owners; #general stays). Needs the server. */
+  updateChannel(session: Session, channelId: string, changes: { topic?: string | null; archived?: boolean }): Promise<ChannelSummary>;
   /** Fetches messages older than the replica has; resolves to how many arrived. Needs the server. */
   loadOlder(session: Session, channelId: string): Promise<number>;
   /** Messages that name the task (`SOJA-12`), newest first. */

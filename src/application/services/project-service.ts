@@ -25,6 +25,15 @@ const createProjectSchema = z.object({
 
 export type CreateProjectInput = z.input<typeof createProjectSchema>;
 
+const updateProjectSchema = z.object({
+  name: z.string().trim().min(1, { error: 'Name the project.' }).max(60).optional(),
+  description: optionalText(500),
+  repositoryUrl: optionalText(500),
+});
+
+/** What can change after creation. The key stays: people and scripts refer to it. */
+export type ProjectChanges = z.input<typeof updateProjectSchema>;
+
 export class ProjectService {
   constructor(
     private readonly repos: Repositories,
@@ -62,6 +71,20 @@ export class ProjectService {
         repositoryPath: rest.repositoryPath ?? null,
       });
     });
+  }
+
+  async update(session: Session, project: Project, changes: ProjectChanges): Promise<Project> {
+    const data = parseInput(updateProjectSchema, changes);
+    await this.get(session, project.id);
+    if (data.name !== undefined) {
+      const name = data.name;
+      const others = (await this.repos.projects.listByWorkspace(session.workspace.id)).filter((other) => other.id !== project.id);
+      if (others.some((other) => other.name.toLowerCase() === name.toLowerCase())) {
+        throw new ConflictError(`${name} already exists in ${session.workspace.name}.`);
+      }
+    }
+    const patch = Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined));
+    return Object.keys(patch).length ? this.repos.projects.update(project.id, patch) : project;
   }
 
   async get(session: Session, id: string): Promise<Project> {
