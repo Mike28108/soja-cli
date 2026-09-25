@@ -32,7 +32,7 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 - El backend está desplegado en Railway con PostgreSQL en Supabase. Toda tabla nueva del backend activa RLS (su test lo exige).
 - Publicado: v0.6 (PRs y CI de GitHub con la CLI `gh`, sin credenciales propias) en v0.6.0, con `soja-backend` 0.4.0.
 - Publicado: v1.0 (archivar/borrar, `soja import-local`, deudas de uso, copias, instalación con `gh` y `soja update`, CI con E2E) en v1.0.0, con `soja-backend` 1.0.0.
-- En curso: v1.1, solo interfaz (ver `ROADMAP.md`): marco tipo aplicación, paleta propia clara/oscura, mouse. Componentes en `ui/kit/` y `ui/chrome/`; nunca `useInput` directo en componentes (todo pasa por `KeyProvider`). Los tags `vX.Y.Z` publican el release con su paquete (`release.yml`).
+- Publicado: v1.1, solo interfaz, en v1.1.0 (ver `ROADMAP.md`): marco tipo aplicación, paleta propia clara/oscura, mouse. Componentes en `ui/kit/` y `ui/chrome/`; nunca `useInput` directo en componentes (todo pasa por `KeyProvider`). Los tags `vX.Y.Z` publican el release con su paquete (`release.yml`).
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar
