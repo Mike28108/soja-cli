@@ -31,7 +31,8 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 - Publicado: v0.5 (chat en tiempo real) en v0.5.0, con `soja-backend` 0.3.0 desplegado. El chat es un dominio propio (`ChatOperations`, solo en modo remoto), separado de `task_comments`; sus operaciones viajan por la misma cola de sincronización y el WebSocket solo notifica.
 - El backend está desplegado en Railway con PostgreSQL en Supabase. Toda tabla nueva del backend activa RLS (su test lo exige).
 - Publicado: v0.6 (PRs y CI de GitHub con la CLI `gh`, sin credenciales propias) en v0.6.0, con `soja-backend` 0.4.0.
-- Siguiente: v1.0 (ver prioridades acordadas en `ROADMAP.md`): instalación por npm, deudas de uso, pasar datos local → equipo y robustez.
+- Publicado: v1.0 (archivar/borrar, `soja import-local`, deudas de uso, copias, instalación con `gh` y `soja update`, CI con E2E) en v1.0.0, con `soja-backend` 1.0.0.
+- Siguiente: no hay hito definido después de v1.0; se decide con el usuario a partir del uso real. Los tags `vX.Y.Z` publican el release con su paquete (`release.yml`).
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar
