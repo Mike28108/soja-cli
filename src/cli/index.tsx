@@ -5,6 +5,7 @@ import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './comma
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
 import { chatCommand } from './commands/chat.js';
+import { importLocalCommand } from './commands/import.js';
 import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
 import { printHelp, printVersion } from './commands/info.js';
 import { projectCommand } from './commands/project.js';
@@ -69,6 +70,8 @@ async function main(argv: string[]): Promise<void> {
       return syncCommand(rest);
     case 'chat':
       return chatCommand(rest);
+    case 'import-local':
+      return importLocalCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }

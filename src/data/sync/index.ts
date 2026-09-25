@@ -12,6 +12,7 @@ import { createLocalRepositories } from '../local/index.js';
 import type { ApiClient } from '../remote/api-client.js';
 import { LiveConnection } from '../remote/live.js';
 import { ReplicaChatService } from './chat.js';
+import { LocalImporter } from './importer.js';
 import { SyncEngine, type SyncReport, type SyncStatus } from './engine.js';
 import { ReplicaProjectService, ReplicaSessionService, ReplicaTaskService, ReplicaWorkspaceService, type ReplicaContext } from './services.js';
 import { ReplicaStore, type Notice } from './store.js';
@@ -49,6 +50,7 @@ export function createReplicaServices(
   git: GitClient,
   gitConsole: GitConsole,
   WebSocketImpl?: typeof WebSocket,
+  localDatabaseFile?: string,
 ): AppServices & { sync: SyncControl } {
   const repos = createLocalRepositories(handle);
   const store = new ReplicaStore(handle.db);
@@ -118,6 +120,7 @@ export function createReplicaServices(
     projects,
     tasks,
     chat: new ReplicaChatService(context, tasks),
+    ...(localDatabaseFile ? { importer: new LocalImporter(localDatabaseFile, config, api, store, engine) } : {}),
     git: new GitWorkflowService(tasks, projects, git),
     folders: new FolderService(config),
     gitConsole,

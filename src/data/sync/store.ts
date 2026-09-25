@@ -98,6 +98,11 @@ export class ReplicaStore {
     await this.db.insert(projects).values({ id: project.id, ...shared, repositoryPath: null }).onConflictDoUpdate({ target: projects.id, set: shared });
   }
 
+  /** This machine's folder for a project (never sent to the server). */
+  async setRepositoryPath(projectId: string, path: string): Promise<void> {
+    await this.db.update(projects).set({ repositoryPath: path }).where(eq(projects.id, projectId));
+  }
+
   async upsertTask(task: Task): Promise<void> {
     const row = pickTask(task);
     // The server's number may belong to a provisional row we replaced; numbers are unique per workspace.
