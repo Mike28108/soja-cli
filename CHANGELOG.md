@@ -17,6 +17,8 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 - **Editar proyectos:** `e` en Proyectos o `soja project edit <key> --name/--description/--url` (la key no cambia; en equipo requiere conexión).
 - **Canales:** tema y archivo desde el selector del chat, `soja chat topic <canal> <texto>` y `soja chat archive|unarchive <canal>`.
 
+- **`soja import-local`:** lleva al servidor tus proyectos, tasks (también archivadas), comentarios y timeline del modo local, con fechas. Conserva los números si el workspace está vacío o muestra la equivalencia si renumera; asocia developers por username y avisa de los que no son miembros; conserva los vínculos de carpetas; no duplica si se repite. Tras `soja login`, SOJA lo sugiere si hay datos locales. Requiere `soja-backend` ≥ 1.0.
+
 ### Changed
 
 - Los números de tasks borradas no se reutilizan en modo local (`workspaces.last_deleted_number`; migración `0006`, que también añade `tasks.archived_at`).

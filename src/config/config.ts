@@ -10,6 +10,8 @@ const remoteSchema = z.object({
   userId: z.string().min(1).optional(),
   /** Active workspace on the server. */
   workspaceId: z.string().min(1).optional(),
+  /** Imports of local data already done from this machine (`soja import-local`), to warn before repeating. */
+  imports: z.array(z.string()).optional(),
 });
 
 /**

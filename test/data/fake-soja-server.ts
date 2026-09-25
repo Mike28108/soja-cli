@@ -126,6 +126,48 @@ export class FakeSojaServer {
       const id = this.addChannel(name);
       return json({ ...this.channels.get(id), lastReadSeq: 0 }, 201);
     }
+    if (path === `${ws}/import` && init?.method === 'POST') {
+      const done = this.applied.get(String(body.importId));
+      if (done) return json(done);
+      const members = new Map([...this.users.values()].map((user) => [user.username, user.id]));
+      const users = new Map((body.users as { localId: string; username: string }[]).map((user) => [user.localId, members.get(user.username) ?? null]));
+      const projectIds: Record<string, string> = {};
+      for (const project of body.projects as { localId: string; name: string; key: string }[]) {
+        const id = randomUUID();
+        projectIds[project.localId] = id;
+        this.projects.set(id, { id, workspaceId: this.workspace.id, name: project.name, key: project.key, description: null, repositoryUrl: null, createdAt: iso(), updatedAt: iso() });
+        this.log('project', id);
+      }
+      const keep = this.tasks.size === 0;
+      const renumbered: Record<string, number> = {};
+      const localTasks = new Map<string, string>();
+      for (const task of [...(body.tasks as Record<string, unknown>[])].sort((a, b) => (a.number as number) - (b.number as number))) {
+        const number = keep ? (task.number as number) : (this.number += 1);
+        if (keep) this.number = Math.max(this.number, number);
+        if (number !== task.number) renumbered[String(task.number)] = number;
+        const id = randomUUID();
+        localTasks.set(task.localId as string, id);
+        this.tasks.set(id, {
+          id, number, workspaceId: this.workspace.id, projectId: task.projectLocalId ? projectIds[task.projectLocalId as string] : null,
+          title: task.title, description: task.description, type: task.type, priority: task.priority, status: task.status,
+          assigneeId: users.get(task.assigneeLocalId as string) ?? null, creatorId: users.get(task.creatorLocalId as string) ?? userId,
+          requester: task.requester, branch: task.branch, baseBranch: task.baseBranch, branchStart: task.branchStart,
+          createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt, completedAt: task.completedAt, archivedAt: task.archivedAt,
+        });
+        this.log('task', id);
+      }
+      for (const comment of body.comments as Record<string, unknown>[]) {
+        const taskId = localTasks.get(comment.taskLocalId as string);
+        if (!taskId) continue;
+        const id = randomUUID();
+        this.comments.set(id, { id, taskId, userId: users.get(comment.userLocalId as string) ?? userId, body: comment.body, createdAt: comment.createdAt, updatedAt: comment.updatedAt });
+        this.log('comment', id);
+      }
+      const unmatchedUsers = (body.users as { username: string }[]).filter((user) => !members.has(user.username)).map((user) => user.username);
+      const result = { projects: Object.keys(projectIds).length, tasks: localTasks.size, comments: (body.comments as unknown[]).length, activity: 0, renumbered, projectIds, unmatchedUsers };
+      this.applied.set(String(body.importId), result);
+      return json(result);
+    }
     const channelPatch = new RegExp(`^${ws}/channels/([^/]+)$`).exec(path);
     if (channelPatch && init?.method === 'PATCH') {
       const channel = this.channels.get(channelPatch[1] ?? '');

@@ -12,6 +12,7 @@ import { WorkspaceService } from './workspace-service.js';
 import type {
   ChatOperations,
   FolderOperations,
+  ImportOperations,
   GitOperations,
   ProjectOperations,
   SessionOperations,
@@ -35,6 +36,8 @@ export interface AppServices {
   sync?: SyncControl;
   /** Team chat; present only in remote mode (there is no team locally). */
   chat?: ChatOperations;
+  /** Brings local-mode data to the server; remote mode only. */
+  importer?: ImportOperations;
 }
 
 export interface ServiceOptions {

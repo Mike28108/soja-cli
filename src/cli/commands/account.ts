@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { FileConfigStore } from '../../config/config.js';
 import { CredentialStore, normalize } from '../../config/credentials.js';
 import { resolvePaths } from '../../config/paths.js';
@@ -84,6 +85,8 @@ export async function loginCommand(args: string[]): Promise<void> {
     if (workspaces.length === 0) print(dim('  No workspaces yet. Create one: soja workspace create "Bravos Development"'));
     else print(dim(`  Workspaces: ${workspaces.map((workspace) => workspace.name).join(', ')}`));
     print(dim('  SOJA now uses this server. `soja mode local` switches back to your local data.'));
+    // Local work can come along (it is only read, never moved).
+    if (existsSync(resolvePaths().databaseFile)) print(dim('  To bring your local projects and tasks to the team: soja import-local'));
     return;
   }
   throw new SojaError('The login code expired before it was approved.', { hint: 'Run `soja login` again.' });
