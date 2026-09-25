@@ -1,6 +1,8 @@
 import { render } from 'ink';
 import { SojaError } from '../../domain/errors.js';
 import { bootstrap, createUpdater } from '../../bootstrap.js';
+import { detectThemeMode } from '../../ui/theme/detect.js';
+import { setThemeMode } from '../../ui/theme/theme.js';
 import { App } from '../../ui/App.js';
 import type { Route } from '../../ui/navigation/routes.js';
 
@@ -19,7 +21,10 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
   }
   try {
     const updates = createUpdater();
-    const instance = render(<App services={runtime.services} updates={() => updates.cachedCheck()} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
+    // Light or dark palette, from the terminal's own background (SOJA_THEME overrides).
+    setThemeMode(await detectThemeMode());
+    const instance = render(
+      <App services={runtime.services} updates={() => updates.cachedCheck()} mouse={process.env.SOJA_MOUSE !== '0'} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
     await instance.waitUntilExit();
   } finally {
     runtime.close();

@@ -2,11 +2,13 @@ import { Box, Text } from 'ink';
 import { useState, type ReactNode } from 'react';
 import { TASK_PRIORITIES, TASK_TYPES, type TaskPriority, type TaskType } from '../../domain/task.js';
 import { useAppState } from '../app-state.js';
-import { TextInput } from '../components/TextInput.js';
+import { TextField } from '../components/TextField.js';
+import { Button } from '../kit/Button.js';
+import { Clickable } from '../kit/Clickable.js';
 import { useQuery } from '../hooks/use-query.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
-import { palette, symbols } from '../theme/theme.js';
+import { palette, symbols, toneColors } from '../theme/theme.js';
 import { memberOptions, priorityOptions, projectOptions, NONE, typeOptions, fromOption } from './options.js';
 import { OverlayFrame } from './OverlayFrame.js';
 import { completeFrom } from './PromptOverlay.js';
@@ -80,7 +82,14 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
       step,
     );
 
-  const moveFocus = (step: number) => setFocus(cycle(FIELDS, focus, step));
+  const moveFocus = (direction: number) => setFocus(cycle(FIELDS, focus, direction));
+  const step = (field: Field, direction: number) => {
+    if (field === 'project') setProjectId(cycleOption(projects, projectId, direction));
+    if (field === 'type') setType(cycle(TASK_TYPES, type, direction));
+    if (field === 'priority') setPriority(cycle([...TASK_PRIORITIES].reverse(), priority, direction));
+    if (field === 'assignee') setAssigneeId(cycleOption(members, assigneeId, direction));
+  };
+
 
   useKeys(Layer.overlay, (input, key) => {
     if (key.escape) closeOverlay(spec);
@@ -88,39 +97,42 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
     else if (key.tab && completion) setRequester(completion);
     else if ((key.tab && !key.shift) || key.downArrow) moveFocus(1);
     else if ((key.tab && key.shift) || key.upArrow) moveFocus(-1);
-    else if (key.leftArrow || key.rightArrow || input === ' ' || input === 'h' || input === 'l') {
-      const step = key.leftArrow || input === 'h' ? -1 : 1;
-      if (focus === 'project') setProjectId(cycleOption(projects, projectId, step));
-      if (focus === 'type') setType(cycle(TASK_TYPES, type, step));
-      if (focus === 'priority') setPriority(cycle([...TASK_PRIORITIES].reverse(), priority, step));
-      if (focus === 'assignee') setAssigneeId(cycleOption(members, assigneeId, step));
+    else if (focus !== 'title' && focus !== 'requester' && (key.leftArrow || key.rightArrow || input === ' ' || input === 'h' || input === 'l')) {
+      step(focus, key.leftArrow || input === 'h' ? -1 : 1);
     }
     return true;
   });
 
   const option = (options: readonly PickerOption[], value: string) => options.find((candidate) => candidate.value === value);
-  const choice = (field: Field, picked: PickerOption | undefined) => (
-    <Text>
-      {focus === field ? <Text color={palette.accent}>‹ </Text> : <Text>  </Text>}
-      <Text color={picked?.color} dimColor={picked?.dim} bold={focus === field}>
-        {picked?.label ?? '—'}
-      </Text>
-      {focus === field ? <Text color={palette.accent}> ›</Text> : null}
-      {picked?.hint && focus === field ? <Text dimColor>{`  ${picked.hint}`}</Text> : null}
-    </Text>
-  );
+  /** `‹ Feature ›`: a value you change with ←/→ or by clicking it. */
+  const choice = (field: Field, picked: PickerOption | undefined) => {
+    const focused = focus === field;
+    const color = picked?.tone ? toneColors(picked.tone).fg : picked?.dim ? palette.muted : palette.text;
+    return (
+      <Clickable onClick={() => (focused ? step(field, 1) : setFocus(field))} layer={Layer.overlay}>
+        <Text backgroundColor={focused ? palette.selection : palette.neutralSoft}>
+          <Text color={focused ? palette.accent : palette.faint}>{' ‹ '}</Text>
+          <Text color={color} bold={focused}>
+            {picked?.label ?? '—'}
+          </Text>
+          <Text color={focused ? palette.accent : palette.faint}>{' › '}</Text>
+        </Text>
+        {picked?.hint && focused ? <Text color={palette.muted}>{`  ${picked.hint}`}</Text> : null}
+      </Clickable>
+    );
+  };
 
   const rows: Record<Field, ReactNode> = {
-    title: <TextInput value={title} onChange={setTitle} active={focus === 'title'} placeholder="What needs to happen?" />,
+    title: <TextField value={title} onChange={setTitle} active={focus === 'title'} placeholder="What needs to happen?" width={46} />,
     project: choice('project', option(projects, projectId)),
     type: choice('type', option(typeOptions, type)),
     priority: choice('priority', option(priorityOptions, priority)),
     assignee: choice('assignee', option(members, assigneeId)),
     requester: (
-      <Text>
-        <TextInput value={requester} onChange={setRequester} active={focus === 'requester'} placeholder={requesters[0] ?? 'Marketing, Finance…'} />
-        {completion ? <Text dimColor>{`  tab → ${completion}`}</Text> : null}
-      </Text>
+      <Box>
+        <TextField value={requester} onChange={setRequester} active={focus === 'requester'} placeholder={requesters[0] ?? 'Marketing, Finance…'} width={30} />
+        {completion ? <Text color={palette.muted}>{`  tab → ${completion}`}</Text> : null}
+      </Box>
     ),
   };
 
@@ -128,26 +140,33 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
     <OverlayFrame
       title="New task"
       context={session.workspace.name}
+      width={70}
       hints={[
         ['enter', 'create'],
-        ['tab/↓', 'next field'],
-        ['←/→', 'change'],
+        ['tab ↓', 'next field'],
+        ['←→', 'change'],
         ['esc', 'cancel'],
       ]}
     >
       {FIELDS.map((field) => (
-        <Box key={field}>
-          <Box width={15}>
-            <Text color={focus === field ? palette.accent : undefined} dimColor={focus !== field}>
-              {focus === field ? `${symbols.pointer} ` : '  '}
-              {LABELS[field]}
-            </Text>
+        <Clickable key={field} onClick={() => setFocus(field)} layer={Layer.overlay}>
+          <Box marginBottom={field === 'title' ? 1 : 0} flexGrow={1}>
+            <Box width={15} flexShrink={0}>
+              <Text color={focus === field ? palette.accent : palette.muted} bold={focus === field}>
+                {focus === field ? `${symbols.pointer} ` : '  '}
+                {LABELS[field]}
+              </Text>
+            </Box>
+            {rows[field]}
           </Box>
-          {rows[field]}
-        </Box>
+        </Clickable>
       ))}
-      <Box marginTop={1}>
-        <Text dimColor>  Only the title is required.</Text>
+      <Box marginTop={1} justifyContent="space-between">
+        <Text color={palette.faint}>Only the title is required.</Text>
+        <Box gap={2}>
+          <Button label="Cancel" onPress={() => closeOverlay(spec)} />
+          <Button label="Create task" variant="primary" onPress={() => void create()} />
+        </Box>
       </Box>
     </OverlayFrame>
   );

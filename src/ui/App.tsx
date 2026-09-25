@@ -10,6 +10,7 @@ import { KeyProvider, useKeys } from './input/KeyProvider.js';
 import type { Route } from './navigation/routes.js';
 import type { UpdateCheck } from '../application/services/update-service.js';
 import { SetupScreen } from './screens/SetupScreen.js';
+import { TerminalSizeProvider } from './hooks/use-terminal-size.js';
 import { Shell } from './Shell.js';
 import { palette, symbols } from './theme/theme.js';
 
@@ -43,17 +44,21 @@ interface AppProps {
   initialRoute?: Route;
   /** Looks for a newer SOJA release (quietly; null when unknown). */
   updates?: () => Promise<UpdateCheck | null>;
+  /** Clicks and the wheel (the real terminal turns it on; tests opt in). */
+  mouse?: boolean;
 }
 
-export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates, mouse = false }: AppProps) {
   return (
-    <KeyProvider>
-      <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} />
+    <KeyProvider mouse={mouse}>
+      <TerminalSizeProvider>
+        <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} />
+      </TerminalSizeProvider>
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<AppProps, 'initialRoute' | 'updates'>> & Pick<AppProps, 'initialRoute' | 'updates'>) {
+function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<AppProps, 'initialRoute' | 'updates' | 'mouse'>> & Pick<AppProps, 'initialRoute' | 'updates'>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
@@ -86,17 +91,9 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
 
   switch (phase.kind) {
     case 'splash':
-      return (
-        <Box paddingX={1}>
-          <Splash />
-        </Box>
-      );
+      return <Splash />;
     case 'setup':
-      return (
-        <Box paddingX={1}>
-          <SetupScreen services={services} onDone={setCreated} />
-        </Box>
-      );
+      return <SetupScreen services={services} onDone={setCreated} />;
     case 'failed':
       return (
         <Box paddingX={1} paddingTop={1} flexDirection="column">

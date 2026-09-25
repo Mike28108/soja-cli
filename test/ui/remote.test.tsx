@@ -80,7 +80,7 @@ describe('remote mode in the interface', () => {
 
     ui = render(<App services={runtime.services} splashMs={0} cwd={dir.path} />);
     await settle(400);
-    expect(ui.lastFrame()).toContain('✉ 1 · @1');
+    expect(ui.lastFrame()).toContain('✉ 1 @1');
 
     ui.stdin.write('#');
     await settle(150);

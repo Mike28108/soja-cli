@@ -28,12 +28,6 @@ export function PullRequestSummary({ pr }: { pr: PullRequest }) {
   return (
     <Text wrap="truncate-end">
       <Text color={stateColor} dimColor={pr.state === 'closed'}>{`${symbols.pullRequest}${pr.number} ${pr.draft ? 'draft' : pr.state}`}</Text>
-      <Text dimColor>{` → ${pr.base}`}</Text>
-      {pr.state === 'open' && pr.review ? (
-        <Text color={pr.review === 'approved' ? palette.success : pr.review === 'changes_requested' ? palette.danger : undefined} dimColor={pr.review === 'review_required'}>
-          {`  ${pr.review === 'approved' ? `${symbols.check} approved` : pr.review === 'changes_requested' ? `${symbols.cross} changes requested` : 'review required'}`}
-        </Text>
-      ) : null}
       {pr.state === 'open' && checks.total > 0 ? (
         checks.failed > 0 ? (
           <Text color={palette.danger}>{`  ${symbols.cross} ${checks.failed} failing: ${checks.failing.join(', ')}`}</Text>
@@ -44,6 +38,12 @@ export function PullRequestSummary({ pr }: { pr: PullRequest }) {
         )
       ) : null}
       {pr.state === 'open' && pr.mergeable === 'conflicting' ? <Text color={palette.danger}>{'  conflicts with base'}</Text> : null}
+      {pr.state === 'open' && pr.review ? (
+        <Text color={pr.review === 'approved' ? palette.success : pr.review === 'changes_requested' ? palette.danger : undefined} dimColor={pr.review === 'review_required'}>
+          {`  ${pr.review === 'approved' ? `${symbols.check} approved` : pr.review === 'changes_requested' ? `${symbols.cross} changes requested` : 'review required'}`}
+        </Text>
+      ) : null}
+      <Text color={palette.muted}>{`  → ${pr.base}`}</Text>
     </Text>
   );
 }

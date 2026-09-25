@@ -62,7 +62,7 @@ describe('first run', () => {
     await settle(150);
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('MY WORK');
+    expect(frame).toContain('My work');
     expect(frame).toContain('No tasks assigned.');
     expect(frame).toContain('@michael');
     expect(app.config.load()?.mode).toBe('local');
@@ -97,13 +97,13 @@ describe('daily use', () => {
     await press(stdin, ENTER);
     await settle(100);
     const detail = lastFrame() ?? '';
-    expect(detail).toContain('ACTIVITY');
+    expect(detail).toContain('Activity');
     expect(detail).toContain('created the task');
     expect(detail).toContain('EnrollBridge');
 
     await press(stdin, ESC);
     await settle(100);
-    expect(lastFrame()).toContain('MY WORK');
+    expect(lastFrame()).toContain('My work');
   });
 
   it('archives from the Edit menu, finds it in Archived tasks, and deletes it after two confirmations', async () => {
@@ -125,7 +125,7 @@ describe('daily use', () => {
     await type(stdin, 'Archived');
     await press(stdin, ENTER);
     await settle(150);
-    expect(lastFrame()).toContain('ARCHIVED');
+    expect(lastFrame()).toContain('Archived');
     expect(lastFrame()).toContain('Fix Stripe webhook');
 
     await press(stdin, ENTER);
@@ -142,7 +142,7 @@ describe('daily use', () => {
     await press(stdin, '2');
     await settle(200);
     expect(lastFrame()).toContain('SOJA-1 deleted');
-    expect(lastFrame()).toContain('ARCHIVED');
+    expect(lastFrame()).toContain('Archived');
     expect(lastFrame()).not.toContain('Fix Stripe webhook');
   });
 
@@ -191,11 +191,12 @@ describe('daily use', () => {
     await settle(100);
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Add pitch velocity');
-    expect(frame).not.toContain('Fix Stripe webhook');
+    // The list behind the search window still shows it once; the results do not.
+    expect(frame.split('Fix Stripe webhook').length - 1).toBe(1);
 
     await press(stdin, ENTER);
     await settle(100);
-    expect(lastFrame()).toContain('ACTIVITY');
+    expect(lastFrame()).toContain('Activity');
   });
 
   it('switches filters and uses the command palette', async () => {
@@ -210,7 +211,7 @@ describe('daily use', () => {
     await press(stdin, ENTER);
     await settle(100);
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('ALL TASKS');
+    expect(frame).toContain('All Tasks');
     expect(frame).toContain('Blocked on vendor');
     expect(frame).toContain('Add pitch velocity');
   });
@@ -222,10 +223,10 @@ describe('daily use', () => {
     await press(stdin, 'p');
     expect(lastFrame()).toContain('Priority');
     await press(stdin, ESC);
-    expect(lastFrame()).toContain('ACTIVITY');
+    expect(lastFrame()).toContain('Activity');
     await press(stdin, ESC);
     await settle(100);
-    expect(lastFrame()).toContain('MY WORK');
+    expect(lastFrame()).toContain('My work');
   });
 });
 
@@ -326,7 +327,7 @@ describe('git operations in the interface', () => {
       writeFileSync(join(repo, 'b.log'), 'b');
       await press(stdin, 'C');
       await settle(200);
-      expect(lastFrame()).toContain('[x]');
+      expect(lastFrame()).toContain('☑');
       await press(stdin, 'j');
       await press(stdin, ' '); // uncheck b.log (sorted after a.ts)
       await press(stdin, ENTER);
@@ -352,7 +353,10 @@ describe('git operations in the interface', () => {
       const frame = lastFrame() ?? '';
       expect(frame).toContain('#12 open');
       expect(frame).toContain('1 failing: lint');
-      expect(frame).toContain('checks failed on PR #12 (aaaaaaa): lint');
+      // The notice floats over the timeline for a few seconds; the entry itself is in the task.
+      expect(frame).toContain('checks failed on PR #12 (lint)');
+      const timeline = (await testApp.services.tasks.get(testApp.session, 'SOJA-1')).timeline;
+      expect(timeline.some((entry) => entry.kind === 'event' && entry.text === 'checks failed on PR #12 (aaaaaaa): lint')).toBe(true);
 
       await press(stdin, 'g');
       await press(stdin, '5'); // Merge pull request on GitHub…
