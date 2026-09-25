@@ -1,3 +1,4 @@
+import type { BackupService } from './services/backup-service.js';
 import type { FolderService } from './services/folder-service.js';
 import type { GitWorkflowService } from './services/git-workflow-service.js';
 import type { ProjectService } from './services/project-service.js';
@@ -19,5 +20,6 @@ export type ProjectOperations = PublicApi<ProjectService>;
 export type TaskOperations = PublicApi<TaskService>;
 export type GitOperations = PublicApi<GitWorkflowService>;
 export type FolderOperations = PublicApi<FolderService>;
+export type BackupOperations = PublicApi<BackupService>;
 export type { ChatOperations } from './chat.js';
 export type { ImportOperations } from './import.js';

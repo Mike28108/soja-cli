@@ -4,6 +4,8 @@ import { toDisplayError } from '../utils/errors.js';
 import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
+import { backupCommand } from './commands/backup.js';
+import { updateCommand } from './commands/update.js';
 import { chatCommand } from './commands/chat.js';
 import { importLocalCommand } from './commands/import.js';
 import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
@@ -72,6 +74,12 @@ async function main(argv: string[]): Promise<void> {
       return chatCommand(rest);
     case 'import-local':
       return importLocalCommand(rest);
+    case 'backup':
+    case 'backups':
+      return backupCommand(rest);
+    case 'update':
+    case 'upgrade':
+      return updateCommand(rest);
     default:
       throw new ValidationError(`Unknown command “${command}”.`, { hint: 'See `soja --help`.' });
   }

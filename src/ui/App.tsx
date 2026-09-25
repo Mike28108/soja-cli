@@ -8,6 +8,7 @@ import { Splash } from './branding/Splash.js';
 import { Layer } from './input/dispatcher.js';
 import { KeyProvider, useKeys } from './input/KeyProvider.js';
 import type { Route } from './navigation/routes.js';
+import type { UpdateCheck } from '../application/services/update-service.js';
 import { SetupScreen } from './screens/SetupScreen.js';
 import { Shell } from './Shell.js';
 import { palette, symbols } from './theme/theme.js';
@@ -40,17 +41,19 @@ interface AppProps {
   cwd?: string;
   /** Screen to open on top of home, e.g. the chat for `soja chat`. */
   initialRoute?: Route;
+  /** Looks for a newer SOJA release (quietly; null when unknown). */
+  updates?: () => Promise<UpdateCheck | null>;
 }
 
-export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates }: AppProps) {
   return (
     <KeyProvider>
-      <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} />
+      <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} />
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs, cwd, initialRoute }: Required<Omit<AppProps, 'initialRoute'>> & Pick<AppProps, 'initialRoute'>) {
+function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<AppProps, 'initialRoute' | 'updates'>> & Pick<AppProps, 'initialRoute' | 'updates'>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
@@ -107,7 +110,7 @@ function Boot({ services, splashMs, cwd, initialRoute }: Required<Omit<AppProps,
       );
     case 'ready':
       return (
-        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})}>
+        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})} {...(updates ? { updates } : {})}>
           <Shell />
         </AppStateProvider>
       );
