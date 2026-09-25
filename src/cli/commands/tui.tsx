@@ -4,6 +4,9 @@ import { bootstrap, createUpdater } from '../../bootstrap.js';
 import { detectThemeMode } from '../../ui/theme/detect.js';
 import { setThemeMode } from '../../ui/theme/theme.js';
 import { App } from '../../ui/App.js';
+import { FileConfigStore } from '../../config/config.js';
+import { CredentialStore } from '../../config/credentials.js';
+import { resolvePaths } from '../../config/paths.js';
 import type { Route } from '../../ui/navigation/routes.js';
 
 export async function runInterface(options: { route?: Route } = {}): Promise<void> {
@@ -12,7 +15,12 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
       hint: 'For scripts, use the commands in `soja --help`.',
     });
   }
-  const runtime = await bootstrap();
+  const paths = resolvePaths();
+  const configStore = new FileConfigStore(paths.configFile);
+  const savedConfig = configStore.load();
+  const hasRemoteToken = savedConfig?.remote ? Boolean(new CredentialStore(paths.credentialsFile).token(savedConfig.remote.apiUrl)) : true;
+  const runtime = await bootstrap({ forceLocal: savedConfig?.mode === 'remote' && !hasRemoteToken });
+  let reopenInCurrentMode = false;
   // A daily copy of the database in use, kept for a week. Never blocks opening SOJA.
   try {
     runtime.services.backups.auto();
@@ -24,9 +32,11 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
     // Light or dark palette, from the terminal's own background (SOJA_THEME overrides).
     setThemeMode(await detectThemeMode());
     const instance = render(
-      <App services={runtime.services} updates={() => updates.cachedCheck()} mouse={process.env.SOJA_MOUSE !== '0'} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
+      <App services={runtime.services} welcomeOnLocal={savedConfig?.mode === 'remote' && !hasRemoteToken} updates={() => updates.cachedCheck()} mouse={process.env.SOJA_MOUSE !== '0'} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
     await instance.waitUntilExit();
+    reopenInCurrentMode = new FileConfigStore(runtime.paths.configFile).load()?.mode !== runtime.services.environment.mode;
   } finally {
     runtime.close();
   }
+  if (reopenInCurrentMode) await runInterface(options);
 }

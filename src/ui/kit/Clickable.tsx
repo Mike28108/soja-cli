@@ -13,6 +13,7 @@ interface ClickableProps {
   flexGrow?: number;
   flexShrink?: number;
   width?: number | string;
+  height?: number | string;
   flexDirection?: 'row' | 'column';
 }
 

@@ -51,7 +51,7 @@ export function ChatScreen({ active, initialChannel }: { active: boolean; initia
 }
 
 function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: boolean; initialChannel: string | undefined }) {
-  const { services, session, run, notify, refresh, openOverlay, go, syncStatus } = useAppState();
+  const { services, session, run, notify, invalidateQueries, openOverlay, go, syncStatus } = useAppState();
   const { width, height, sidebar: layoutSidebar } = useLayout();
   const [channelId, setChannelId] = useState<string | null>(null);
   const [focus, setFocus] = useState<Focus>('input');
@@ -60,16 +60,17 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
   const [editing, setEditing] = useState<MessageView | null>(null);
   const [selected, setSelected] = useState(0);
 
-  const channels = useQuery(() => chat.channels(session), `chat-channels:${session.workspace.id}`);
+  const channels = useQuery(() => chat.channels(session), `chat-channels:${session.workspace.id}`, [`chat-channels:${session.workspace.id}`]);
   const list = channels.data ?? [];
   const wanted = initialChannel?.replace(/^#/, '').toLowerCase();
   const channel = list.find((candidate) => candidate.id === channelId) ?? list.find((candidate) => candidate.name === wanted) ?? list[0] ?? null;
-  const messages = useQuery(async () => (channel ? chat.messages(session, channel.id, 300) : []), `chat-messages:${channel?.id ?? ''}`);
+  const messages = useQuery(async () => (channel ? chat.messages(session, channel.id, 300) : []), `chat-messages:${channel?.id ?? ''}`, channel ? [`chat-messages:${channel.id}`] : []);
   const items = messages.data ?? [];
-  const members = useQuery(() => services.workspaces.members(session), `members:${session.workspace.id}`);
+  const members = useQuery(() => services.workspaces.members(session), `members:${session.workspace.id}`, [`members:${session.workspace.id}`]);
   const notices = useQuery(
     async () => ((await services.sync?.notices(session.workspace.id)) ?? []).filter((notice) => notice.field === 'chat'),
     `chat-notices:${session.workspace.id}`,
+    [`chat-notices:${session.workspace.id}`],
   );
 
   // Reading a channel marks it read (once per new message, not on every refresh).
@@ -78,8 +79,12 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
   useEffect(() => {
     if (!active || !channel || latestSeq <= channel.lastReadSeq || (marked.current.get(channel.id) ?? 0) >= latestSeq) return;
     marked.current.set(channel.id, latestSeq);
-    void chat.markRead(session, channel.id).then(refresh, () => undefined);
-  }, [active, channel, latestSeq, chat, session, refresh]);
+    void chat.markRead(session, channel.id).then(() => invalidateQueries([
+      `chat-channels:${session.workspace.id}`,
+      `sidebar-channels:${session.workspace.id}`,
+      `chat-totals:${session.workspace.id}`,
+    ]), () => undefined);
+  }, [active, channel, latestSeq, chat, session, invalidateQueries]);
 
   const current = items[Math.min(selected, items.length - 1)];
   const switchTo = (next: ChannelSummary) => {
@@ -260,6 +265,12 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
   useKeys(
     Layer.screen,
     (input, key) => {
+      // Ctrl+G is available while the composer is focused; TextInput leaves it
+      // unhandled, so the channel picker works without changing focus first.
+      if (key.ctrl && input.toLowerCase() === 'g') {
+        pickChannel();
+        return true;
+      }
       if (key.ctrl || key.meta) return false;
       if (focus === 'input') return false;
       const message = current;
@@ -343,6 +354,7 @@ function Chat({ chat, active, initialChannel }: { chat: ChatOperations; active: 
       ? ([
           ['enter', editing ? 'save' : 'send'],
           ['alt+enter', 'new line'],
+          ['ctrl+g', 'channels'],
           ['tab', '@ complete / messages'],
           ['esc', replyTo || editing ? 'cancel' : 'back'],
         ] as const)

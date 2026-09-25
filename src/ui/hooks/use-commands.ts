@@ -5,7 +5,7 @@ import { useFlows } from './use-flows.js';
 
 /** The command palette: every major action, filterable by typing. */
 export function useCommandPalette(newTaskProjectId: string | null): () => void {
-  const { openOverlay, go, quit, services, session, run, setHomeFilter } = useAppState();
+  const { openOverlay, go, quit, services, session, notify, setHomeFilter } = useAppState();
   // Views of home: the filter is shared app state (the sidebar shows it too).
   const showView = (filter: Parameters<typeof setHomeFilter>[0]) => {
     setHomeFilter(filter);
@@ -34,7 +34,14 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       { id: 'git-log', label: 'Git log', run: () => openOverlay({ kind: 'git-log' }) },
       ...(services.chat ? [{ id: 'chat', label: 'Chat', key: '#', run: () => go({ type: 'push', route: { name: 'chat' } }) }] : []),
       ...(services.sync
-        ? [{ id: 'sync', label: 'Sync now', run: () => run(async () => services.sync?.syncNow(session.workspace.id), 'Synced') }]
+        ? [{
+            id: 'sync',
+            label: 'Sync now',
+            run: async () => {
+              await services.sync?.syncNow(session.workspace.id);
+              notify('Synced', 'success');
+            },
+          }]
         : []),
       { id: 'help', label: 'Help', key: '?', run: () => go({ type: 'push', route: { name: 'help' } }) },
       { id: 'quit', label: 'Quit', key: 'q', run: quit },

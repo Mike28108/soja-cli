@@ -21,7 +21,7 @@ async function started() {
   await app.services.tasks.create(app.session, { title: 'Add pitch velocity', priority: 'low' });
   await app.services.tasks.create(app.session, { title: 'Blocked on vendor', status: 'blocked', assigneeId: null });
   workdir = tempDir();
-  ui = render(<App services={app.services} splashMs={0} cwd={workdir.path} />);
+  ui = render(<App services={app.services} splashMs={0} cwd={workdir.path} mouse />);
   await settle(250);
   return ui;
 }

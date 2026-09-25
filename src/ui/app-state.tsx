@@ -33,6 +33,9 @@ export interface AppState {
   notify(text: string, tone?: Flash['tone'], hint?: string): void;
   /** Bumps after every successful mutation; data hooks reload on change. */
   revision: number;
+  /** Version of explicitly invalidated data topics, used for selective refreshes. */
+  queryVersion(topics: readonly string[]): string;
+  invalidateQueries(topics: readonly string[]): void;
   /**
    * Runs a mutation: on success refreshes data and optionally confirms;
    * on failure shows a friendly error. Resolves to whether it worked.
@@ -76,6 +79,7 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [revision, setRevision] = useState(0);
+  const [queryEpochs, setQueryEpochs] = useState<Record<string, number>>({});
   const [homeFilter, setHomeFilter] = useState<TaskFilter>(initialRoute?.name === 'home' && initialRoute.filter ? initialRoute.filter : 'mine');
 
   useEffect(() => {
@@ -86,6 +90,16 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
 
   const notify = useCallback((text: string, tone: Flash['tone'] = 'info', hint?: string) => {
     setFlash({ id: Date.now(), text, tone, hint });
+  }, []);
+
+  const queryVersion = useCallback((topics: readonly string[]) => topics.map((topic) => `${topic}:${queryEpochs[topic] ?? 0}`).join('|'), [queryEpochs]);
+  const invalidateQueries = useCallback((topics: readonly string[]) => {
+    if (topics.length === 0) return;
+    setQueryEpochs((current) => {
+      const next = { ...current };
+      for (const topic of new Set(topics)) next[topic] = (next[topic] ?? 0) + 1;
+      return next;
+    });
   }, []);
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -193,12 +207,24 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
         if (active) setSyncStatus(status);
       });
     };
-    // Every finished sync refreshes the views, whether it was the timer, a change
-    // you just made (SOJA-?1 → SOJA-1) or `Sync now`.
+    // A sync only invalidates queries for entities that actually changed in the replica.
     const onSync = (report: SyncReport | null) => {
       updateStatus();
       if (!report || !active) return;
-      setRevision((value) => value + 1);
+      const topics: string[] = [];
+      if (report.changes.taskRefs.length) {
+        topics.push(`tasks:${workspaceId}`, `projects:${workspaceId}`, `sidebar-tasks:${workspaceId}`);
+        for (const ref of report.changes.taskRefs) topics.push(`task:${workspaceId}:${ref}`);
+      }
+      if (report.changes.projects) topics.push(`projects:${workspaceId}`);
+      if (report.changes.members) topics.push(`members:${workspaceId}`);
+      if (report.changes.chatChannelIds.length || report.changes.chatReads) {
+        topics.push(`chat-channels:${workspaceId}`, `sidebar-channels:${workspaceId}`, `chat-totals:${workspaceId}`);
+      }
+      for (const channelId of report.changes.chatMessageChannelIds) {
+        topics.push(`chat:${workspaceId}`, `chat-messages:${channelId}`, `chat-channels:${workspaceId}`, `sidebar-channels:${workspaceId}`, `chat-totals:${workspaceId}`, `chat-notices:${workspaceId}`);
+      }
+      invalidateQueries(topics);
       if (report.chatRejected) notify(`Chat: ${report.chatRejected} message change${report.chatRejected === 1 ? '' : 's'} not applied`, 'error', 'Open the chat (#) to get your text back.');
       else if (report.conflicts || report.rejected) {
         const parts = [
@@ -221,7 +247,7 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
       stopLive();
       clearInterval(interval);
     };
-  }, [services, session.workspace.id, notify]);
+  }, [services, session.workspace.id, notify, invalidateQueries]);
 
   const changeSession = useCallback((next: Session) => {
     setSession(next);
@@ -244,6 +270,8 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
       flash,
       notify,
       revision,
+      queryVersion,
+      invalidateQueries,
       run,
       refresh: () => setRevision((value) => value + 1),
       detectMerges,
@@ -253,7 +281,7 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
       setHomeFilter,
       quit: exit,
     }),
-    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, run, detectMerges, followPullRequests, syncStatus, homeFilter, exit],
+    [services, cwd, session, changeSession, stack, overlay, flash, notify, revision, queryVersion, invalidateQueries, run, detectMerges, followPullRequests, syncStatus, homeFilter, exit],
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

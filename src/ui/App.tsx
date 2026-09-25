@@ -10,6 +10,7 @@ import { KeyProvider, useKeys } from './input/KeyProvider.js';
 import type { Route } from './navigation/routes.js';
 import type { UpdateCheck } from '../application/services/update-service.js';
 import { SetupScreen } from './screens/SetupScreen.js';
+import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { TerminalSizeProvider } from './hooks/use-terminal-size.js';
 import { Shell } from './Shell.js';
 import { palette, symbols } from './theme/theme.js';
@@ -46,23 +47,27 @@ interface AppProps {
   updates?: () => Promise<UpdateCheck | null>;
   /** Clicks and the wheel (the real terminal turns it on; tests opt in). */
   mouse?: boolean;
+  /** Prompt for account choice when a saved remote credential is missing. */
+  welcomeOnLocal?: boolean;
 }
 
-export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates, mouse = false }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates, mouse = false, welcomeOnLocal = false }: AppProps) {
   return (
     <KeyProvider mouse={mouse}>
       <TerminalSizeProvider>
-        <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} />
+        <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} welcomeOnLocal={welcomeOnLocal} />
       </TerminalSizeProvider>
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<AppProps, 'initialRoute' | 'updates' | 'mouse'>> & Pick<AppProps, 'initialRoute' | 'updates'>) {
+function Boot({ services, splashMs, cwd, initialRoute, updates, welcomeOnLocal }: Required<Omit<AppProps, 'initialRoute' | 'updates' | 'mouse'>> & Pick<AppProps, 'initialRoute' | 'updates' | 'welcomeOnLocal'>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
   const [created, setCreated] = useState<Session | null>(null);
+  const [localSetup, setLocalSetup] = useState(false);
+  const [localChoiceDone, setLocalChoiceDone] = useState(false);
   const [failure, setFailure] = useState<DisplayError | null>(null);
   const [splashDone, setSplashDone] = useState(splashMs <= 0);
 
@@ -93,8 +98,9 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
     case 'splash':
       return <Splash />;
     case 'setup':
-      return <SetupScreen services={services} onDone={setCreated} />;
+      return localSetup ? <SetupScreen services={services} onDone={setCreated} /> : <WelcomeScreen onLocal={() => { setLocalSetup(true); setLocalChoiceDone(true); }} />;
     case 'failed':
+      if (services.environment.mode === 'remote') return <WelcomeScreen onLocal={() => exit()} />;
       return (
         <Box paddingX={1} paddingTop={1} flexDirection="column">
           <Text color={palette.danger}>{`${symbols.cross} ${phase.error.message}`}</Text>
@@ -106,6 +112,7 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
         </Box>
       );
     case 'ready':
+      if (services.environment.mode === 'local' && welcomeOnLocal && !localChoiceDone) return <WelcomeScreen onLocal={() => setLocalChoiceDone(true)} />;
       return (
         <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})} {...(updates ? { updates } : {})}>
           <Shell />

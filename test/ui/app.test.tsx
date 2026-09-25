@@ -51,6 +51,8 @@ async function start(testApp: TestApp) {
 describe('first run', () => {
   it('walks through setup and lands on an empty My Work', async () => {
     const { stdin, lastFrame } = await start(await createTestApp());
+    expect(lastFrame()).toContain('Welcome to SOJA');
+    await press(stdin, 'l');
     expect(lastFrame()).toContain('First setup');
 
     await type(stdin, 'Michael');
@@ -70,6 +72,7 @@ describe('first run', () => {
 
   it('shows validation errors inline and stays on the step', async () => {
     const { stdin, lastFrame } = await start(await createTestApp());
+    await press(stdin, 'l');
     await press(stdin, ENTER);
     expect(lastFrame()).toContain('This one is required.');
   });
@@ -191,8 +194,8 @@ describe('daily use', () => {
     await settle(100);
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Add pitch velocity');
-    // The list behind the search window still shows it once; the results do not.
-    expect(frame.split('Fix Stripe webhook').length - 1).toBe(1);
+    // The search window contains matching results only.
+    expect(frame).not.toContain('Fix Stripe webhook');
 
     await press(stdin, ENTER);
     await settle(100);
