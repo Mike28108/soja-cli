@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **0.6.0** |
-| Versión del documento | **0.6.0** (revisión 5) |
+| Versión de la app | **1.0.0** |
+| Versión del documento | **1.0.0** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,9 +57,9 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v0.6.0)
+### Estado actual (v1.0.0)
 
-Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6).
+Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
 El chat requiere `soja-backend` ≥ 0.3.0.
 
@@ -1341,7 +1341,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0 y v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0. Siguiente hito: v1.0, consolidación (instalación por npm, deudas de uso, pasar datos locales a un equipo, robustez).
+Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0 y v1.0 (consolidación) en v1.0.0. Lo siguiente se decide con el uso real del equipo.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1380,6 +1380,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 1.0.0 r1 | 1.0.0 | 2026-09-24 | Publicación de v1.0.0: cabecera, estado actual y roadmap. Requiere `soja-backend` ≥ 1.0.0 para importar y borrar. |
 | 0.6.0 r5 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Robustez e instalación: §2 instalar desde GitHub Releases con `gh` y `soja update`; §10 copias diarias y `soja backup`; §14 CI (check, domain, e2e, release), `npm run test:e2e`, `check:domain`; §17 el tag publica el release. |
 | 0.6.0 r4 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §9 *Llevar tu trabajo local al equipo*: `soja import-local` (proyectos, tasks, comentarios y timeline; números conservados o renumerados; developers por username; idempotente; solo owners); sugerencia tras `soja login`; `remote.imports` en la config. |
 | 0.6.0 r3 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Deudas de uso: descripción en `$EDITOR` (`d`), `soja task comment/describe`, editar proyectos (`e` en Proyectos, `soja project edit`), tema y archivo de canales (selector del chat, `soja chat topic/archive`). |
