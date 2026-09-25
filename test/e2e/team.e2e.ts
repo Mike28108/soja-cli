@@ -19,10 +19,12 @@ const home = mkdtempSync(join(tmpdir(), 'soja-e2e-'));
 let server: ChildProcess | null = null;
 
 async function startServer(): Promise<void> {
-  server = spawn('npx', ['tsx', 'test/e2e/server.ts'], {
+  // Its own process group, so stopping it also stops the processes tsx starts.
+  server = spawn(process.execPath, ['--import', 'tsx', 'test/e2e/server.ts'], {
     cwd: BACKEND,
     env: { ...process.env, DATABASE_URL, PORT: String(PORT) },
     stdio: 'ignore',
+    detached: true,
   });
   for (let attempt = 0; attempt < 60; attempt += 1) {
     if (await fetch(`${SERVER}/v1/health`).then((response) => response.ok, () => false)) return;
@@ -34,16 +36,16 @@ async function startServer(): Promise<void> {
 async function stopServer(): Promise<void> {
   const running = server;
   server = null;
-  if (!running) return;
-  await new Promise<void>((resolve) => {
-    running.once('exit', () => resolve());
-    running.kill('SIGTERM');
-  });
-  // npx leaves the real server as a child; wait until the port is free.
+  if (!running?.pid) return;
+  const exited = new Promise<void>((resolve) => running.once('exit', () => resolve()));
+  process.kill(-running.pid, 'SIGTERM');
+  await exited;
   for (let attempt = 0; attempt < 40; attempt += 1) {
     if (!(await fetch(`${SERVER}/v1/health`).then(() => true, () => false))) return;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+  // The offline part of the test means nothing if the server is still answering.
+  throw new Error('The E2E server is still running after being stopped.');
 }
 
 /** Runs `soja …` as a developer with their own home, config and replica. */
