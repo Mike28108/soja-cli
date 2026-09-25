@@ -10,6 +10,7 @@ import { formatRelative, formatStamp } from '../../utils/time.js';
 import type { TaskGitState } from '../../application/services/index.js';
 import { tildify } from '../../utils/text.js';
 import { bold, color, dim, print, success, taskLine, token } from '../output.js';
+import { editInEditor } from '../../utils/editor.js';
 import { confirmTyped } from '../prompt.js';
 import { withSession } from '../runtime.js';
 import { oneOf, parseCommand, requireArg } from './args.js';
@@ -37,8 +38,12 @@ export async function taskCommand(args: string[]): Promise<void> {
       return archive(sub, rest);
     case 'delete':
       return remove(rest);
+    case 'comment':
+      return comment(rest);
+    case 'describe':
+      return describe(rest);
     default:
-      throw new ValidationError(`Unknown task command “${sub}”.`, { hint: 'Try: list, create, show, start, done, reopen, archive, restore, delete.' });
+      throw new ValidationError(`Unknown task command “${sub}”.`, { hint: 'Try: list, create, show, start, done, reopen, comment, describe, archive, restore, delete.' });
   }
 }
 
@@ -221,6 +226,48 @@ function printGit(ref: string, state: TaskGitState): void {
     print(`  ${color('yellow', commit.shortHash)} ${commit.subject} ${dim(`${commit.author}, ${formatRelative(commit.date)}`)}`);
   }
   if (state.commits.length > 5) print(dim(`  ${symbols.ellipsis} ${state.commits.length - 5} more`));
+}
+
+/**
+ * Text for a command: the arguments, `-` for stdin, or the editor when
+ * nothing is given in a terminal. Null means the editor was closed without saving.
+ */
+async function textFrom(words: string[], editor: { initial: string; name: string }): Promise<string | null> {
+  if (words.length === 1 && words[0] === '-') {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+    return Buffer.concat(chunks).toString('utf8').replace(/\s+$/, '');
+  }
+  if (words.length > 0) return words.join(' ');
+  if (!process.stdin.isTTY) throw new ValidationError('Nothing to write.', { hint: 'Pass the text, or - to read it from stdin.' });
+  return editInEditor(editor.initial, { name: editor.name });
+}
+
+/** `soja task comment <id> [text|-]`: without text, opens $EDITOR. */
+async function comment(args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const ref = requireArg(positionals[0], 'task ID', 'soja task comment SOJA-12 "text"  (or - for stdin, or nothing for $EDITOR)');
+  const text = await textFrom(positionals.slice(1), { initial: '', name: `${ref}-comment.md` });
+  if (text === null || !text.trim()) return print(dim('Nothing written. No comment added.'));
+  await withSession(async (services, session) => {
+    await services.tasks.comment(session, ref, text);
+    const task = await services.tasks.get(session, ref);
+    success(`Commented on ${bold(task.ref)}`);
+  });
+}
+
+/** `soja task describe <id> [text|-]`: replaces the description; without text, edits it in $EDITOR. */
+async function describe(args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const ref = requireArg(positionals[0], 'task ID', 'soja task describe SOJA-12 "text"  (or - for stdin, or nothing for $EDITOR)');
+  await withSession(async (services, session) => {
+    const task = await services.tasks.get(session, ref);
+    const text = await textFrom(positionals.slice(1), { initial: task.description ?? '', name: `${task.ref}.md` });
+    if (text === null) return print(dim('The editor closed without saving. Nothing changed.'));
+    if (text === (task.description ?? '')) return print(dim('Description unchanged.'));
+    await services.tasks.update(session, task, { description: text });
+    success(`${bold(task.ref)} description ${text ? 'saved' : 'cleared'}`);
+  });
 }
 
 async function archive(action: 'archive' | 'restore', args: string[]): Promise<void> {

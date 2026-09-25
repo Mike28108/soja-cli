@@ -23,11 +23,16 @@ export async function chatCommand(args: string[]): Promise<void> {
     case 'new':
     case 'create':
       return create(rest);
+    case 'topic':
+      return topic(rest);
+    case 'archive':
+    case 'unarchive':
+      return archive(sub === 'archive', rest);
     case undefined:
       return runInterface({ route: { name: 'chat' } });
     default:
       if (sub.startsWith('#') || !sub.startsWith('-')) return runInterface({ route: { name: 'chat', channel: sub } });
-      throw new ValidationError(`Unknown chat command “${sub}”.`, { hint: 'Try: send, log, channels, new, or `soja chat #channel`.' });
+      throw new ValidationError(`Unknown chat command “${sub}”.`, { hint: 'Try: send, log, channels, new, topic, archive, unarchive, or `soja chat #channel`.' });
   }
 }
 
@@ -101,6 +106,29 @@ async function create(args: string[]): Promise<void> {
   await withSession(async (services, session) => {
     const channel = await chatOf(services).createChannel(session, name, values.topic ?? null);
     success(`Created ${bold(`#${channel.name}`)}`);
+  });
+}
+
+async function topic(args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const channel = requireArg(positionals[0], 'channel', 'soja chat topic <channel> "text"  (empty text clears it)');
+  const text = positionals.slice(1).join(' ').trim();
+  await withSession(async (services, session) => {
+    const chat = chatOf(services);
+    const target = await chat.channel(session, channel);
+    const updated = await chat.updateChannel(session, target.id, { topic: text || null });
+    success(`${bold(`#${updated.name}`)} ${updated.topic ? dim(updated.topic) : dim('no topic')}`);
+  });
+}
+
+async function archive(archived: boolean, args: string[]): Promise<void> {
+  const { positionals } = parseCommand(args, {});
+  const channel = requireArg(positionals[0], 'channel', `soja chat ${archived ? 'archive' : 'unarchive'} <channel>`);
+  await withSession(async (services, session) => {
+    const chat = chatOf(services);
+    const target = await chat.channel(session, channel);
+    const updated = await chat.updateChannel(session, target.id, { archived });
+    success(`${bold(`#${updated.name}`)} ${archived ? 'archived: it keeps its history and takes no new messages' : 'restored'}`);
   });
 }
 

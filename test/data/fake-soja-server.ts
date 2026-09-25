@@ -126,6 +126,27 @@ export class FakeSojaServer {
       const id = this.addChannel(name);
       return json({ ...this.channels.get(id), lastReadSeq: 0 }, 201);
     }
+    const channelPatch = new RegExp(`^${ws}/channels/([^/]+)$`).exec(path);
+    if (channelPatch && init?.method === 'PATCH') {
+      const channel = this.channels.get(channelPatch[1] ?? '');
+      if (!channel) return json({ error: { code: 'channel_not_found', message: 'No such channel.' } }, 404);
+      if (body.archived !== undefined) {
+        if ((this.roles.get(userId) ?? 'owner') !== 'owner') return json({ error: { code: 'forbidden', message: 'Only owners can archive channels.' } }, 403);
+        if (channel.name === 'general') return json({ error: { code: 'invalid_input', message: '#general cannot be archived.' } }, 400);
+        channel.archivedAt = body.archived ? iso() : null;
+      }
+      if (body.topic !== undefined) channel.topic = body.topic;
+      this.log('channel', channel.id as string);
+      return json({ ...channel, lastReadSeq: 0 });
+    }
+    const projectPatch = new RegExp(`^${ws}/projects/([^/]+)$`).exec(path);
+    if (projectPatch && init?.method === 'PATCH') {
+      const project = this.projects.get(projectPatch[1] ?? '');
+      if (!project) return json({ error: { code: 'project_not_found', message: 'No such project.' } }, 404);
+      Object.assign(project, body, { updatedAt: iso() });
+      this.log('project', project.id as string);
+      return json(project);
+    }
     const history = new RegExp(`^${ws}/channels/([^/]+)/messages$`).exec(path);
     if (history) {
       const before = url.searchParams.get('before');

@@ -12,7 +12,8 @@ export async function projectCommand(args: string[]): Promise<void> {
   if (sub === 'create' || sub === 'new' || sub === 'add') return create(rest);
   if (sub === 'link') return link(rest);
   if (sub === 'unlink') return unlink(rest);
-  throw new ValidationError(`Unknown project command “${sub}”.`, { hint: 'Try: list, create, link, unlink.' });
+  if (sub === 'edit') return edit(rest);
+  throw new ValidationError(`Unknown project command “${sub}”.`, { hint: 'Try: list, create, edit, link, unlink.' });
 }
 
 async function list(): Promise<void> {
@@ -84,5 +85,26 @@ async function unlink(args: string[]): Promise<void> {
   await withSession(async (services, session) => {
     const project = await services.projects.unlinkRepository(session, await services.projects.resolve(session, key));
     success(`${bold(project.name)} is no longer linked to a repository`);
+  });
+}
+
+/** `soja project edit <key> [--name] [--description] [--url]`: an empty value clears description or URL. */
+async function edit(args: string[]): Promise<void> {
+  const { values, positionals } = parseCommand(args, {
+    name: { type: 'string' },
+    description: { type: 'string', short: 'd' },
+    url: { type: 'string' },
+  });
+  const key = requireArg(positionals[0], 'project', 'soja project edit ENROLL --name "…" --description "…" --url "…"');
+  if (values.name === undefined && values.description === undefined && values.url === undefined) {
+    throw new ValidationError('Nothing to change.', { hint: 'Pass --name, --description or --url.' });
+  }
+  await withSession(async (services, session) => {
+    const project = await services.projects.update(session, await services.projects.resolve(session, key), {
+      ...(values.name !== undefined ? { name: values.name } : {}),
+      ...(values.description !== undefined ? { description: values.description } : {}),
+      ...(values.url !== undefined ? { repositoryUrl: values.url } : {}),
+    });
+    success(`${bold(project.key)} ${project.name}${project.description ? dim(`  ${project.description}`) : ''}`);
   });
 }

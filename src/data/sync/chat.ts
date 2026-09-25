@@ -120,6 +120,18 @@ export class ReplicaChatService implements ChatOperations {
     return this.summarize(session, channel, 0);
   }
 
+  async updateChannel(session: Session, channelId: string, changes: { topic?: string | null; archived?: boolean }): Promise<ChannelSummary> {
+    const payload = {
+      ...(changes.topic !== undefined ? { topic: changes.topic === null ? null : terminalSafe(changes.topic).trim() || null } : {}),
+      ...(changes.archived !== undefined ? { archived: changes.archived } : {}),
+    };
+    const channel = await this.online('Changing a channel', () =>
+      this.context.api.patch<Channel>(`/v1/workspaces/${session.workspace.id}/channels/${channelId}`, payload),
+    );
+    await this.context.store.upsertChannel(channel);
+    return this.channel(session, channel.id);
+  }
+
   async loadOlder(session: Session, channelId: string): Promise<number> {
     const known = (await this.context.store.messagesIn(channelId)).flatMap((message) => (message.seq === null ? [] : [message.seq]));
     const before = known.length ? Math.min(...known) : null;
