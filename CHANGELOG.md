@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-24
+
+Consolidación (hito v1.0). Para importar datos locales y borrar tasks en equipo requiere `soja-backend` ≥ 1.0.0.
+
 ### Added
 
 - **Archivar tasks:** desde el menú Edit (`e`) o `soja task archive|restore <id>`. Salen de las listas y los contadores, siguen en la búsqueda y en *Archived tasks* (palette) o `soja task list --archived`. En equipo se sincroniza, también sin conexión.

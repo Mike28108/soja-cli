@@ -54,7 +54,7 @@ Decisiones (2026-09-24):
 - **Ver y hacer merge:** estado del PR, revisión y checks en el detalle y en la lista; merge del PR en GitHub desde SOJA (con confirmación), que cierra la task. Aprobar, pedir cambios y leer reviews siguen en GitHub.
 - **Compartido con el equipo** en modo remoto a través del timeline: PR mergeado en GitHub (cierra la task aunque nadie haga pull) y checks fallidos por commit. Requiere eventos nuevos en `soja-backend`.
 
-## v1.0 — Workspace colaborativo (siguiente hito)
+## v1.0 — Workspace colaborativo (publicado en v1.0.0)
 
 Consolidar tareas, Git, chat, trabajo remoto y operación sin conexión en una experiencia estable. La fecha y el alcance final se deciden después de validar los hitos anteriores.
 
