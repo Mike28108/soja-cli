@@ -8,6 +8,8 @@ export const APP_NAME = 'SOJA';
 export const APP_DESCRIPTION = 'Software Operations & Job Assistant';
 export const APP_SLOGAN = 'No dashboards. No browser. No bullshit. Just work.';
 export const APP_AUTHOR = 'Enmauel.biz';
+/** Where releases (and the installable package) are published. */
+export const APP_REPOSITORY = 'Mike28108/soja-cli';
 
 /**
  * The wordmark: a rounded pixel font drawn with half blocks, so every

@@ -11,6 +11,8 @@ export interface DatabaseHandle {
   db: Database;
   /** Runs raw SQL (migrations, pragmas). */
   exec(sql: string): void;
+  /** Writes a consistent copy of the whole database to `file` (which must not exist). */
+  backupTo(file: string): void;
   close(): void;
 }
 
@@ -72,6 +74,13 @@ export function openDatabase(file: string, options: { foreignKeys?: boolean } = 
   return {
     db,
     exec: (sql) => sqlite.exec(sql),
+    backupTo: (file) => {
+      try {
+        sqlite.prepare('VACUUM INTO ?').run(file);
+      } catch (error) {
+        throw new StorageError(`Could not write the backup to ${file}.`, { hint: 'Check that the folder is writable and has space.', cause: error });
+      }
+    },
     close: () => {
       if (sqlite.isOpen) sqlite.close();
     },

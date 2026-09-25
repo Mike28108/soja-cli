@@ -5,6 +5,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'src/database/migrations'] },
   js.configs.recommended,
+  {
+    // Maintenance scripts run on Node.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
+  },
   ...tseslint.configs.strict,
   {
     files: ['**/*.{ts,tsx}'],
