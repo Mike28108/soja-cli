@@ -19,6 +19,14 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 - **`soja import-local`:** lleva al servidor tus proyectos, tasks (también archivadas), comentarios y timeline del modo local, con fechas. Conserva los números si el workspace está vacío o muestra la equivalencia si renumera; asocia developers por username y avisa de los que no son miembros; conserva los vínculos de carpetas; no duplica si se repite. Tras `soja login`, SOJA lo sugiere si hay datos locales. Requiere `soja-backend` ≥ 1.0.
 
+- **Instalación desde GitHub Releases** con `gh` (el código sigue privado) y **`soja update`** (`--check` solo avisa). SOJA avisa de versiones nuevas al abrir la interfaz y en `soja --version`, consultando GitHub como mucho una vez al día. Cada tag publica el release con su paquete (`release.yml`).
+- **Copias de seguridad:** una diaria al abrir la interfaz (se guardan 7) de la base en uso (local o réplica), `soja backup`, `soja backup list` y `soja backup restore <nombre>` (guarda antes el estado actual).
+- **CI:** lint, tests y build en cada push y PR; chequeo de que el dominio compartido coincide con `soja-backend` (`npm run check:domain`); suite de extremo a extremo con backend real y PostgreSQL (`npm run test:e2e`). Los dos últimos necesitan el secret `SOJA_REPOS_TOKEN`.
+
+### Fixed
+
+- Los tests de Git dependían de la identidad global de Git de la máquina (los commits que hace SOJA la usaban) y fallaban en una máquina limpia. Ahora todo Git en los tests usa una identidad fija y ignora la configuración global (`test/setup.ts`); lo detectó el primer CI.
+
 ### Changed
 
 - Los números de tasks borradas no se reutilizan en modo local (`workspaces.last_deleted_number`; migración `0006`, que también añade `tasks.archived_at`).

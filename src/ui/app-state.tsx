@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useReducer,
 import type { AppServices } from '../application/services/index.js';
 import type { SyncReport, SyncStatus } from '../data/sync/engine.js';
 import type { Session } from '../application/types.js';
+import type { UpdateCheck } from '../application/services/update-service.js';
 import { toDisplayError } from '../utils/errors.js';
 import { navigate, type NavigationAction, type Route } from './navigation/routes.js';
 import type { Overlay } from './overlays/types.js';
@@ -60,10 +61,11 @@ interface ProviderProps {
   cwd: string;
   initialSession: Session;
   initialRoute?: Route;
+  updates?: () => Promise<UpdateCheck | null>;
   children: ReactNode;
 }
 
-export function AppStateProvider({ services, cwd, initialSession, initialRoute, children }: ProviderProps) {
+export function AppStateProvider({ services, cwd, initialSession, initialRoute, updates, children }: ProviderProps) {
   const { exit } = useApp();
   const [session, setSession] = useState(initialSession);
   const [stack, dispatch] = useReducer(navigate, navigate([{ name: 'home' }], { type: 'reset', ...(initialRoute ? { route: initialRoute } : {}) }));
@@ -82,6 +84,18 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
   }, []);
 
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+
+  // Once per launch, and at most one GitHub request a day.
+  useEffect(() => {
+    if (!updates) return;
+    let active = true;
+    void updates().then((update) => {
+      if (active && update?.available) notify(`SOJA v${update.latest} is available`, 'info', 'Run `soja update` to install it.');
+    });
+    return () => {
+      active = false;
+    };
+  }, [updates, notify]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, success?: string) => {

@@ -1,0 +1,38 @@
+name: Release
+
+# Pushing a tag vX.Y.Z publishes the GitHub release with its installable package:
+#   gh release download vX.Y.Z --repo Mike28108/soja-cli --pattern 'soja-cli-*.tgz' && npm install -g ./soja-cli-*.tgz
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm pack
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {found=1; next} found && /^## \[/ {exit} found' CHANGELOG.md > notes.md
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" soja-cli-*.tgz --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" soja-cli-*.tgz --title "SOJA $GITHUB_REF_NAME" --notes-file notes.md
+          fi
