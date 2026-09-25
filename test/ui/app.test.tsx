@@ -194,8 +194,8 @@ describe('daily use', () => {
     await settle(100);
     const frame = lastFrame() ?? '';
     expect(frame).toContain('Add pitch velocity');
-    // The list behind the search window still shows it once; the results do not.
-    expect(frame.split('Fix Stripe webhook').length - 1).toBe(1);
+    // The search window contains matching results only.
+    expect(frame).not.toContain('Fix Stripe webhook');
 
     await press(stdin, ENTER);
     await settle(100);
