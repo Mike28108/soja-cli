@@ -80,6 +80,34 @@ Decisiones (2026-09-25):
 - **Mouse:** clic para seleccionar, abrir, cambiar de pestaña y elegir en menús; rueda para desplazar. El teclado sigue siendo lo principal.
 - Ventanas flotantes (selectores, formularios, confirmaciones) sobre la pantalla, avisos tipo *toast*, spinners y estados de carga.
 
+## v1.2 — Interfaz reactiva y mascotas (en desarrollo)
+
+Pulir la respuesta visual de la interfaz y darle más personalidad, manteniendo la sincronización y la navegación estables. Alcance acordado (2026-09-25):
+
+- **Actualización selectiva tras sincronizar:** si el ciclo no aplica ni trae cambios, no vuelve a consultar datos de la interfaz. Si hay cambios, refresca solo los datos afectados y sus dependencias visibles: por ejemplo, una task nueva actualiza la lista correspondiente y los contadores relacionados; un cambio de task actualiza esa task, y no el resto de las pantallas. Conservar selección, scroll y overlays abiertos siempre que sigan siendo válidos. Las mutaciones locales ya actualizan la réplica al instante; este refresco selectivo se aplica a los cambios que llegan o se confirman al sincronizar.
+- **Mascotas animadas** con las escenas incluidas en `ink-agent-scenes.zip`, integradas con la paleta de SOJA y sin tomar control del teclado. En una task, la escena acompaña su estado (trabajo, bloqueo/bug, prioridad urgente o finalización); fuera de una task, representa el estado de la vista o de la app (por ejemplo, sincronización, lista vacía o descanso). Se muestran en una zona contextual al pie del panel principal; al sincronizar, la escena de sincronización tiene prioridad temporal. Respetar el tamaño natural de las escenas (hasta 78 columnas y 15 filas), y ocultarlas o reducirlas en terminales donde resten espacio útil.
+- **Marca fija en el footer:** mostrar siempre el wordmark ASCII original de tres líneas que aparece en el splash de SOJA, con el eslogan a su lado a la izquierda del footer; apilar el eslogan en terminales estrechas y conservar los atajos y el indicador de modo/conexión.
+
+La sincronización sigue siendo en segundo plano y los cambios nuevos deben reflejarse sin reiniciar la navegación ni recargar pantallas no relacionadas. Las animaciones son decorativas: no bloquean acciones ni sustituyen los estados y avisos accesibles por texto.
+
+## v1.3 — Acceso aprobado y perfiles (en implementación)
+
+Rediseñar la entrada a SOJA y el alta de cuentas remotas, coordinando `soja-cli` con `soja-backend`. El modo local seguirá disponible sin cuenta ni capacidades colaborativas. El backend continuará siendo la autoridad para autenticar usuarios, aprobar el acceso y aislar los datos por membresía de workspace.
+
+Alcance solicitado (2026-09-25):
+
+- **Inicio de sesión y modo local:** cuando no haya una sesión remota válida y exista conexión, mostrar en la pantalla inicial las opciones *Iniciar sesión con GitHub* y *Modo local*. GitHub será el único proveedor de autenticación remota. Entrar al modo local no activa chat ni datos compartidos.
+- **Solicitud de acceso:** un usuario autenticado por GitHub que aún no tenga aprobación podrá conservar una sesión restringida y enviar/revisar su solicitud de invitación, con una carta de interés de hasta 100 caracteres y un país. Mientras esté pendiente o rechazada, no entrará al modo Online ni podrá consultar o modificar workspaces, miembros, tasks, proyectos o chat. La API solo permitirá las acciones de cuenta necesarias para la propia solicitud y perfil; la identidad autenticada y la autorización de acceso son estados distintos.
+- **Aprobación del CEO:** una vista administrativa de solicitudes pendientes estará disponible solo para la cuenta GitHub `@mike28108`. Aprobar habilita el acceso a SOJA; rechazar lo mantiene bloqueado. La identidad CEO se vinculará a un identificador de GitHub estable, no solo al username mutable. Mostrar un badge exclusivo de CEO en su perfil.
+- **Perfiles:** añadir perfiles remotos con campos acordados, asociados a la identidad GitHub. Mostrar el país en el perfil y usar una lista seleccionable alimentada por REST Countries. Mantener las solicitudes y perfiles fuera de las rutas públicas y limitar las acciones administrativas al CEO.
+- **Workspaces:** después de aprobar la cuenta, entrar directamente si hay un solo workspace; mostrar un selector obligatorio antes de entrar si hay más de uno. Permitir cambiar de workspace dentro de SOJA. Si no pertenece a ninguno, explicar cómo crear uno o pedir que un owner lo agregue.
+- **Aislamiento:** cada petición y cada canal de tiempo real seguirá comprobando membresía; aprobar una cuenta no concede membresía ni acceso implícito a workspaces ajenos. La vista CEO de solicitudes no debe ampliar su acceso a los datos de esos workspaces. Preservar como aprobadas las cuentas existentes al migrar el esquema.
+- **Despliegue:** preparar variables de backend para identificar de forma segura al CEO y, si se consulta REST Countries desde el backend, guardar su credencial solo en Railway. Resolver disponibilidad/fallback de la lista de países antes de depender de un servicio externo durante el registro.
+
+Implementado en ambos repositorios: el backend añade estados de acceso, perfil privado, solicitudes, rutas de revisión CEO y protección de las rutas de workspace/WebSocket; la TUI y CLI ofrecen login/local, perfil, selección de workspace y revisión CEO. Falta validar el flujo y la migración en un entorno de prueba antes de desplegar o cerrar el hito.
+
+Este hito requiere cambios coordinados de esquema, API, autorización y pantallas iniciales en ambos repositorios, migración que preserve cuentas existentes, pruebas de aislamiento/autorización y actualización de la documentación y changelog de cliente y backend. No desplegar hasta configurar el identificador CEO y validar la migración en un entorno de prueba.
+
 ## Regla de alcance
 
 No adelantar backend, GitHub ni chat solo porque aparezcan en el roadmap. Al iniciar cada hito, confirmar el comportamiento existente, acotar los cambios y actualizar [docs/SOJA.md](docs/SOJA.md) y [CHANGELOG.md](CHANGELOG.md) conforme se implementen. No crear integraciones vacías ni simular capacidad remota.

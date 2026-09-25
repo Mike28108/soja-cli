@@ -2,6 +2,7 @@
 import { ValidationError } from '../domain/errors.js';
 import { toDisplayError } from '../utils/errors.js';
 import { loginCommand, logoutCommand, modeCommand, whoamiCommand } from './commands/account.js';
+import { accessCommand } from './commands/access.js';
 import { devCommand } from './commands/dev.js';
 import { foldersCommand } from './commands/folders.js';
 import { backupCommand } from './commands/backup.js';
@@ -62,6 +63,8 @@ async function main(argv: string[]): Promise<void> {
       return devCommand(rest);
     case 'login':
       return loginCommand(rest);
+    case 'access':
+      return accessCommand(rest);
     case 'logout':
       return logoutCommand();
     case 'whoami':

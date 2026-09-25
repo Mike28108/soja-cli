@@ -35,6 +35,8 @@ export interface BootstrapOptions {
   replicaFile?: string;
   /** Real-time connection for remote mode (tests pass a fake). */
   WebSocket?: typeof WebSocket;
+  /** Start private local services when a saved remote session is unavailable. */
+  forceLocal?: boolean;
 }
 
 /**
@@ -49,7 +51,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
   const git = options.git ?? new CliGit(gitConsole);
 
   const loaded = config.load();
-  if (loaded?.mode === 'remote' && loaded.remote) {
+  if (loaded?.mode === 'remote' && loaded.remote && !options.forceLocal) {
     const credentials = options.credentials ?? new CredentialStore(paths.credentialsFile);
     const token = credentials.token(loaded.remote.apiUrl);
     if (!token) {

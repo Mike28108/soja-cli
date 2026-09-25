@@ -17,7 +17,7 @@ import { ScreenFrame } from './ScreenFrame.js';
 export function ProjectsScreen({ active }: { active: boolean }) {
   const { services, session, go } = useAppState();
   const { width, height } = useLayout();
-  const query = useQuery(() => services.projects.list(session), `projects:${session.workspace.id}`);
+  const query = useQuery(() => services.projects.list(session), `projects:${session.workspace.id}`, [`projects:${session.workspace.id}`, `tasks:${session.workspace.id}`]);
   const projects = query.data ?? [];
   const rows = Math.max(1, height - 3);
   const list = useList(projects.length, rows);

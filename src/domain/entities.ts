@@ -5,6 +5,8 @@ export interface User {
   email: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Supplied by the online account profile; absent from local accounts. */
+  isCeo?: boolean;
 }
 
 export type UserRef = Pick<User, 'id' | 'username' | 'displayName'>;

@@ -25,10 +25,10 @@ export function Sidebar({ width, height, active }: { width: number; height: numb
       if (task.status === 'todo' || task.status === 'in_progress' || task.status === 'review' || task.status === 'blocked') byView[task.status] += 1;
     }
     return byView;
-  }, `sidebar-counts:${session.workspace.id}`);
-  const projects = useQuery(() => services.projects.list(session), `sidebar-projects:${session.workspace.id}`);
+  }, `sidebar-counts:${session.workspace.id}`, [`sidebar-tasks:${session.workspace.id}`]);
+  const projects = useQuery(() => services.projects.list(session), `sidebar-projects:${session.workspace.id}`, [`projects:${session.workspace.id}`, `tasks:${session.workspace.id}`]);
   const chat = services.chat;
-  const channels = useQuery(async () => (chat ? chat.channels(session) : []), `sidebar-channels:${session.workspace.id}`);
+  const channels = useQuery(async () => (chat ? chat.channels(session) : []), `sidebar-channels:${session.workspace.id}`, [`sidebar-channels:${session.workspace.id}`]);
 
   const onHome = route.name === 'home';
   const openView = (filter: TaskFilter) => {

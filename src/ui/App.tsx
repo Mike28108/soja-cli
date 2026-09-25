@@ -10,6 +10,7 @@ import { KeyProvider, useKeys } from './input/KeyProvider.js';
 import type { Route } from './navigation/routes.js';
 import type { UpdateCheck } from '../application/services/update-service.js';
 import { SetupScreen } from './screens/SetupScreen.js';
+import { WelcomeScreen } from './screens/WelcomeScreen.js';
 import { TerminalSizeProvider } from './hooks/use-terminal-size.js';
 import { Shell } from './Shell.js';
 import { palette, symbols } from './theme/theme.js';
@@ -63,6 +64,8 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
   const [created, setCreated] = useState<Session | null>(null);
+  const [localSetup, setLocalSetup] = useState(false);
+  const [localChoiceDone, setLocalChoiceDone] = useState(false);
   const [failure, setFailure] = useState<DisplayError | null>(null);
   const [splashDone, setSplashDone] = useState(splashMs <= 0);
 
@@ -93,8 +96,9 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
     case 'splash':
       return <Splash />;
     case 'setup':
-      return <SetupScreen services={services} onDone={setCreated} />;
+      return localSetup ? <SetupScreen services={services} onDone={setCreated} /> : <WelcomeScreen onLocal={() => { setLocalSetup(true); setLocalChoiceDone(true); }} />;
     case 'failed':
+      if (services.environment.mode === 'remote') return <WelcomeScreen onLocal={() => exit()} />;
       return (
         <Box paddingX={1} paddingTop={1} flexDirection="column">
           <Text color={palette.danger}>{`${symbols.cross} ${phase.error.message}`}</Text>
@@ -106,6 +110,7 @@ function Boot({ services, splashMs, cwd, initialRoute, updates }: Required<Omit<
         </Box>
       );
     case 'ready':
+      if (services.environment.mode === 'local' && !localChoiceDone) return <WelcomeScreen onLocal={() => setLocalChoiceDone(true)} />;
       return (
         <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})} {...(updates ? { updates } : {})}>
           <Shell />

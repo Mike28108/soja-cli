@@ -7,6 +7,23 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-25
+
+### Added
+
+- **Acceso remoto aprobado:** el login de GitHub crea una sesión separada del permiso Online. Las cuentas nuevas completan nombre, fecha de nacimiento, país y una carta de hasta 100 caracteres; quedan en modo local hasta aprobación. `soja access status|request|approvals|approve|reject` consulta y administra solicitudes; solo el ID GitHub CEO configurado puede aprobar.
+- **Selección de workspace al entrar:** cuando una cuenta aprobada pertenece a varios workspaces, `soja login` pide elegir uno antes de activar el modo remoto.
+- **Inicio de cuenta en la TUI:** ofrece GitHub o Modo Local, recoge el perfil con un selector de países buscable y reanuda Online después de autenticar; la vista `A` lista y resuelve solicitudes para el CEO. Su badge se muestra junto al usuario.
+
+- **Chat:** `Ctrl+G` abre el selector de canales incluso con el foco en el compositor; permite cambiar o crear un canal sin pasar primero a la lista de mensajes.
+- **Mascotas animadas** integradas desde `ink-agent-scenes`, con colores de SOJA y escenas por estado de task, lista y sincronización. Se muestran al pie del panel en terminales amplias y se pausan cuando la pantalla queda oculta.
+- **Marca persistente en el footer:** wordmark ASCII original de tres líneas (el del splash) junto al eslogan, bajo la fila de modo, atajos y conexión; la altura y disposición se adaptan al ancho de la terminal.
+- Se añadió una fila de aire entre el panel y el footer, y otra entre los atajos del footer y el wordmark.
+
+### Changed
+
+- La sincronización remota invalida consultas por entidad y dependencia: los ciclos sin cambios no recargan datos; los cambios de tasks, proyectos, miembros y chat actualizan las vistas relacionadas. La selección de la task se conserva si sigue en la lista, y el detalle sigue la identidad estable cuando una task recibe su número definitivo.
+
 ## [1.1.0] - 2026-09-25
 
 Interfaz tipo aplicación (hito v1.1). Solo interfaz: los comandos, los datos y el servidor no cambian.
@@ -187,7 +204,8 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Mike28108/soja-cli/compare/v1.1.0...v1.3.0
 [0.4.1]: https://github.com/Mike28108/soja-cli/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/Mike28108/soja-cli/compare/v0.1.0...v0.2.0
