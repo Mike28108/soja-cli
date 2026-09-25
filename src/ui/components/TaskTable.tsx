@@ -1,9 +1,12 @@
 import { Box, Text } from 'ink';
 import type { TaskView } from '../../application/types.js';
 import type { PullRequest } from '../../git/types.js';
-import { PullRequestMark } from './PullRequestLabel.js';
+import { Layer } from '../input/dispatcher.js';
+import { Clickable } from '../kit/Clickable.js';
+import { ScrollBar } from '../kit/ScrollBar.js';
 import { palette, symbols } from '../theme/theme.js';
-import { PriorityLabel, StatusLabel } from './Labels.js';
+import { PriorityMeter, StatusBadge } from './Labels.js';
+import { PullRequestMark } from './PullRequestLabel.js';
 import { layoutTaskColumns } from './task-columns.js';
 
 interface TaskTableProps {
@@ -16,70 +19,120 @@ interface TaskTableProps {
   showHeader?: boolean;
   /** Pull requests by task id, shown before the title. */
   pullRequests?: ReadonlyMap<string, PullRequest> | undefined;
+  /** Mouse: a click selects; clicking the selected row opens it. */
+  onSelect?: ((index: number) => void) | undefined;
+  onOpen?: ((index: number) => void) | undefined;
+  /** Mouse wheel over the table. */
+  onScroll?: ((delta: 1 | -1) => void) | undefined;
+  layer?: Layer;
+  active?: boolean;
 }
 
-export function TaskTable({ tasks, selected, offset, height, width, showAssignee = false, showHeader = true, pullRequests }: TaskTableProps) {
+export function TaskTable({
+  tasks,
+  selected,
+  offset,
+  height,
+  width,
+  showAssignee = false,
+  showHeader = true,
+  pullRequests,
+  onSelect,
+  onOpen,
+  onScroll,
+  layer = Layer.screen,
+  active = true,
+}: TaskTableProps) {
   const refWidth = Math.max(8, ...tasks.map((task) => task.ref.length));
   const columns = layoutTaskColumns(width, { showAssignee, refWidth });
   const rows = tableRows(height, showHeader);
   const visible = tasks.slice(offset, offset + rows);
 
   return (
-    <Box flexDirection="column">
-      {showHeader ? (
-        <Box>
-          <Box width={2} />
-          <Cell width={columns.ref} dim text="ID" />
-          <Cell width={columns.priority} dim text="PRI" />
-          {columns.project ? <Cell width={columns.project} dim text="PROJECT" /> : null}
-          <Cell width={columns.status} dim text={columns.statusGlyphOnly ? '' : 'STATUS'} />
-          {columns.assignee ? <Cell width={columns.assignee} dim text="ASSIGNEE" /> : null}
-          <Cell width={columns.title} dim text="TITLE" />
-        </Box>
-      ) : null}
-      {visible.map((task, position) => {
-        const isSelected = offset + position === selected;
-        const pr = pullRequests?.get(task.id);
-        return (
-          <Box key={task.id}>
-            <Box width={2}>
-              <Text color={palette.accent}>{isSelected ? symbols.pointer : ' '}</Text>
-            </Box>
-            <Box width={columns.ref}>
-              <Text color={isSelected ? palette.accent : undefined} dimColor={!isSelected}>
-                {task.ref}
-              </Text>
-            </Box>
-            <Box width={columns.priority}>
-              <PriorityLabel priority={task.priority} />
-            </Box>
-            {columns.project ? <Cell width={columns.project} dim={!task.project} text={task.project?.name ?? '—'} /> : null}
-            <Box width={columns.status}>
-              <StatusLabel status={task.status} glyphOnly={columns.statusGlyphOnly} />
-            </Box>
-            {columns.assignee ? (
-              <Cell width={columns.assignee} dim text={task.assignee ? `@${task.assignee.username}` : '—'} />
-            ) : null}
-            <Box width={columns.title}>
-              <Text wrap="truncate-end">
-                {task.archivedAt ? <Text dimColor>{'archived · '}</Text> : null}
-                {pr ? <PullRequestMark pr={pr} /> : null}
-                <Text bold={isSelected} dimColor={task.status === 'cancelled'} strikethrough={task.status === 'cancelled'}>
-                  {task.title}
-                </Text>
-              </Text>
-            </Box>
+    <Clickable onWheel={onScroll} layer={layer} active={active} flexDirection="column">
+      <Box flexDirection="column" flexGrow={1}>
+        {showHeader ? (
+          <Box>
+            <Box width={2} />
+            <Cell width={columns.ref} text="ID" />
+            <Cell width={columns.priority} text={columns.priorityLabel ? "PRIORITY" : "PRI"} />
+            <Cell width={columns.status} text={columns.statusGlyphOnly ? '' : 'STATUS'} />
+            {columns.project ? <Cell width={columns.project} text="PROJECT" /> : null}
+            {columns.assignee ? <Cell width={columns.assignee} text="ASSIGNEE" /> : null}
+            <Cell width={columns.title} text="TITLE" />
           </Box>
-        );
-      })}
-    </Box>
+        ) : null}
+        <Box>
+          <Box flexDirection="column" flexGrow={1}>
+            {visible.map((task, position) => {
+              const index = offset + position;
+              const isSelected = index === selected;
+              const pr = pullRequests?.get(task.id);
+              const bg = isSelected ? { backgroundColor: palette.selection } : {};
+              const closed = task.status === 'cancelled' || task.status === 'done';
+              return (
+                <Clickable
+                  key={task.id}
+                  layer={layer}
+                  active={active}
+                  onClick={() => (isSelected ? onOpen?.(index) : onSelect?.(index))}
+                >
+                  <Box flexGrow={1} {...bg}>
+                    <Box width={2} flexShrink={0}>
+                      <Text color={palette.accent} {...bg}>
+                        {isSelected ? `${symbols.pointer} ` : '  '}
+                      </Text>
+                    </Box>
+                    <Box width={columns.ref} flexShrink={0}>
+                      <Text color={isSelected ? palette.accent : palette.muted} bold={isSelected} {...bg}>
+                        {task.ref}
+                      </Text>
+                    </Box>
+                    <Box width={columns.priority} flexShrink={0}>
+                      <PriorityMeter priority={task.priority} label={columns.priorityLabel} background={bg.backgroundColor} />
+                    </Box>
+                    <Box width={columns.status} flexShrink={0}>
+                      <StatusBadge status={task.status} glyphOnly={columns.statusGlyphOnly} />
+                    </Box>
+                    {columns.project ? (
+                      <Box width={columns.project} flexShrink={0} paddingRight={1}>
+                        <Text color={task.project ? palette.muted : palette.faint} wrap="truncate-end" {...bg}>
+                          {task.project?.name ?? '—'}
+                        </Text>
+                      </Box>
+                    ) : null}
+                    {columns.assignee ? (
+                      <Box width={columns.assignee} flexShrink={0} paddingRight={1}>
+                        <Text color={palette.muted} wrap="truncate-end" {...bg}>
+                          {task.assignee ? `@${task.assignee.username}` : '—'}
+                        </Text>
+                      </Box>
+                    ) : null}
+                    <Box flexGrow={1} flexShrink={1}>
+                      <Text wrap="truncate-end" {...bg}>
+                        {task.archivedAt ? <Text color={palette.faint}>{'archived · '}</Text> : null}
+                        {pr ? <PullRequestMark pr={pr} /> : null}
+                        <Text color={closed ? palette.muted : palette.text} bold={isSelected} strikethrough={task.status === 'cancelled'}>
+                          {task.title}
+                        </Text>
+                      </Text>
+                    </Box>
+                  </Box>
+                </Clickable>
+              );
+            })}
+          </Box>
+          <ScrollBar total={tasks.length} visible={rows} offset={offset} height={Math.min(rows, tasks.length)} />
+        </Box>
+      </Box>
+    </Clickable>
   );
 }
 
-function Cell({ width, text, dim = false }: { width: number; text: string; dim?: boolean }) {
+function Cell({ width, text }: { width: number; text: string }) {
   return (
-    <Box width={width} paddingRight={1}>
-      <Text dimColor={dim} wrap="truncate-end">
+    <Box width={width} paddingRight={1} flexShrink={0}>
+      <Text color={palette.faint} bold wrap="truncate-end">
         {text}
       </Text>
     </Box>

@@ -5,7 +5,12 @@ import { useFlows } from './use-flows.js';
 
 /** The command palette: every major action, filterable by typing. */
 export function useCommandPalette(newTaskProjectId: string | null): () => void {
-  const { openOverlay, go, quit, services, session, run } = useAppState();
+  const { openOverlay, go, quit, services, session, run, setHomeFilter } = useAppState();
+  // Views of home: the filter is shared app state (the sidebar shows it too).
+  const showView = (filter: Parameters<typeof setHomeFilter>[0]) => {
+    setHomeFilter(filter);
+    go({ type: 'reset' });
+  };
   const flows = useFlows();
 
   return () => {
@@ -14,9 +19,9 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       ...TASK_FILTERS.map((filter) => ({
         id: `filter-${filter}`,
         label: FILTER_LABELS[filter],
-        run: () => go({ type: 'reset', route: { name: 'home', filter } }),
+        run: () => showView(filter),
       })),
-      { id: 'filter-archived', label: 'Archived tasks', run: () => go({ type: 'reset', route: { name: 'home', filter: 'archived' } }) },
+      { id: 'filter-archived', label: 'Archived tasks', run: () => showView('archived') },
       { id: 'search', label: 'Search', key: '/', run: () => openOverlay({ kind: 'search' }) },
       { id: 'projects', label: 'Projects', key: 'p', run: () => go({ type: 'push', route: { name: 'projects' } }) },
       { id: 'switch-project', label: 'Switch project', run: () => flows.pickProject() },

@@ -10,6 +10,8 @@ import { useQuery } from '../hooks/use-query.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
 import { palette, symbols } from '../theme/theme.js';
+import { Clickable } from '../kit/Clickable.js';
+import { Gauge } from '../kit/Gauge.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
 export function ProjectsScreen({ active }: { active: boolean }) {
@@ -39,10 +41,14 @@ export function ProjectsScreen({ active }: { active: boolean }) {
   );
 
   const wide = width >= 88;
+  // Fixed columns: pointer, key, active; then progress, review, blocked, done gauge and repo when wide.
+  const nameWidth = Math.max(10, width - 2 - 9 - 8 - (wide ? 10 + 8 + 9 + 17 + 16 : 0) - 1);
   return (
     <ScreenFrame
+      title="Projects"
+      aside={projects.length ? `${projects.length} project${projects.length === 1 ? '' : 's'}` : undefined}
       hints={[
-        ['j/k', 'move'],
+        ['↑↓', 'move'],
         ['enter', 'open'],
         ['n', 'new project'],
         ['r', 'link repo'],
@@ -50,82 +56,102 @@ export function ProjectsScreen({ active }: { active: boolean }) {
         ['esc', 'back'],
       ]}
     >
-      <Text bold>PROJECTS</Text>
       {projects.length === 0 && !query.loading ? (
-        <EmptyState lines={EMPTY_PROJECTS} />
+        <EmptyState lines={EMPTY_PROJECTS} icon={symbols.dot} />
       ) : (
-        <Box marginTop={1} flexDirection="column">
+        <Clickable onWheel={(direction) => list.select(list.index + direction)} active={active} flexDirection="column">
           <Box>
             <Box width={2} />
-            <Box width={9}>
-              <Text dimColor>KEY</Text>
+            <Header width={9} text="KEY" />
+            <Box width={nameWidth} flexShrink={0}>
+              <Text color={palette.faint} bold>
+                NAME
+              </Text>
             </Box>
-            <Box flexGrow={1}>
-              <Text dimColor>NAME</Text>
-            </Box>
-            <Box width={8} justifyContent="flex-end">
-              <Text dimColor>ACTIVE</Text>
-            </Box>
+            <Header width={8} text="ACTIVE" right />
             {wide ? (
               <>
-                <Box width={10} justifyContent="flex-end">
-                  <Text dimColor>PROGRESS</Text>
+                <Header width={10} text="PROGRESS" right />
+                <Header width={8} text="REVIEW" right />
+                <Header width={9} text="BLOCKED" right />
+                <Box width={17} paddingLeft={3}>
+                  <Text color={palette.faint} bold>
+                    DONE
+                  </Text>
                 </Box>
-                <Box width={8} justifyContent="flex-end">
-                  <Text dimColor>REVIEW</Text>
-                </Box>
-                <Box width={9} justifyContent="flex-end">
-                  <Text dimColor>BLOCKED</Text>
-                </Box>
-                <Box width={18} paddingLeft={3}>
-                  <Text dimColor>REPO</Text>
+                <Box width={16} paddingLeft={2}>
+                  <Text color={palette.faint} bold>
+                    REPO
+                  </Text>
                 </Box>
               </>
             ) : null}
           </Box>
           {projects.slice(list.offset, list.offset + rows - 1).map((project, position) => {
-            const selected = list.offset + position === list.index;
+            const index = list.offset + position;
+            const selected = index === list.index;
+            const bg = selected ? { backgroundColor: palette.selection } : {};
+            const total = Object.values(project.counts).reduce((sum, count) => sum + count, 0);
             return (
-              <Box key={project.id}>
-                <Box width={2}>
-                  <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
+              <Clickable
+                key={project.id}
+                active={active}
+                onClick={() => (selected ? go({ type: 'push', route: { name: 'project', projectId: project.id } }) : list.select(index))}
+              >
+                <Box flexGrow={1} {...bg}>
+                  <Box width={2}>
+                    <Text color={palette.accent}>{selected ? symbols.pointer : ' '}</Text>
+                  </Box>
+                  <Box width={9}>
+                    <Text color={selected ? palette.accent : palette.muted} bold={selected}>
+                      {project.key}
+                    </Text>
+                  </Box>
+                  <Box width={nameWidth} flexShrink={0}>
+                    <Text color={palette.text} bold={selected} wrap="truncate-end">
+                      {project.name}
+                    </Text>
+                  </Box>
+                  <Count width={8} value={project.active} color={palette.text} />
+                  {wide ? (
+                    <>
+                      <Count width={10} value={project.counts.in_progress} color={palette.warning} />
+                      <Count width={8} value={project.counts.review} color={palette.info} />
+                      <Count width={9} value={project.counts.blocked} color={palette.danger} />
+                      <Box width={17} paddingLeft={3}>
+                        <Gauge value={project.counts.done} total={total} width={8} />
+                      </Box>
+                      <Box width={16} paddingLeft={2}>
+                        <Text color={project.repositoryPath ? palette.muted : palette.faint} wrap="truncate-end">
+                          {project.repositoryPath ? basename(project.repositoryPath) : 'not linked · r'}
+                        </Text>
+                      </Box>
+                    </>
+                  ) : null}
                 </Box>
-                <Box width={9}>
-                  <Text dimColor={!selected} color={selected ? palette.accent : undefined}>
-                    {project.key}
-                  </Text>
-                </Box>
-                <Box flexGrow={1}>
-                  <Text bold={selected} wrap="truncate-end">
-                    {project.name}
-                  </Text>
-                </Box>
-                <Count width={8} value={project.active} />
-                {wide ? (
-                  <>
-                    <Count width={10} value={project.counts.in_progress} color={palette.warning} />
-                    <Count width={8} value={project.counts.review} color={palette.info} />
-                    <Count width={9} value={project.counts.blocked} color={palette.danger} />
-                    <Box width={18} paddingLeft={3}>
-                      <Text dimColor wrap="truncate-end">
-                        {project.repositoryPath ? basename(project.repositoryPath) : symbols.dot}
-                      </Text>
-                    </Box>
-                  </>
-                ) : null}
-              </Box>
+              </Clickable>
             );
           })}
-        </Box>
+        </Clickable>
       )}
     </ScreenFrame>
+  );
+}
+
+function Header({ width, text, right = false }: { width: number; text: string; right?: boolean }) {
+  return (
+    <Box width={width} justifyContent={right ? 'flex-end' : 'flex-start'}>
+      <Text color={palette.faint} bold>
+        {text}
+      </Text>
+    </Box>
   );
 }
 
 function Count({ width, value, color }: { width: number; value: number; color?: string }) {
   return (
     <Box width={width} justifyContent="flex-end">
-      <Text color={value ? color : undefined} dimColor={!value}>
+      <Text color={value ? color : palette.faint}>
         {value ? String(value) : symbols.dot}
       </Text>
     </Box>

@@ -1,19 +1,19 @@
 import type { Member } from '../../application/types.js';
 import type { Project } from '../../domain/entities.js';
 import { TASK_PRIORITIES, TASK_STATUSES, TASK_TYPES, TYPE_LABELS } from '../../domain/task.js';
-import { priorityStyles, statusStyles } from '../theme/theme.js';
+import { priorityStyles, priorityTone, statusStyles, statusTone } from '../theme/theme.js';
 import type { PickerOption } from './types.js';
 
 export const NONE = '__none__';
 
 export const statusOptions: PickerOption[] = TASK_STATUSES.map((status) => {
   const style = statusStyles[status];
-  return { value: status, label: `${style.glyph} ${style.label}`, color: style.color, dim: style.dim };
+  return { value: status, label: `${style.glyph} ${style.label}`, tone: statusTone[status], dim: status === 'cancelled' };
 });
 
 export const priorityOptions: PickerOption[] = [...TASK_PRIORITIES].reverse().map((priority) => {
   const style = priorityStyles[priority];
-  return { value: priority, label: priority === 'none' ? 'NONE' : style.label, color: style.color, dim: style.dim };
+  return { value: priority, label: priority === 'none' ? 'NONE' : style.label, tone: priorityTone[priority], dim: priority === 'none' };
 });
 
 export const typeOptions: PickerOption[] = TASK_TYPES.map((type) => ({ value: type, label: TYPE_LABELS[type] }));

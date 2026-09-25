@@ -1,4 +1,3 @@
-import { useApp } from 'ink';
 import type { TaskView } from '../../application/types.js';
 import { pullRequestWarnings } from '../../application/services/index.js';
 import {
@@ -14,6 +13,7 @@ import { toDisplayError } from '../../utils/errors.js';
 import { editInEditor } from '../../utils/editor.js';
 import { tildify } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
+import { useExternalTerminal } from '../input/KeyProvider.js';
 import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statusOptions, typeOptions } from '../overlays/options.js';
 
 /**
@@ -22,7 +22,7 @@ import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statu
  */
 export function useTaskActions() {
   const { services, session, openOverlay, run, notify, cwd, route, go } = useAppState();
-  const { suspendTerminal } = useApp();
+  const external = useExternalTerminal();
   const { tasks } = services;
 
   const report = (error: unknown) => {
@@ -30,19 +30,16 @@ export function useTaskActions() {
     notify(display.message, 'error', display.hint);
   };
 
-  /** A yes/no picker; "No" is the default so Enter never destroys anything by accident. */
-  const confirm = (title: string, context: string, yes: string, onYes: () => void) =>
+  /** A yes/no window with buttons; Cancel is the default so Enter never destroys anything by accident. */
+  const confirm = (title: string, message: string, yes: string, onYes: () => void) =>
     openOverlay({
-      kind: 'picker',
+      kind: 'confirm',
       title,
-      context,
-      options: [
-        { value: 'no', label: 'Cancel' },
-        { value: 'yes', label: yes, color: 'yellow' },
-      ],
-      onSelect: (value) => {
-        if (value === 'yes') onYes();
-      },
+      message,
+      confirmLabel: yes,
+      // Anything that deletes is marked as dangerous; the rest only asks for a look.
+      tone: /delete|force|anyway/i.test(yes) ? 'danger' : 'warning',
+      onConfirm: () => onYes(),
     });
 
   const update = (task: TaskView, changes: Parameters<typeof tasks.update>[2], success: string) =>
@@ -144,7 +141,7 @@ export function useTaskActions() {
     async description(task: TaskView) {
       let edited: string | null = null;
       try {
-        await suspendTerminal(async () => {
+        await external(async () => {
           edited = await editInEditor(task.description ?? '', { name: `${task.ref}.md` });
         });
       } catch (error) {
@@ -366,8 +363,8 @@ export function useTaskActions() {
         context: `${pr.head} → ${pr.base} · merge commit${warnings.length ? ` · ${warnings.join(', ')}` : ''}`,
         options: [
           { value: 'no', label: 'Cancel' },
-          { value: 'merge', label: `Merge PR #${pr.number}`, color: warnings.length ? 'yellow' : 'green' },
-          { value: 'merge-delete', label: `Merge and delete ${pr.head}`, color: 'yellow' },
+          { value: 'merge', label: `Merge PR #${pr.number}`, tone: warnings.length ? 'warning' : 'success' },
+          { value: 'merge-delete', label: `Merge and delete ${pr.head}`, tone: 'warning' },
         ],
         onSelect: (value) => {
           if (value === 'merge') execute(false);
@@ -434,7 +431,7 @@ export function useTaskActions() {
         options: [
           ...fields.map(([value, label, key]) => ({ value, label, hint: key })),
           { value: 'archive', label: archived ? 'Restore from the archive' : 'Archive', hint: archived ? '' : 'hide from lists' },
-          { value: 'delete', label: 'Delete permanently…', color: 'red' as const, hint: 'owners' },
+          { value: 'delete', label: 'Delete permanently…', tone: 'danger' as const, hint: 'owners' },
         ],
         onSelect: (value) => {
           if (value === 'archive') void actions.toggleArchive(task);

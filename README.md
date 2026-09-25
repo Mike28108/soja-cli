@@ -12,7 +12,7 @@
 
 SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. Convierte las solicitudes que llegan por WhatsApp, reuniones o mensajes en tareas técnicas trazables en segundos, sin salir de la shell.
 
-- **Terminal-native:** interfaz TUI con React + Ink, manejada por completo con el teclado y con atajos estilo Vim.
+- **Terminal-native, con aspecto de aplicación:** interfaz TUI con React + Ink, con paneles, barra lateral, ventanas flotantes, tema claro/oscuro y mouse; todo se maneja también con el teclado y atajos estilo Vim.
 - **Rápido:** para crear una task basta el título.
 - **Trazable:** cada cambio queda en el timeline de la task, junto a los comentarios.
 - **Local-first:** tus datos viven en SQLite en tu máquina. En equipo, `soja login` conecta con [`soja-backend`](https://github.com/Mike28108/soja-backend) y sigue funcionando sin conexión.
