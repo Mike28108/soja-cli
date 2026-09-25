@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.3.0** |
-| Versión del documento | **1.3.0** (revisión 8) |
+| Versión de la app | **1.4.0** |
+| Versión del documento | **1.4.0** (revisión 1) |
 | Última actualización | 2026-09-25 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,7 +57,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.3.0)
+### Estado actual (v1.4.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
@@ -75,15 +75,16 @@ El chat requiere `soja-backend` ≥ 0.3.0. El acceso online requiere aprobación
 
 ### Instalar (recomendado)
 
-Cada versión se publica en GitHub Releases con su paquete. El repositorio es privado, así que se descarga con la [CLI `gh`](https://cli.github.com) (con una cuenta que tenga acceso) y se instala con npm:
+Cada versión estable se distribuye desde npm:
 
 ```bash
-gh release download --repo Mike28108/soja-cli --pattern 'soja-cli-*.tgz' --dir /tmp/soja
-npm install -g /tmp/soja/soja-cli-*.tgz
+npm install --global soja-cli
 soja
 ```
 
-**Actualizar:** `soja update` descarga e instala la última versión (pide confirmación); `soja update --check` solo avisa. SOJA también avisa de versiones nuevas al abrir la interfaz y en `soja --version`, consultando GitHub como mucho una vez al día. Tus datos y tu configuración no se tocan.
+**Actualizar:** `soja update` descarga e instala la última versión de npm (pide confirmación); `soja update --check` solo avisa. SOJA también avisa de versiones nuevas al abrir la interfaz y en `soja --version`, consultando npm como mucho una vez al día. Tus datos y tu configuración no se tocan.
+
+**Cuenta y privacidad:** `soja account delete` revoca tus sesiones y anonimiza tu autoría en contenido compartido. Si eres la única persona propietaria de un workspace, transfiere primero la propiedad. Consulta [el aviso de privacidad](PRIVACY.md) y [la licencia propietaria](../LICENSE).
 
 ### Desde el código fuente
 
@@ -594,7 +595,7 @@ soja use <slug o nombre>          # equivale a: soja workspace use <…>
 ### Cuenta y modo remoto
 
 ```bash
-soja login [--server <url>]        # device flow; las cuentas nuevas solicitan aprobación
+soja login [--server <url>]        # usa el backend oficial por defecto; --server permite otro
 soja access status                 # estado de aprobación y badge CEO si aplica
 soja access request                # completar/actualizar perfil y carta (máximo 100 caracteres)
 soja access approvals              # lista de solicitudes (CEO)
@@ -841,7 +842,8 @@ soja (tu máquina) ──HTTPS──▶ soja-backend ──▶ PostgreSQL (Supab
 ### Empezar
 
 ```bash
-soja login --server https://tu-servidor-soja
+soja login                              # backend oficial: https://soja-backend-production.up.railway.app
+soja login --server https://otro-servidor # servidor alternativo explícito
 #  1. Open   https://github.com/login/device
 #  2. Enter  ABCD-1234        ← apruebas una vez en el navegador
 #  ✓ Signed in as @michael
@@ -1436,7 +1438,11 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 2. En `CHANGELOG.md`, mueve lo que está en **Unreleased** a la nueva versión, con fecha.
 3. En este documento, actualiza la tabla de cabecera y el historial de revisiones.
 4. Haz commit (`release: vX.Y.Z`) y crea el tag `vX.Y.Z`.
-5. Sube ambos: `git push && git push --tags`. El tag dispara `release.yml`, que publica el release de GitHub con el paquete instalable y las notas del CHANGELOG (no hace falta crearlo a mano).
+5. Sube ambos: `git push && git push --tags`. El tag dispara `release.yml` (release de GitHub con el paquete y las notas del CHANGELOG) y `publish.yml` (publicación en npm con OIDC y *provenance*; ver [NPM_PUBLISH.md](NPM_PUBLISH.md)). No hace falta crear nada a mano. `main` está protegida: el commit de release entra por pull request.
+
+### Contribuciones
+
+El repositorio es público, pero solo los colaboradores aprobados por el propietario pueden abrir pull requests: los demás se cierran solos (`pr-guard.yml`). `main` exige pull request, revisión del propietario (`CODEOWNERS`) y la CI `check` en verde; el propietario puede saltarse la revisión en sus propios PRs (`gh pr merge --admin`). Ver [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### Reglas de este documento
 
@@ -1448,6 +1454,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.4.0 r1 | 1.4.0 | 2026-09-25 | Publicación de v1.4.0: instalación y actualizaciones desde npm, `soja account delete`, servidor oficial por defecto, HTTPS obligatorio, repositorio público con PRs solo de colaboradores aprobados (§17 *Contribuciones*), publicación con OIDC y provenance. |
 | 1.1.0 r6 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de aire entre los atajos del footer y el wordmark. |
 | 1.1.0 r5 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de separación entre el panel y el footer; §13: altura del layout reserva esa fila. |
 | 1.1.0 r4 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: wordmark ASCII de inicio junto al eslogan en el footer; se explica que `#general` es el canal existente del workspace; §13 altura adaptable del footer. |

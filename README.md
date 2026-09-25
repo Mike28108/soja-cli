@@ -22,15 +22,20 @@ SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. 
 
 ## Instalar
 
-Requiere **Node.js 24+** y la [CLI `gh`](https://cli.github.com) con acceso a este repositorio:
+Requiere **Node.js 24+**:
 
 ```bash
-gh release download --repo Mike28108/soja-cli --pattern 'soja-cli-*.tgz' --dir /tmp/soja
-npm install -g /tmp/soja/soja-cli-*.tgz
+npm install --global soja-cli
 soja
 ```
 
 `soja update` instala versiones nuevas (SOJA avisa cuando hay una).
+
+SOJA es software propietario. La instalación permite usar el paquete sin conceder derechos de redistribución o modificación; consulta [LICENSE](LICENSE). El aviso de privacidad está en [docs/PRIVACY.md](docs/PRIVACY.md).
+
+Las contribuciones están limitadas a colaboradores aprobados; consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+
+La configuración de publicación está en [docs/NPM_PUBLISH.md](docs/NPM_PUBLISH.md).
 
 ## Desde el código
 

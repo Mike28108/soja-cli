@@ -46,7 +46,7 @@ describe('updates', () => {
     await updates.cachedCheck();
     expect(releases.asked).toBe(2);
     await updates.install('1.1.0');
-    expect(releases.installed).toEqual(['/tmp/soja-cli-v1.1.0.tgz']);
+    expect(releases.installed).toEqual(['/tmp/soja-cli-1.1.0.tgz']);
   });
 
   it('stays quiet when GitHub cannot be asked', async () => {
