@@ -6,8 +6,8 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.0.0** |
-| Versión del documento | **1.0.0** (revisión 2) |
+| Versión de la app | **1.1.0** |
+| Versión del documento | **1.1.0** (revisión 1) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -57,7 +57,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.0.0)
+### Estado actual (v1.1.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
@@ -1386,7 +1386,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
 
-Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0 y v1.0 (consolidación) en v1.0.0. Lo siguiente se decide con el uso real del equipo.
+Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0 v1.0 (consolidación) en v1.0.0 y v1.1 (interfaz tipo aplicación: paneles, paleta clara/oscura, mouse) en v1.1.0. Lo siguiente se decide con el uso real del equipo.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1425,6 +1425,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 1.1.0 r1 | 1.1.0 | 2026-09-25 | Publicación de v1.1.0 (interfaz tipo aplicación): cabecera, estado actual y roadmap. |
 | 1.0.0 r2 | 1.0.0 + v1.1 sin publicar | 2026-09-25 | §5 reescrita: interfaz tipo aplicación (barras, barra lateral, paneles, ventanas flotantes, avisos), paleta clara/oscura, mouse, asistente tipo instalador; §10 `SOJA_THEME` y `SOJA_MOUSE`; §12 carpetas `chrome/` y `kit/`; §13 decisiones de la interfaz (InkUI como referencia, mouse, medición). |
 | 1.0.0 r1 | 1.0.0 | 2026-09-24 | Publicación de v1.0.0: cabecera, estado actual y roadmap. Requiere `soja-backend` ≥ 1.0.0 para importar y borrar. |
 | 0.6.0 r5 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Robustez e instalación: §2 instalar desde GitHub Releases con `gh` y `soja update`; §10 copias diarias y `soja backup`; §14 CI (check, domain, e2e, release), `npm run test:e2e`, `check:domain`; §17 el tag publica el release. |

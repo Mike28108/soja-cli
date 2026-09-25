@@ -7,6 +7,8 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-25
+
 Interfaz tipo aplicación (hito v1.1). Solo interfaz: los comandos, los datos y el servidor no cambian.
 
 ### Added

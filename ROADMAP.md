@@ -70,7 +70,7 @@ Decisiones (2026-09-24):
 - **Quitar tasks:** archivar (reversible, sincronizado) y borrado definitivo solo para owners, con doble confirmación.
 - **Migración local → equipo:** proyectos, tasks, comentarios y timeline con fechas; conserva los números si el workspace está vacío y, si no, renumera mostrando la equivalencia. Developers asociados por username.
 
-## v1.1 — Interfaz (siguiente hito)
+## v1.1 — Interfaz (publicado en v1.1.0)
 
 Solo interfaz: pulir la TUI hasta que casi parezca una aplicación gráfica, sin funciones nuevas. Referencias: Codex, lazygit, k9s, btop, instaladores y Charm; InkUI como referencia de patrones (no como dependencia: sus componentes leen el teclado por su cuenta y saltarían el despachador por capas, y traen sus propios colores).
 
