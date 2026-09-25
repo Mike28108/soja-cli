@@ -54,6 +54,15 @@ export interface SyncReport {
   pulledMessages: number;
   /** True for updates that arrived over the live connection rather than a sync cycle. */
   live?: boolean;
+  /** Replica entities changed by this cycle; empty means views need no data reload. */
+  changes: {
+    taskRefs: string[];
+    projects: boolean;
+    members: boolean;
+    chatChannelIds: string[];
+    chatMessageChannelIds: string[];
+    chatReads: boolean;
+  };
   error?: string;
 }
 
@@ -72,7 +81,21 @@ const TASK_FIELDS = new Set(['title', 'description', 'projectId', 'type', 'prior
 /** Server task view → stored task row (presentation fields are dropped by the store). */
 const toTask = (view: TaskView): Task => view;
 
-const emptyReport = (): SyncReport => ({ online: true, pushed: 0, conflicts: 0, rejected: 0, chatRejected: 0, deferred: 0, pulledTasks: 0, pulledMessages: 0 });
+const emptyReport = (): SyncReport => ({
+  online: true,
+  pushed: 0,
+  conflicts: 0,
+  rejected: 0,
+  chatRejected: 0,
+  deferred: 0,
+  pulledTasks: 0,
+  pulledMessages: 0,
+  changes: { taskRefs: [], projects: false, members: false, chatChannelIds: [], chatMessageChannelIds: [], chatReads: false },
+});
+
+function include(values: string[], value: string): void {
+  if (!values.includes(value)) values.push(value);
+}
 
 function taskIdOf(op: QueuedOp): string {
   if (!op.taskId) throw new Error(`Operation ${op.type} has no task.`);
@@ -225,10 +248,12 @@ export class SyncEngine {
         }
         if (result.status === 'applied' && result.task) {
           report.pushed += 1;
+          include(report.changes.taskRefs, result.task.ref);
           const before = op.type === 'task.create' ? await this.store.findTask(taskIdOf(op)) : null;
+          if (before) include(report.changes.taskRefs, formatTaskRef(before.number));
           await this.store.upsertTask(toTask(result.task));
           if (before && isProvisional(before.number) && !isProvisional(result.task.number)) {
-            await this.renumberInChat(workspaceId, before.number, result.task.number);
+            await this.renumberInChat(workspaceId, before.number, result.task.number, report);
           }
           for (const conflict of result.conflicts ?? []) {
             report.conflicts += 1;
@@ -244,7 +269,9 @@ export class SyncEngine {
           }
         } else {
           report.rejected += 1;
+          const task = await this.store.findTask(taskIdOf(op));
           await this.rejected(workspaceId, op, result, refresh);
+          if (task) include(report.changes.taskRefs, formatTaskRef(task.number));
         }
       }
       await this.store.acknowledge(acknowledged);
@@ -260,8 +287,15 @@ export class SyncEngine {
 
   private async chatResult(workspaceId: string, op: QueuedOp, result: OpResult, report: SyncReport): Promise<void> {
     if (result.status === 'applied') {
-      if (result.message) await this.store.upsertMessage(result.message);
-      if (result.read) await this.store.markRead(result.read.channelId, result.read.lastReadSeq);
+      if (result.message) {
+        await this.store.upsertMessage(result.message);
+        include(report.changes.chatMessageChannelIds, result.message.channelId);
+      }
+      if (result.read) {
+        await this.store.markRead(result.read.channelId, result.read.lastReadSeq);
+        report.changes.chatReads = true;
+        include(report.changes.chatChannelIds, result.read.channelId);
+      }
       if (op.type !== 'channel.read') report.pushed += 1;
       return;
     }
@@ -271,6 +305,7 @@ export class SyncEngine {
     const messageId = String(op.payload['messageId'] ?? '');
     const message = await this.store.findMessage(messageId);
     const channel = message ? await this.store.findChannel(message.channelId) : null;
+    if (message) include(report.changes.chatMessageChannelIds, message.channelId);
     const where = channel ? `#${channel.name}` : 'the chat';
     const reason = result.error?.message ?? 'rejected by the server';
     const body = typeof op.payload['body'] === 'string' ? op.payload['body'] : null;
@@ -290,13 +325,14 @@ export class SyncEngine {
 
   /** A refused delete (e.g. you are no longer an owner) brings the task back as the server has it. */
   private async deleteResult(workspaceId: string, op: QueuedOp, result: OpResult, report: SyncReport): Promise<void> {
+    const number = Number(op.payload['number']);
+    const ref = formatTaskRef(number);
     if (result.status === 'applied') {
       report.pushed += 1;
+      include(report.changes.taskRefs, ref);
       return;
     }
     report.rejected += 1;
-    const number = Number(op.payload['number']);
-    const ref = formatTaskRef(number);
     await this.store.addNotice(workspaceId, {
       id: randomUUID(),
       taskId: op.taskId,
@@ -306,7 +342,10 @@ export class SyncEngine {
       overwritten: null,
       message: `Could not delete ${ref}: ${result.error?.message ?? 'rejected by the server'}`,
     });
-    if (!isProvisional(number)) await this.refreshTaskByRef(workspaceId, ref).catch(() => undefined);
+    if (!isProvisional(number)) {
+      await this.refreshTaskByRef(workspaceId, ref).catch(() => undefined);
+      include(report.changes.taskRefs, ref);
+    }
   }
 
   /** Reloads one message as the server has it (undoing a refused edit or delete). */
@@ -319,7 +358,7 @@ export class SyncEngine {
   }
 
   /** Queued and unsent messages that named `SOJA-?n` now name the real task. */
-  private async renumberInChat(workspaceId: string, provisional: number, number: number): Promise<void> {
+  private async renumberInChat(workspaceId: string, provisional: number, number: number, report: SyncReport): Promise<void> {
     const pattern = provisionalRefPattern(provisional);
     const ref = formatTaskRef(number);
     for (const op of await this.store.pending(workspaceId)) {
@@ -329,7 +368,10 @@ export class SyncEngine {
       await this.store.updateQueuedPayload(op.opId, { ...op.payload, body: body.replace(pattern, ref) });
       const messageId = String(op.payload['messageId'] ?? '');
       const message = await this.store.findMessage(messageId);
-      if (message && message.seq === null) await this.store.patchMessage(messageId, { body: body.replace(pattern, ref) });
+      if (message && message.seq === null) {
+        await this.store.patchMessage(messageId, { body: body.replace(pattern, ref) });
+        include(report.changes.chatMessageChannelIds, message.channelId);
+      }
     }
   }
 
@@ -371,14 +413,41 @@ export class SyncEngine {
     for (;;) {
       const batch = await this.api.get<ChangeBatch>(`/v1/workspaces/${workspaceId}/changes?after=${cursor}&limit=500`);
       for (const member of batch.members) await this.store.upsertMember(workspaceId, member);
+      if (batch.members.length) report.changes.members = true;
       for (const project of batch.projects) await this.store.upsertProject(project);
-      for (const task of batch.tasks) await this.store.upsertTask(toTask(task));
-      for (const comment of batch.comments) await this.store.upsertComment(comment);
-      for (const activity of batch.activity) await this.store.upsertActivity(activity);
-      for (const channel of batch.channels ?? []) await this.store.upsertChannel(channel);
-      for (const message of batch.messages ?? []) await this.store.upsertMessage(message);
-      for (const read of batch.reads ?? []) await this.store.markRead(read.channelId, read.lastReadSeq);
-      for (const taskId of batch.deletedTasks ?? []) await this.store.deleteTask(taskId);
+      if (batch.projects.length) report.changes.projects = true;
+      for (const task of batch.tasks) {
+        await this.store.upsertTask(toTask(task));
+        include(report.changes.taskRefs, task.ref);
+      }
+      for (const comment of batch.comments) {
+        await this.store.upsertComment(comment);
+        const task = await this.store.findTask(comment.taskId);
+        if (task) include(report.changes.taskRefs, formatTaskRef(task.number));
+      }
+      for (const activity of batch.activity) {
+        await this.store.upsertActivity(activity);
+        const task = await this.store.findTask(activity.taskId);
+        if (task) include(report.changes.taskRefs, formatTaskRef(task.number));
+      }
+      for (const channel of batch.channels ?? []) {
+        await this.store.upsertChannel(channel);
+        include(report.changes.chatChannelIds, channel.id);
+      }
+      for (const message of batch.messages ?? []) {
+        await this.store.upsertMessage(message);
+        include(report.changes.chatMessageChannelIds, message.channelId);
+      }
+      for (const read of batch.reads ?? []) {
+        await this.store.markRead(read.channelId, read.lastReadSeq);
+        report.changes.chatReads = true;
+        include(report.changes.chatChannelIds, read.channelId);
+      }
+      for (const taskId of batch.deletedTasks ?? []) {
+        const task = await this.store.findTask(taskId);
+        if (task) include(report.changes.taskRefs, formatTaskRef(task.number));
+        await this.store.deleteTask(taskId);
+      }
       report.pulledTasks += batch.tasks.length;
       report.pulledMessages += batch.messages?.length ?? 0;
       cursor = batch.cursor;
@@ -424,7 +493,18 @@ export class SyncEngine {
     }
     await this.reapplyPending(workspaceId);
     this.online = true;
-    this.emit({ ...emptyReport(), live: true, pulledMessages: event.type.startsWith('message.') ? 1 : 0 });
+    const report = { ...emptyReport(), live: true, pulledMessages: event.type.startsWith('message.') ? 1 : 0 };
+    switch (event.type) {
+      case 'message.created':
+      case 'message.updated':
+        include(report.changes.chatMessageChannelIds, event.message.channelId);
+        break;
+      case 'channel.created':
+      case 'channel.updated':
+        include(report.changes.chatChannelIds, event.channel.id);
+        break;
+    }
+    this.emit(report);
     return false;
   }
 

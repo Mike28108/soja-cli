@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs';
+import { createInterface } from 'node:readline/promises';
+import { stdin, stdout } from 'node:process';
 import { FileConfigStore } from '../../config/config.js';
 import { CredentialStore, normalize } from '../../config/credentials.js';
 import { resolvePaths } from '../../config/paths.js';
@@ -17,6 +19,32 @@ interface DeviceStart {
   verificationUri: string;
   interval: number;
   expiresIn: number;
+}
+
+interface OnboardingUser extends User { accessStatus?: 'pending' | 'approved' | 'rejected'; isCeo?: boolean }
+
+async function ask(question: string): Promise<string> {
+  if (!stdin.isTTY) throw new ValidationError('El alta de acceso necesita una terminal interactiva.');
+  const rl = createInterface({ input: stdin, output: stdout });
+  try { return (await rl.question(question)).trim(); } finally { rl.close(); }
+}
+
+export async function requestAccess(api: ApiClient, user: OnboardingUser): Promise<void> {
+  const current = await api.get<{ profile: { displayName: string; dateOfBirth: string | null; countryCode: string | null } | null; request: { letter: string } | null }>('/v1/access-request');
+  const countries = await api.get<{ countries: { code: string; name: string; flag: string }[] }>('/v1/auth/countries');
+  const displayName = await ask(`Nombre [${current.profile?.displayName ?? user.displayName}]: `) || current.profile?.displayName || user.displayName;
+  const dateOfBirth = await ask('Fecha de nacimiento (AAAA-MM-DD): ');
+  const letter = await ask('¿Por qué te interesa SOJA? (máximo 100 caracteres): ');
+  if (Array.from(letter).length > 100) throw new ValidationError('La carta no puede superar 100 caracteres.');
+  const search = await ask('País (escribe para filtrar): ');
+  const matches = countries.countries.filter((country) => country.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
+  if (!matches.length) throw new ValidationError('No encontré países con ese texto. Ejecuta de nuevo `soja login`.');
+  matches.slice(0, 12).forEach((country, index) => print(`  ${index + 1}. ${country.flag} ${country.name} (${country.code})`));
+  const selected = Number(await ask('Elige el número del país: '));
+  const country = matches[selected - 1];
+  if (!country || selected > 12) throw new ValidationError('Selecciona uno de los países mostrados.');
+  const result = await api.post<{ status: string }>('/v1/access-request', { displayName, dateOfBirth, countryCode: country.code, letter });
+  print(result.status === 'approved' ? 'Acceso aprobado.' : 'Solicitud enviada. Tu sesión queda limitada hasta que el CEO la apruebe.');
 }
 
 const stores = () => {
@@ -67,21 +95,42 @@ export async function loginCommand(args: string[]): Promise<void> {
     }
     if (!poll.body.token || !poll.body.user) throw new SojaError('The server did not return a session.');
 
+    const signedInUser = poll.body.user as OnboardingUser;
+    const accountApi = new ApiClient(server, poll.body.token);
+    const account = await accountApi.get<{ user: OnboardingUser; workspaces: WorkspaceWithRole[] }>('/v1/me');
+    if (account.user.accessStatus !== 'approved') {
+      credentials.save(server, poll.body.token, signedInUser.username);
+      config.save({ parentFolders: [], ...current, mode: 'local', remote: { apiUrl: server, userId: signedInUser.id } });
+      print(`Sesión GitHub iniciada como ${bold(`@${signedInUser.username}`)}. Estado: ${account.user.accessStatus ?? 'pending'}.`);
+      if (account.user.accessStatus !== 'rejected') await requestAccess(accountApi, signedInUser);
+      print(dim('SOJA permanece en modo local hasta la aprobación. Consulta `soja access status`.'));
+      return;
+    }
+
     const sameServer = current?.remote?.apiUrl === server;
-    credentials.save(server, poll.body.token, poll.body.user.username);
+    credentials.save(server, poll.body.token, signedInUser.username);
     config.save({
       parentFolders: [],
       ...current,
       mode: 'remote',
       remote: {
         apiUrl: server,
-        userId: poll.body.user.id,
+        userId: signedInUser.id,
         ...(sameServer && current?.remote?.workspaceId ? { workspaceId: current.remote.workspaceId } : {}),
       },
     });
-    success(`Signed in as ${bold(`@${poll.body.user.username}`)} ${dim(`on ${server}`)}`);
+    success(`Signed in as ${bold(`@${signedInUser.username}`)} ${dim(`on ${server}`)}`);
 
-    const { workspaces } = await new ApiClient(server, poll.body.token).get<{ workspaces: WorkspaceWithRole[] }>('/v1/me');
+    const { workspaces } = account;
+    if (workspaces.length > 1) {
+      workspaces.forEach((workspace, index) => print(`  ${index + 1}. ${workspace.name}`));
+      const choice = Number(await ask('Selecciona el workspace para entrar: '));
+      const workspace = workspaces[choice - 1];
+      if (!workspace) throw new ValidationError('Selecciona un workspace válido.');
+      const saved = config.load();
+      if (!saved?.remote) throw new SojaError('No se pudo guardar el workspace seleccionado.');
+      config.save({ ...saved, remote: { ...saved.remote, workspaceId: workspace.id } });
+    }
     if (workspaces.length === 0) print(dim('  No workspaces yet. Create one: soja workspace create "Bravos Development"'));
     else print(dim(`  Workspaces: ${workspaces.map((workspace) => workspace.name).join(', ')}`));
     print(dim('  SOJA now uses this server. `soja mode local` switches back to your local data.'));

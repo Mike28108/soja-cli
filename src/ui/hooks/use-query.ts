@@ -19,9 +19,9 @@ interface Loaded<T> {
  * revision changes. Previous data stays on screen while reloading, so
  * nothing flickers after a mutation.
  */
-export function useQuery<T>(load: () => Promise<T>, key: string): QueryResult<T> {
-  const { revision } = useAppState();
-  const requestKey = `${key}#${revision}`;
+export function useQuery<T>(load: () => Promise<T>, key: string, topics: readonly string[] = [key]): QueryResult<T> {
+  const { revision, queryVersion } = useAppState();
+  const requestKey = `${key}#${revision}#${queryVersion(topics)}`;
   const [loaded, setLoaded] = useState<Loaded<T>>({ key: '', data: undefined, error: null });
 
   useEffect(() => {

@@ -6,9 +6,9 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.1.0** |
-| Versión del documento | **1.1.0** (revisión 1) |
-| Última actualización | 2026-09-24 |
+| Versión de la app | **1.3.0** |
+| Versión del documento | **1.3.0** (revisión 7) |
+| Última actualización | 2026-09-25 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
@@ -57,11 +57,11 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.1.0)
+### Estado actual (v1.3.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
-El chat requiere `soja-backend` ≥ 0.3.0.
+El chat requiere `soja-backend` ≥ 0.3.0. El acceso online requiere aprobación de cuenta en `soja-backend` ≥ 1.1.0; las cuentas nuevas quedan en modo local hasta su aprobación.
 
 ---
 
@@ -110,14 +110,17 @@ Para desinstalarlo: `npm unlink -g soja-cli`.
 
 ## 3. Primer uso
 
-Al ejecutar `soja` por primera vez (cuando no existe configuración):
+Al ejecutar `soja` por primera vez (cuando no existe sesión):
 
 1. Aparece el **splash** con la identidad de SOJA.
-2. Se hacen tres preguntas:
+2. Elige **Sign in with GitHub** para acceder a un equipo o **Local mode** para trabajar solo en esta máquina. Modo Local no habilita chat ni datos compartidos.
+3. En modo local se hacen tres preguntas:
    - **What's your name?**: tu nombre visible.
    - **Username**: se sugiere a partir del nombre y se puede editar. Minúsculas, números, `.`, `-` o `_`; máximo 32 caracteres.
    - **Workspace name**: por ejemplo, *Bravos Development*.
-3. SOJA crea el usuario, el workspace y la membresía (rol `owner`), guarda la configuración y entra directo a **My Work**.
+4. SOJA crea el usuario, el workspace y la membresía (rol `owner`), guarda la configuración y entra directo a **My Work**.
+
+En modo remoto, GitHub es el único proveedor. Una cuenta nueva completa nombre, fecha de nacimiento, país y una carta de interés de hasta 100 caracteres. Mientras espera aprobación, SOJA mantiene el modo local y no descarga workspaces. Una cuenta aprobada entra a su único workspace, elige uno si tiene varios o puede crear el primero. `A` abre las solicitudes pendientes para el CEO; los comandos equivalentes están en `soja access`.
 
 En el setup, `enter` avanza y `esc` vuelve al paso anterior.
 
@@ -259,17 +262,28 @@ La interfaz se organiza como una aplicación de escritorio (v1.1):
  PROJECTS                 │ │ 10:59  @michael  › Reproduced on staging …                      │ │
   EnrollBridge         3  │ ╰─────────────────────────────────────────────────────────────────╯ │
                           ╰─────────────────────────────────────────────────────────────────────╯
- TASK   s  status   p  priority   a  assign   c  comment   e  edit   g  git   esc  back     local   ← barra de estado
+ TASK   s  status   p  priority   a  assign   c  comment   e  edit   g  git   esc  back     local   ← atajos y estado
+ ▄█▀▀▀▀▀▀  ▄█▀▀▀▀█▄        ██  ▄█▀▀▀▀█▄
+  ▀▀▀▀▀█▄  ██    ██        ██  ██▄▄▄▄██  No dashboards. No browser. No bullshit. Just work.
+ ▄▄▄▄▄▄█▀  ▀█▄▄▄▄█▀  ▀█▄▄▄▄█▀  ██    ██  ▄▄▄ ← marca fija
 ```
 
 - **Barra de título** con fondo: marca, workspace y dónde estás; a la derecha, mensajes sin leer, estado de la conexión en modo remoto y tu usuario.
 - **Barra lateral** (terminales de 110 columnas o más): las vistas de tasks con sus contadores, los canales del chat con no leídos y menciones, y los proyectos. Todo es clicable.
 - **Panel principal** con bordes redondeados y el título en el borde; dentro, sub-paneles (Details, Description, Activity…).
-- **Barra de estado**: una pastilla con el modo (`TASKS`, `TASK`, `SELECT`, `CONFIRM`…) y los atajos que funcionan ahora, dibujados como teclas.
+- **Footer**: queda separado del panel por una fila de aire. Muestra una fila con la pastilla de modo (`TASKS`, `TASK`, `SELECT`, `CONFIRM`…), los atajos activos dibujados como teclas y el estado local/remoto; tras otra fila de aire, aparece el wordmark ASCII original de tres líneas (el del splash) junto al eslogan. En terminales estrechas, el eslogan se apila debajo del wordmark.
 - **Ventanas flotantes** (selectores, formularios, confirmaciones, Git) sobre la pantalla, que sigue visible detrás; un clic fuera las cierra, como `esc`.
 - **Avisos** (*toasts*) abajo a la derecha: la confirmación o el error de la última acción durante unos segundos.
 - Las pantallas anteriores permanecen montadas: al volver con `esc` conservas la selección que tenías.
 - En terminales pequeñas se pliega: sin barra lateral, sin vista previa, el estado se reduce a su glifo, y el detalle apila los paneles (la descripción se oculta si no cabe; `d` la edita igual).
+
+### Mascotas animadas
+
+Las escenas ASCII de `ink-agent-scenes` se muestran al pie del panel principal cuando la terminal tiene al menos 80 columnas y suficiente altura; en terminales menores se ocultan para mantener visible el trabajo. En el detalle, la escena refleja el estado de la task (trabajo, revisión, bloqueo, urgencia, finalización o descanso); mientras carga se usa `clockIn` y ante un error `bugHunt`. En las listas de tasks, refleja la sincronización, una lista vacía, urgencias/bloqueos, revisión, trabajo, limpieza de tareas cerradas o descanso. La escena `syncing` toma prioridad mientras se sincroniza. Las animaciones van a 4 FPS y se pausan en pantallas ocultas; son decorativas y no capturan el teclado.
+
+### Actualizaciones remotas sin saltos
+
+Al terminar una sincronización, SOJA compara qué entidades cambiaron en la réplica. Si no cambió ningún dato, no vuelve a ejecutar las consultas de las pantallas. Si cambiaron tasks, actualiza sus detalles y las listas, contadores y resúmenes de proyecto que dependen de tasks; los cambios de proyectos, miembros o chat refrescan únicamente sus vistas relacionadas. La selección de la task en una lista se conserva si sigue disponible. El detalle usa la identidad interna de la task para permanecer abierto aunque una task provisional reciba su número definitivo. El estado de conexión del footer y la escena de sincronización siguen mostrando el progreso del ciclo.
 
 ### Colores y tema
 
@@ -353,13 +367,13 @@ CHANNELS                  #general  Everything, everyone
                           › Message #general
 ```
 
-- **Lista de canales** a la izquierda en terminales de 100 columnas o más, con los no leídos (`1`) o las menciones (`@1`). En terminales estrechas, `#` (desde la lista de mensajes) elige el canal.
+- **Lista de canales** a la izquierda en terminales de 100 columnas o más, con los no leídos (`1`) o las menciones (`@1`). `Ctrl+G` abre el selector de canales desde cualquier foco del chat; en terminales estrechas, `#` desde la lista de mensajes también lo abre.
 - **Campo de escritura** abajo, siempre activo al entrar: `enter` envía y `alt+enter` añade una línea. Pegar texto de varias líneas conserva los saltos. `@` + `tab` completa el nombre de un miembro.
 - **`tab`** (o `↑` con el campo vacío) pasa a la lista de mensajes, donde `j`/`k` seleccionan y cada tecla actúa sobre el mensaje seleccionado (ver [§6](#6-atajos-de-teclado)). Subir más allá del primer mensaje trae los anteriores del servidor.
 - **Estados de un mensaje:** `⋯` pendiente de envío, `(edited)`, *message deleted*. Los que te mencionan se resaltan en amarillo. Una respuesta muestra arriba la cita (`↳ @autor: …`).
 - **Leído:** abrir un canal lo marca como leído en todas tus máquinas. El header muestra `✉ 3 · @1` (no leídos · menciones) en las demás pantallas.
 - **Crear una task desde un mensaje** (`t`): el título es la primera línea, la descripción cita el mensaje con su autor y canal, el requester es el autor, y SOJA responde en el canal con `→ SOJA-n título`. Funciona sin conexión: la respuesta sale con el número real (`SOJA-42`, no `SOJA-?1`).
-- **Canales nuevos:** en el selector de canales, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión). El mismo selector cambia el **tema** del canal actual y lo **archiva** o restaura (owners; `#general` no se archiva).
+- **Canales nuevos:** pulsa `Ctrl+G`, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión). `#general` ya existe por defecto en cada workspace, así que al escribir `general` el selector muestra el canal existente para abrirlo en vez de ofrecer un duplicado. El mismo selector cambia el **tema** del canal actual y lo **archiva** o restaura (owners; `#general` no se archiva).
 - Si el servidor rechaza un mensaje (por ejemplo, porque archivaron el canal mientras estabas sin conexión), aparece un aviso sobre el campo de escritura; `!` en la lista de mensajes ofrece **devolverte el texto** al campo o descartar el aviso.
 
 ### Ventanas (overlays)
@@ -580,7 +594,12 @@ soja use <slug o nombre>          # equivale a: soja workspace use <…>
 ### Cuenta y modo remoto
 
 ```bash
-soja login [--server <url>]        # device flow de GitHub; activa el modo remoto
+soja login [--server <url>]        # device flow; las cuentas nuevas solicitan aprobación
+soja access status                 # estado de aprobación y badge CEO si aplica
+soja access request                # completar/actualizar perfil y carta (máximo 100 caracteres)
+soja access approvals              # lista de solicitudes (CEO)
+soja access approve <id>           # aprobar solicitud (CEO)
+soja access reject <id>            # rechazar solicitud (CEO)
 soja logout
 soja mode [local|remote]
 soja whoami
@@ -590,6 +609,8 @@ soja sync [--dismiss]              # sincroniza ahora y muestra conflictos y rec
 ```
 
 Ver [§9](#9-modo-remoto-equipo).
+
+Una sesión GitHub pendiente o rechazada no habilita el modo remoto. Para nuevas cuentas, `soja login` solicita nombre, fecha de nacimiento, país (búsqueda por texto y selección de resultado) y una carta de interés. Hasta aprobarse, se conserva el trabajo local y las peticiones de workspace/chat no están disponibles. Cada aprobación debe ir seguida de la selección de workspace; una cuenta sin membresías no obtiene acceso por el hecho de ser aprobada.
 
 ### Chat
 
@@ -896,7 +917,7 @@ En modo remoto, SOJA guarda una **réplica local** de tu workspace (`~/.local/sh
 
 - **Números provisionales:** una task creada sin conexión aparece como `SOJA-?1`, `SOJA-?2`… y recibe su número real y consecutivo (`SOJA-42`) al sincronizar. Mientras tanto puedes usar `SOJA-?1` en cualquier comando.
 - **Cuándo sincroniza:** al abrir SOJA, cada 30 s y poco después de cada cambio en la interfaz; antes y después de cada comando en la CLI; y con `soja sync`. Con la interfaz abierta hay además una **conexión en tiempo real** (ver *Chat*): cuando otra persona cambia algo, el servidor avisa y SOJA sincroniza al momento. Si un cambio se hace mientras otra sincronización está en curso, se envía justo al terminar esa.
-- **La vista se actualiza sola** al terminar cada sincronización: una task nueva pasa de `SOJA-?1` a su número real en segundos si hay conexión.
+- **Refresco selectivo:** si una sincronización no trae ni aplica cambios, las consultas de las pantallas no se repiten. Cuando cambia una task se actualizan sus datos, las listas y sus contadores; los cambios de chat, proyectos y miembros refrescan sus propias vistas. Una task nueva pasa de `SOJA-?1` a su número real en segundos si hay conexión, sin reconstruir toda la interfaz.
 - **Estado:** el header muestra `⇄ servidor · 2 pending`, `offline · 2 pending` o `syncing…`. En la CLI, una línea `⇅ …` avisa si quedaron cambios en cola.
 - **Nada se aplica dos veces:** cada cambio viaja con un id único, y el servidor ignora los reintentos.
 - **Cerrar SOJA no pierde nada:** la cola vive en la réplica y se envía la próxima vez que haya conexión.
@@ -1194,6 +1215,7 @@ src/
 │   ├── theme/      theme.ts (paleta clara/oscura, tonos, glifos), detect.ts (fondo de la terminal)
 │   ├── chrome/     TopBar, StatusBar, Sidebar, Toast, context (atajos de la barra de estado, pantalla activa)
 │   ├── kit/        Panel, Badge, Keycap, Tabs, Button, Clickable, ScrollBar, Gauge, Spinner
+│   ├── mascot/     Escenas ASCII animadas, motor de cuadros y selección por estado de task/vista
 │   ├── screens/    Setup, TaskList, Task, Projects, Workspaces, Chat, Help, ScreenFrame
 │   ├── overlays/   Picker, Confirm, Prompt, Search, NewTask, Commit, GitRun, GitLog, OverlayFrame, options, types
 │   ├── components/ TaskTable, TextInput, TextField, Labels, PullRequestLabel, ConsoleLines, EmptyState, task-columns
@@ -1263,6 +1285,9 @@ El problema previsto en v0.1 se resolvió como se recomendaba: en modo remoto, l
 - **Mouse sin librerías:** la terminal envía reportes SGR (`ESC [ < b ; x ; y M`), que Ink entrega a `useInput`; `KeyProvider` los reconoce antes que cualquier atajo, y cada elemento clicable calcula su posición sumando el layout de Yoga hasta la raíz. Las regiones van por capas como el teclado: una ventana abierta captura los clics antes que la pantalla de abajo, y gana la región más pequeña bajo el puntero. Al pasar la terminal a otro programa (editor, Git pidiendo credenciales) el mouse se apaga y se vuelve a encender.
 - **Medición propia (`useMeasure`):** `useBoxMetrics` de Ink 7.1 vuelve a renderizar en cada *commit* aunque nada cambie, y con muchos paneles entraba en un bucle; `useMeasure` solo actualiza si el tamaño cambió. Un único listener de tamaño de terminal (`TerminalSizeProvider`) sustituye a los de cada panel.
 - **Paneles que recortan, nunca comprimen:** el contenido de un panel conserva su altura natural y se recorta dentro del borde; Yoga, si no, reduce filas a altura 0 y se dibujan unas sobre otras.
+- **Refresco selectivo:** `SyncReport` enumera las entidades realmente modificadas; las consultas declaran los temas de datos de los que dependen y solo esos temas se invalidan al sincronizar. El contador de revisión global queda para las mutaciones locales existentes.
+- **Mascotas locales:** las escenas y el motor incluidos desde `ink-agent-scenes.zip` viven en `ui/mascot/`; el adaptador usa los tonos de `theme.ts`, pausa las pantallas ocultas y reserva altura solo en terminales amplias.
+- **Footer persistente:** el modo y los atajos ocupan la primera fila; el wordmark ASCII del splash y el eslogan ocupan las siguientes. `use-layout.ts` calcula la altura y si van en línea o apilados según el ancho para que el panel principal y la barra lateral no queden debajo del footer.
 
 ## 14. Guía de desarrollo
 
@@ -1384,9 +1409,9 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 ### Roadmap propuesto
 
-El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI y v1.0 consolidación. Son propuestas: esta documentación describe lo que **ya funciona** en v0.1.0.
+El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI, v1.0 consolidación, v1.1 interfaz tipo aplicación y v1.2 actualización selectiva, mascotas animadas y marca fija en el footer.
 
-Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0 v1.0 (consolidación) en v1.0.0 y v1.1 (interfaz tipo aplicación: paneles, paleta clara/oscura, mouse) en v1.1.0. Lo siguiente se decide con el uso real del equipo.
+Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0, v1.0 (consolidación) en v1.0.0 y v1.1 (interfaz tipo aplicación: paneles, paleta clara/oscura, mouse) en v1.1.0. v1.2 está en desarrollo.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
@@ -1423,9 +1448,14 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.1.0 r6 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de aire entre los atajos del footer y el wordmark. |
+| 1.1.0 r5 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de separación entre el panel y el footer; §13: altura del layout reserva esa fila. |
+| 1.1.0 r4 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: wordmark ASCII de inicio junto al eslogan en el footer; se explica que `#general` es el canal existente del workspace; §13 altura adaptable del footer. |
+| 1.1.0 r3 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: refresco remoto selectivo, escenas animadas, marca fija en el footer y `Ctrl+G` para selector/creación de canales; §9: sin recarga de consultas cuando no hay cambios; §12 carpeta `ui/mascot/`; §13 decisiones de invalidación, animación y altura del footer. |
+| 1.1.0 r2 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: refresco remoto selectivo, escenas animadas y marca fija en el footer; §9: sin recarga de consultas cuando no hay cambios; §12 carpeta `ui/mascot/`; §13 decisiones de invalidación, animación y altura del footer. |
+| 1.1.0 r1 | 1.1.0 | 2026-09-25 | Publicación de v1.1.0 (interfaz tipo aplicación): cabecera, estado actual y roadmap. |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
-| 1.1.0 r1 | 1.1.0 | 2026-09-25 | Publicación de v1.1.0 (interfaz tipo aplicación): cabecera, estado actual y roadmap. |
 | 1.0.0 r2 | 1.0.0 + v1.1 sin publicar | 2026-09-25 | §5 reescrita: interfaz tipo aplicación (barras, barra lateral, paneles, ventanas flotantes, avisos), paleta clara/oscura, mouse, asistente tipo instalador; §10 `SOJA_THEME` y `SOJA_MOUSE`; §12 carpetas `chrome/` y `kit/`; §13 decisiones de la interfaz (InkUI como referencia, mouse, medición). |
 | 1.0.0 r1 | 1.0.0 | 2026-09-24 | Publicación de v1.0.0: cabecera, estado actual y roadmap. Requiere `soja-backend` ≥ 1.0.0 para importar y borrar. |
 | 0.6.0 r5 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Robustez e instalación: §2 instalar desde GitHub Releases con `gh` y `soja update`; §10 copias diarias y `soja backup`; §14 CI (check, domain, e2e, release), `npm run test:e2e`, `check:domain`; §17 el tag publica el release. |

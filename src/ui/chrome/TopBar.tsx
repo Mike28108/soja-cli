@@ -8,6 +8,7 @@ interface TopBarProps {
   /** Where you are: `Projects`, `SOJA-12`… */
   trail: readonly string[];
   username: string;
+  isCeo?: boolean;
   /** Remote mode: the server's host. */
   server?: string | undefined;
   sync?: { text: string; tone: 'ok' | 'busy' | 'warn' } | undefined;
@@ -15,7 +16,7 @@ interface TopBarProps {
 }
 
 /** The title bar: brand and place on the left, connection and you on the right. */
-export function TopBar({ columns, workspace, trail, username, server, sync, chat }: TopBarProps) {
+export function TopBar({ columns, workspace, trail, username, isCeo, server, sync, chat }: TopBarProps) {
   const roomy = columns >= 90;
   const syncColor = sync?.tone === 'warn' ? palette.warning : sync?.tone === 'busy' ? palette.info : palette.muted;
   return (
@@ -41,7 +42,7 @@ export function TopBar({ columns, workspace, trail, username, server, sync, chat
             {`${symbols.link} ${roomy ? server : ''}${sync ? `${roomy ? ` ${symbols.dot} ` : ''}${sync.text}` : ''}`}
           </Text>
         ) : null}
-        <Text backgroundColor={palette.bar} color={palette.barText}>{`@${username}`}</Text>
+        <Text backgroundColor={palette.bar} color={palette.barText}>{`@${username}`}{isCeo ? <Text color={palette.warning} bold>{' ★ CEO'}</Text> : null}</Text>
         {roomy ? <Text backgroundColor={palette.bar} color={palette.faint}>{`v${APP_VERSION}`}</Text> : null}
       </Box>
     </Box>

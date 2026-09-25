@@ -49,7 +49,23 @@ export function TaskTable({
   const visible = tasks.slice(offset, offset + rows);
 
   return (
-    <Clickable onWheel={onScroll} layer={layer} active={active} flexDirection="column">
+    <Clickable
+      onClick={(event, rect) => {
+        // Rows are separate hit regions; this table-level fallback also handles
+        // terminals that report a point on a text cell outside its row bounds.
+        const row = Math.floor(event.y - rect.y) - (showHeader ? 1 : 0);
+        const index = offset + row;
+        if (row < 0 || row >= visible.length) return;
+        if (index === selected) onOpen?.(index);
+        else onSelect?.(index);
+      }}
+      onWheel={onScroll}
+      layer={layer}
+      active={active}
+      flexDirection="column"
+      width={width}
+      height={height}
+    >
       <Box flexDirection="column" flexGrow={1}>
         {showHeader ? (
           <Box>
@@ -75,6 +91,7 @@ export function TaskTable({
                   key={task.id}
                   layer={layer}
                   active={active}
+                  width="100%"
                   onClick={() => (isSelected ? onOpen?.(index) : onSelect?.(index))}
                 >
                   <Box flexGrow={1} {...bg}>

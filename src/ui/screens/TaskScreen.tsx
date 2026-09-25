@@ -20,11 +20,13 @@ import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
 import { palette, symbols } from '../theme/theme.js';
 import { ScreenFrame } from './ScreenFrame.js';
+import { Mascot } from '../mascot/Mascot.js';
+import { sceneForTask } from '../mascot/selection.js';
 
 const LABEL_WIDTH = 14;
 
 export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: string }) {
-  const { services, session, cwd, detectMerges, followPullRequests, openOverlay, run } = useAppState();
+  const { services, session, cwd, detectMerges, followPullRequests, openOverlay, run, syncStatus } = useAppState();
   useEffect(() => {
     void detectMerges(taskRef);
     void followPullRequests(taskRef);
@@ -32,12 +34,22 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const { width, height } = useLayout();
   const actions = useTaskActions();
   const [scroll, setScroll] = useState(0);
-  const query = useQuery(() => services.tasks.get(session, taskRef), `task:${session.workspace.id}:${taskRef}`);
+  const [taskTarget, setTaskTarget] = useState<{ id: string; number: number } | null>(null);
+  const taskTopic = `task:${session.workspace.id}:${taskRef}`;
+  const query = useQuery(
+    () => services.tasks.get(session, taskTarget ?? taskRef),
+    `${taskTopic}:${taskTarget?.id ?? ''}`,
+    [taskTopic],
+  );
+  if (query.data && query.data.id !== taskTarget?.id) {
+    setTaskTarget({ id: query.data.id, number: query.data.number });
+  }
   const task = query.data;
   // Remote mode: conflicts and rejections the last syncs reported for this task.
   const notices = useQuery(
     async () => (services.sync && query.data ? services.sync.notices(session.workspace.id, query.data.id) : []),
     `notices:${taskRef}:${query.data?.id ?? ''}`,
+    [taskTopic],
   );
   const openNotices = () => {
     const sync = services.sync;
@@ -70,6 +82,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const chatMentions = useQuery(
     async () => (services.chat && query.data && !isProvisional(query.data.number) ? services.chat.mentionsOfTask(session, query.data.number, 3) : []),
     `task-chat:${taskRef}:${query.data?.number ?? ''}`,
+    [taskTopic, `chat:${session.workspace.id}`],
   );
   const mentionList = chatMentions.data ?? [];
   // The pull request comes from GitHub (gh), so it loads on its own too.
@@ -83,6 +96,8 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   // Layout: header, title, chips and notices; then Details + Description; the Activity panel gets the rest.
   // Details and Description side by side only when both keep a useful width.
   const wide = width >= 110;
+  const showMascot = width >= 80 && height >= 34 && Boolean(task);
+  const mascotRows = showMascot ? 15 : 0;
   const titleLines = task ? clampLines(wrapText(task.title, width), 2) : [''];
   const noticeLines = Math.min(2, notices.data?.length ?? 0);
   const detailsHeight = 8;
@@ -90,10 +105,10 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const headRows = titleLines.length + 2 + noticeLines + 1 + detailsHeight;
   // Stacked (narrow) layouts give the description what is left above the activity's minimum (2 rows + borders);
   // with no room it is hidden (d still edits it).
-  const stackedDescription = Math.min(5, height - headRows - 4);
+  const stackedDescription = Math.min(5, height - headRows - 4 - mascotRows);
   const descriptionHeight = wide ? detailsHeight : stackedDescription >= 3 ? stackedDescription : 0;
   const upperRows = headRows + (wide ? 0 : descriptionHeight);
-  const timelineRows = Math.max(2, height - upperRows - 2);
+  const timelineRows = Math.max(2, height - upperRows - 2 - mascotRows);
   const showMentions = wide && mentionList.length > 0;
   const activityWidth = showMentions ? Math.floor(width * 0.62) - 4 : width - 4;
   const timeline = task ? timelineLines(task.timeline, activityWidth) : [];
@@ -150,6 +165,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     return (
       <ScreenFrame title={taskRef} hints={[['esc', 'back']]}>
         {query.error ? <EmptyState lines={[query.error.message, query.error.hint ?? '']} icon={symbols.cross} /> : <Spinner label="Loading…" />}
+        {width >= 80 && height >= 20 ? <Mascot scene={syncStatus?.syncing ? 'syncing' : query.loading ? 'clockIn' : 'bugHunt'} paused={!active} /> : null}
       </ScreenFrame>
     );
   }
@@ -250,6 +266,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
           </Panel>
         ) : null}
       </Box>
+      {showMascot && task ? <Mascot scene={syncStatus?.syncing ? 'syncing' : sceneForTask(task)} paused={!active} /> : null}
     </ScreenFrame>
   );
 }
