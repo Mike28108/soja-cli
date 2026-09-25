@@ -1,13 +1,15 @@
-import { Box, Text, useAnimation, useApp } from 'ink';
+import { Box, Text } from 'ink';
 import { useEffect, useRef, useState } from 'react';
 import type { ConsoleLine } from '../../git/console.js';
 import { GitError } from '../../git/types.js';
 import { toDisplayError } from '../../utils/errors.js';
 import { useAppState } from '../app-state.js';
-import type { Hint } from '../components/Footer.js';
+import type { Hint } from '../chrome/context.js';
 import { ConsoleLines } from '../components/ConsoleLines.js';
 import { Layer } from '../input/dispatcher.js';
-import { useKeys } from '../input/KeyProvider.js';
+import { useExternalTerminal, useKeys } from '../input/KeyProvider.js';
+import { Button } from '../kit/Button.js';
+import { Spinner } from '../kit/Spinner.js';
 import { palette, symbols } from '../theme/theme.js';
 import { OverlayFrame, useOverlayHeight } from './OverlayFrame.js';
 import type { GitAction, GitRunSpec } from './types.js';
@@ -17,12 +19,9 @@ type Outcome =
   | { phase: 'done'; message: string }
   | { phase: 'failed'; message: string; suggestions: readonly string[]; code: GitError['code'] | null };
 
-const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
 export function GitRunOverlay({ spec }: { spec: GitRunSpec }) {
   const { services, closeOverlay, refresh } = useAppState();
-  const { suspendTerminal } = useApp();
-  const { frame } = useAnimation({ interval: 80 });
+  const external = useExternalTerminal();
   const [startId] = useState(() => services.gitConsole.lastId);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
   const [outcome, setOutcome] = useState<Outcome>({ phase: 'running' });
@@ -41,7 +40,7 @@ export function GitRunOverlay({ spec }: { spec: GitRunSpec }) {
         message = await spec.run(false);
       } else {
         // Hand the terminal to Git/gh so they can ask for credentials, then come back.
-        await suspendTerminal(async () => {
+        await external(async () => {
           process.stdout.write(`\nSOJA is paused. ${mode === 'login' ? 'Log in to GitHub below.' : 'Git may ask for your credentials.'}\n\n`);
           if (mode === 'login') await services.git.loginGitHub();
           message = mode === 'login' ? await spec.run(false) : await spec.run(true);
@@ -101,22 +100,30 @@ export function GitRunOverlay({ spec }: { spec: GitRunSpec }) {
       : [...actions.map((action): Hint => [action.key, action.label]), ['esc', 'close']];
 
   return (
-    <OverlayFrame title={spec.title} context={spec.context} hints={hints}>
-      <ConsoleLines lines={visible} />
+    <OverlayFrame title={spec.title} context={spec.context} hints={hints} width={96}>
+      <ConsoleLines lines={visible} minRows={3} />
       <Box marginTop={1} flexDirection="column">
         {outcome.phase === 'running' ? (
-          <Text color={palette.accent}>{`${SPINNER[frame % SPINNER.length]} Working…`}</Text>
+          <Spinner label="Working…" />
         ) : outcome.phase === 'done' ? (
-          <Text color={palette.success}>{`${symbols.check} ${outcome.message}`}</Text>
+          <Text color={palette.success} bold wrap="truncate-end">{`${symbols.check} ${outcome.message}`}</Text>
         ) : (
           <>
-            <Text color={palette.danger}>{`${symbols.cross} ${outcome.message}`}</Text>
+            <Text color={palette.danger} bold wrap="truncate-end">{`${symbols.cross} ${outcome.message}`}</Text>
             {suggestions.map((suggestion) => (
-              <Text key={suggestion} dimColor wrap="truncate-end">{`  ${symbols.arrow} ${suggestion}`}</Text>
+              <Text key={suggestion} color={palette.muted} wrap="truncate-end">{`  ${symbols.arrow} ${suggestion}`}</Text>
             ))}
           </>
         )}
       </Box>
+      {outcome.phase !== 'running' ? (
+        <Box marginTop={1} justifyContent="flex-end" gap={2}>
+          {actions.map((action) => (
+            <Button key={action.key} label={`${action.key}  ${action.label}`} onPress={() => action.action()} />
+          ))}
+          <Button label="Close" variant="primary" onPress={() => closeOverlay(spec)} />
+        </Box>
+      ) : null}
     </OverlayFrame>
   );
 }

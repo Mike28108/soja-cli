@@ -2,6 +2,8 @@ import { Box, Text } from 'ink';
 import { APP_DESCRIPTION, APP_NAME } from '../branding/brand.js';
 import { useLayout } from '../hooks/use-layout.js';
 import { palette } from '../theme/theme.js';
+import { Keycap } from '../kit/Keycap.js';
+import { Panel } from '../kit/Panel.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
 const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [string, string])[]])[] = [
@@ -62,6 +64,15 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
     ],
   ],
   [
+    'Mouse',
+    [
+      ['click', 'Select; again to open'],
+      ['wheel', 'Scroll lists and chat'],
+      ['click outside', 'Close a window'],
+      ['shift+drag', 'Select text to copy'],
+    ],
+  ],
+  [
     'General',
     [
       ['?', 'Help'],
@@ -73,31 +84,35 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
 
 export function HelpScreen() {
   const { width } = useLayout();
-  const columns = width >= 90 ? 2 : 1;
-  const perColumn = Math.ceil(SECTIONS.length / columns);
-  const groups = Array.from({ length: columns }, (_, index) => SECTIONS.slice(index * perColumn, (index + 1) * perColumn));
+  const columns = width >= 118 ? 3 : width >= 76 ? 2 : 1;
+  // Sections go to the shortest column, in order, so the columns end at similar heights.
+  const groups: (typeof SECTIONS)[number][][] = Array.from({ length: columns }, () => []);
+  const heights = Array.from({ length: columns }, () => 0);
+  for (const section of SECTIONS) {
+    const shortest = heights.indexOf(Math.min(...heights));
+    groups[shortest]?.push(section);
+    heights[shortest] = (heights[shortest] ?? 0) + section[1].length + 2;
+  }
+  const columnWidth = Math.floor((width - (columns - 1)) / columns);
 
   return (
-    <ScreenFrame hints={[['esc', 'back']]}>
-      <Text>
-        <Text bold>{`${APP_NAME} Help`}</Text>
-        <Text dimColor>{`  ${APP_DESCRIPTION}`}</Text>
-      </Text>
-      <Box marginTop={1} gap={6}>
+    <ScreenFrame title={`${APP_NAME} Help`} aside={APP_DESCRIPTION} hints={[['esc', 'back']]}>
+      <Box gap={1}>
         {groups.map((group, index) => (
-          <Box key={index} flexDirection="column">
+          <Box key={index} flexDirection="column" width={columnWidth}>
             {group.map(([title, keys]) => (
-              <Box key={title} flexDirection="column" marginBottom={1}>
-                <Text bold>{title}</Text>
+              <Panel key={title} title={title}>
                 {keys.map(([key, description]) => (
                   <Box key={key}>
-                    <Box width={16}>
-                      <Text color={palette.accent}>{`  ${key}`}</Text>
+                    <Box width={Math.max(...keys.map(([candidate]) => candidate.length)) + 4} flexShrink={0}>
+                      <Keycap keys={key} />
                     </Box>
-                    <Text dimColor>{description}</Text>
+                    <Text color={palette.muted} wrap="truncate-end">
+                      {description}
+                    </Text>
                   </Box>
                 ))}
-              </Box>
+              </Panel>
             ))}
           </Box>
         ))}

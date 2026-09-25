@@ -7,19 +7,21 @@ import { useList } from '../hooks/use-list.js';
 import { useQuery } from '../hooks/use-query.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
-import { palette, symbols, type ColorName } from '../theme/theme.js';
+import { Button } from '../kit/Button.js';
+import { Clickable } from '../kit/Clickable.js';
+import { palette, symbols, toneColors, type Tone } from '../theme/theme.js';
 import { OverlayFrame, useOverlayHeight } from './OverlayFrame.js';
 import type { Overlay } from './types.js';
 
-const KIND: Record<ChangeKind, { letter: string; color?: ColorName }> = {
-  modified: { letter: 'M', color: 'yellow' },
-  added: { letter: 'A', color: 'green' },
-  untracked: { letter: '?', color: 'green' },
-  deleted: { letter: 'D', color: 'red' },
-  renamed: { letter: 'R', color: 'cyan' },
-  copied: { letter: 'C', color: 'cyan' },
-  typechange: { letter: 'T', color: 'yellow' },
-  conflicted: { letter: 'U', color: 'red' },
+const KIND: Record<ChangeKind, { letter: string; tone?: Tone }> = {
+  modified: { letter: 'M', tone: 'warning' },
+  added: { letter: 'A', tone: 'success' },
+  untracked: { letter: '?', tone: 'success' },
+  deleted: { letter: 'D', tone: 'danger' },
+  renamed: { letter: 'R', tone: 'info' },
+  copied: { letter: 'C', tone: 'info' },
+  typechange: { letter: 'T', tone: 'warning' },
+  conflicted: { letter: 'U', tone: 'danger' },
 };
 
 /** Step 1 of a commit: choose files (all selected by default). Step 2 asks for the message. */
@@ -82,6 +84,7 @@ export function CommitOverlay({ spec }: { spec: Extract<Overlay, { kind: 'commit
     <OverlayFrame
       title="Commit"
       context={`${task.ref} · ${selected.length}/${files.length} selected`}
+      width={88}
       hints={[
         ['j/k', 'move'],
         ['space', 'toggle'],
@@ -108,18 +111,24 @@ export function CommitOverlay({ spec }: { spec: Extract<Overlay, { kind: 'commit
         const kind = KIND[file.kind];
         const checked = !excluded.has(file.path);
         return (
-          <Box key={file.path} gap={1}>
-            <Text color={palette.accent}>{index === list.index ? symbols.pointer : ' '}</Text>
-            <Text color={checked ? palette.accent : undefined} dimColor={!checked}>
-              {checked ? '[x]' : '[ ]'}
-            </Text>
-            <Text color={kind.color}>{kind.letter}</Text>
-            <Text dimColor={!checked} bold={index === list.index} wrap="truncate-end">
-              {file.previousPath ? `${file.previousPath} ${symbols.arrow} ${file.path}` : file.path}
-            </Text>
-          </Box>
+          <Clickable key={file.path} onClick={() => { list.select(index); toggle(file.path); }} layer={Layer.overlay}>
+            <Box gap={1} flexGrow={1} {...(index === list.index ? { backgroundColor: palette.selection } : {})}>
+              <Text color={palette.accent}>{index === list.index ? symbols.pointer : ' '}</Text>
+              <Text color={checked ? palette.accent : palette.faint}>{checked ? '☑' : '☐'}</Text>
+              <Text color={kind.tone ? toneColors(kind.tone).fg : palette.muted} bold>{kind.letter}</Text>
+              <Text color={checked ? palette.text : palette.muted} bold={index === list.index} wrap="truncate-end">
+                {file.previousPath ? `${file.previousPath} ${symbols.arrow} ${file.path}` : file.path}
+              </Text>
+            </Box>
+          </Clickable>
         );
       })}
+      {files.length ? (
+        <Box marginTop={1} justifyContent="flex-end" gap={2}>
+          <Button label="Cancel" onPress={() => closeOverlay(spec)} />
+          <Button label={`Write message ${symbols.arrow}`} variant="primary" onPress={proceed} />
+        </Box>
+      ) : null}
     </OverlayFrame>
   );
 }

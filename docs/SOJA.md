@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **1.0.0** |
-| Versión del documento | **1.0.0** (revisión 1) |
+| Versión del documento | **1.0.0** (revisión 2) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -245,20 +245,49 @@ Mientras una task no tiene branch registrada, SOJA sugiere `<prefijo>/SOJA-<n>-<
 
 ### Estructura de pantalla
 
+La interfaz se organiza como una aplicación de escritorio (v1.1):
+
 ```text
-SOJA▁  Bravos Development / EnrollBridge                    @michael  v0.1.0   ← header compacto
-
-<pantalla u overlay activo>
-
-j/k move   enter open   n new   / search   : commands   ? help               ← footer contextual
+ SOJA▁  Bravos Development › SOJA-12              ✉ 3 @1  ⇄ server · synced  @michael  v1.1.0   ← barra de título
+                          ╭─ SOJA-12 · Bug ─────────────────── created 10:59 · updated 2h ago ─╮
+ TASKS                    │ Receipt upload not rendering after payment                          │
+ ▌My work              5  │  ◐ In Progress   ▰▰▰▰ URGENT                                        │
+  All open            12  │ ╭─ Details ─────────────────╮ ╭─ Description ───────────── d edit ─╮ │
+  …                       │ │ Project       EnrollBridge │ │ Parents upload the receipt, …      │ │
+ CHAT                     │ ╰────────────────────────────╯ ╰────────────────────────────────────╯ │
+  #general             3  │ ╭─ Activity ──────────────────────────────────────────────────────╮ │
+ PROJECTS                 │ │ 10:59  @michael  › Reproduced on staging …                      │ │
+  EnrollBridge         3  │ ╰─────────────────────────────────────────────────────────────────╯ │
+                          ╰─────────────────────────────────────────────────────────────────────╯
+ TASK   s  status   p  priority   a  assign   c  comment   e  edit   g  git   esc  back     local   ← barra de estado
 ```
 
-- El **footer** muestra solo los atajos del contexto actual. Durante unos segundos lo reemplaza la confirmación (✓ verde) o el error (✕ rojo) de la última acción.
+- **Barra de título** con fondo: marca, workspace y dónde estás; a la derecha, mensajes sin leer, estado de la conexión en modo remoto y tu usuario.
+- **Barra lateral** (terminales de 110 columnas o más): las vistas de tasks con sus contadores, los canales del chat con no leídos y menciones, y los proyectos. Todo es clicable.
+- **Panel principal** con bordes redondeados y el título en el borde; dentro, sub-paneles (Details, Description, Activity…).
+- **Barra de estado**: una pastilla con el modo (`TASKS`, `TASK`, `SELECT`, `CONFIRM`…) y los atajos que funcionan ahora, dibujados como teclas.
+- **Ventanas flotantes** (selectores, formularios, confirmaciones, Git) sobre la pantalla, que sigue visible detrás; un clic fuera las cierra, como `esc`.
+- **Avisos** (*toasts*) abajo a la derecha: la confirmación o el error de la última acción durante unos segundos.
 - Las pantallas anteriores permanecen montadas: al volver con `esc` conservas la selección que tenías.
+- En terminales pequeñas se pliega: sin barra lateral, sin vista previa, el estado se reduce a su glifo, y el detalle apila los paneles (la descripción se oculta si no cabe; `d` la edita igual).
+
+### Colores y tema
+
+SOJA usa su propia paleta en truecolor (verdes soja, grises cálidos) con una variante **oscura** y otra **clara**. Al abrir, elige según `SOJA_THEME` (`dark` o `light`), luego `COLORFGBG`, y si no, pregunta a la terminal su color de fondo (OSC 11, lo responden kitty, WezTerm, iTerm2, GNOME Terminal, Alacritty, Windows Terminal…); si nadie responde, oscura. En terminales de 256 o 16 colores se degrada sola. Los colores tienen significado: ámbar en progreso, azul review, rojo bloqueado o urgente, verde hecho, violeta PR mergeado.
+
+### Mouse
+
+El teclado sigue siendo lo principal, pero todo responde también al mouse:
+
+- **Clic** en una fila la selecciona; otro clic la abre. Funciona en listas de tasks, proyectos, workspaces, mensajes del chat y opciones de los selectores.
+- **Clic** en pestañas, en la barra lateral, en botones de las ventanas y en los campos del detalle (estado, prioridad, proyecto, assignee, requester, branch, PR, descripción) abre lo que los cambia.
+- **Rueda** para desplazar listas, el timeline y el chat.
+- **Clic fuera** de una ventana la cierra.
+- Para **seleccionar texto** y copiarlo, mantén `Shift` mientras arrastras (en la mayoría de terminales), o abre SOJA con `SOJA_MOUSE=0`.
 
 ### Splash
 
-Wordmark de 3 líneas hecho con medios bloques, gradiente verde soja y un cursor `▄▄▄` parpadeante como firma. Dura 700 ms y cualquier tecla lo salta. En terminales de menos de ~45 columnas se muestra el logo compacto `SOJA▁`.
+Al abrir: wordmark de 3 líneas hecho con medios bloques, gradiente verde soja y un cursor `▄▄▄` parpadeante, centrado, con un spinner mientras carga. Dura 700 ms y cualquier tecla lo salta. La primera vez, el **asistente de configuración** es una tarjeta tipo instalador: pasos numerados, la pregunta actual con su campo, progreso y botones *Back* / *Next*.
 
 ### My Work (Home)
 
@@ -333,15 +362,16 @@ CHANNELS                  #general  Everything, everyone
 - **Canales nuevos:** en el selector de canales, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión). El mismo selector cambia el **tema** del canal actual y lo **archiva** o restaura (owners; `#general` no se archiva).
 - Si el servidor rechaza un mensaje (por ejemplo, porque archivaron el canal mientras estabas sin conexión), aparece un aviso sobre el campo de escritura; `!` en la lista de mensajes ofrece **devolverte el texto** al campo o descartar el aviso.
 
-### Overlays
+### Ventanas (overlays)
 
-Ocupan el cuerpo de la pantalla; el header se mantiene.
+Flotan centradas sobre la pantalla actual, con fondo propio y el título en el borde.
 
-| Overlay | Qué hace |
+| Ventana | Qué hace |
 | --- | --- |
-| **Picker** | Lista con `j/k`, `enter` o números `1–9`. En las listas largas (assignee, proyecto, workspace, comandos) se filtra escribiendo; las flechas navegan. `●` marca el valor actual. |
+| **Picker** | Lista con `j/k`, `enter`, números `1–9` o clic. En las listas largas (assignee, proyecto, workspace, comandos) se filtra escribiendo en el campo de arriba; las flechas navegan. `✓` marca el valor actual. |
+| **Confirmación** | La pregunta, lo que va a pasar y dos botones: *Cancel* (por defecto) y la acción, en rojo si borra algo. `←/→` o `tab` eligen, `enter` confirma lo elegido, `y`/`n` responden directo. |
 | **Prompt** | Campo de texto de una línea. Autocompleta con `tab` cuando hay sugerencias (por ejemplo, requesters). |
-| **Nueva task** | Formulario rápido: Title, Project, Type, Priority, Assignee y Requested by. `tab`/`↓` cambian de campo, `←/→` cambian el valor, y `enter` crea desde cualquier campo. |
+| **Nueva task** | Formulario: Title, Project, Type, Priority, Assignee y Requested by, con campos rellenos y selectores `‹ valor ›`. `tab`/`↓` cambian de campo, `←/→` (o un clic) cambian el valor, y `enter` crea desde cualquier campo; también los botones *Cancel* / *Create task*. |
 | **Búsqueda** (`/`) | Filtra en cada tecla, por título o por ID (`SOJA-12`, `12`). Incluye las tasks cerradas. |
 | **Command palette** (`:` o `Ctrl+K`) | Todas las acciones principales, filtrables escribiendo. |
 
@@ -961,6 +991,8 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 | Variable | Efecto |
 | --- | --- |
 | `SOJA_DEBUG=1` | Muestra stack traces y la cadena de causas de los errores |
+| `SOJA_THEME=light` / `dark` | Fuerza la paleta clara u oscura (por defecto se detecta del fondo de la terminal) |
+| `SOJA_MOUSE=0` | Desactiva el mouse en la interfaz (para seleccionar texto sin `Shift`) |
 | `VISUAL`, `EDITOR` | Editor para descripciones y comentarios largos (`d`, `soja task describe/comment`); por defecto `vi` |
 | `NO_COLOR` / `FORCE_COLOR` | Control de color de la CLI |
 | `XDG_DATA_HOME`, `XDG_CONFIG_HOME` | Ubicación de los datos (útil para aislar pruebas) |
@@ -1156,15 +1188,17 @@ Git es un sistema externo, igual que la base de datos: los servicios dependen de
 src/
 ├── cli/            index.tsx (entrada, bin), output.ts, runtime.ts
 │   └── commands/   task, project, workspace, start, git-ops, folders, account, chat, sync, dev, info, tui, args
-├── ui/             App.tsx (arranque), Shell.tsx (header + pila de pantallas + overlay),
+├── ui/             App.tsx (arranque), Shell.tsx (marco de la app: barras, barra lateral, pantallas, ventanas, avisos),
 │   │               app-state.tsx (sesión, navegación, overlays, avisos), copy.ts
-│   ├── branding/   brand.ts (única fuente de la identidad), Logo, CompactLogo, Header, Splash, VersionBadge
-│   ├── theme/      theme.ts (colores, glifos y estilos de estado y prioridad)
+│   ├── branding/   brand.ts (única fuente de la identidad), Logo, CompactLogo, Splash
+│   ├── theme/      theme.ts (paleta clara/oscura, tonos, glifos), detect.ts (fondo de la terminal)
+│   ├── chrome/     TopBar, StatusBar, Sidebar, Toast, context (atajos de la barra de estado, pantalla activa)
+│   ├── kit/        Panel, Badge, Keycap, Tabs, Button, Clickable, ScrollBar, Gauge, Spinner
 │   ├── screens/    Setup, TaskList, Task, Projects, Workspaces, Chat, Help, ScreenFrame
-│   ├── overlays/   Picker, Prompt, Search, NewTask, OverlayFrame, options, types
-│   ├── components/ TaskTable, TextInput, Footer, Labels, EmptyState, task-columns
-│   ├── hooks/      use-query, use-list, use-layout, use-task-actions, use-flows, use-commands
-│   ├── input/      dispatcher (capas de teclado), KeyProvider, text-editing, list-navigation
+│   ├── overlays/   Picker, Confirm, Prompt, Search, NewTask, Commit, GitRun, GitLog, OverlayFrame, options, types
+│   ├── components/ TaskTable, TextInput, TextField, Labels, PullRequestLabel, ConsoleLines, EmptyState, task-columns
+│   ├── hooks/      use-query, use-list, use-layout, use-measure, use-terminal-size, use-task-actions, use-flows, use-commands
+│   ├── input/      dispatcher (capas de teclado), KeyProvider (teclado + mouse), mouse (SGR, regiones clicables), text-editing, list-navigation
 │   └── navigation/ routes.ts (pila de pantallas)
 ├── application/    services/ (session, workspace, project, task, git-workflow, folder), chat.ts, ports.ts, filters.ts, timeline.ts, validation.ts, types.ts
 ├── git/            types.ts (GitClient, GitError), cli-git.ts (git/gh), console.ts (log en vivo), diagnose.ts (errores → sugerencias), merge-evidence.ts (detección de merges)
@@ -1222,6 +1256,13 @@ El problema previsto en v0.1 se resolvió como se recomendaba: en modo remoto, l
 | Vincular un repositorio solo con `--link` o una acción explícita | Evita asociar por error el repositorio equivocado (por ejemplo, ejecutar desde otro proyecto). |
 
 ---
+
+### Interfaz tipo aplicación (v1.1)
+
+- **Componentes propios en `ui/kit/`, con InkUI como referencia.** InkUI (shadcn para Ink) inspiró los patrones (paneles con título en el borde, pestañas, *toasts*, spinners, medidores), pero no se usa como dependencia: sus componentes leen el teclado con `useInput` por su cuenta y saltarían el despachador por capas (el que evita que una letra dispare dos atajos a la vez), y traen su propio sistema de colores, mientras SOJA exige que colores y glifos salgan solo de `theme.ts`.
+- **Mouse sin librerías:** la terminal envía reportes SGR (`ESC [ < b ; x ; y M`), que Ink entrega a `useInput`; `KeyProvider` los reconoce antes que cualquier atajo, y cada elemento clicable calcula su posición sumando el layout de Yoga hasta la raíz. Las regiones van por capas como el teclado: una ventana abierta captura los clics antes que la pantalla de abajo, y gana la región más pequeña bajo el puntero. Al pasar la terminal a otro programa (editor, Git pidiendo credenciales) el mouse se apaga y se vuelve a encender.
+- **Medición propia (`useMeasure`):** `useBoxMetrics` de Ink 7.1 vuelve a renderizar en cada *commit* aunque nada cambie, y con muchos paneles entraba en un bucle; `useMeasure` solo actualiza si el tamaño cambió. Un único listener de tamaño de terminal (`TerminalSizeProvider`) sustituye a los de cada panel.
+- **Paneles que recortan, nunca comprimen:** el contenido de un panel conserva su altura natural y se recorta dentro del borde; Yoga, si no, reduce filas a altura 0 y se dibujan unas sobre otras.
 
 ## 14. Guía de desarrollo
 
@@ -1304,6 +1345,7 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
+| Interfaz y mouse | `test/ui/mouse.test.tsx`, `test/ui/mouse-input.test.ts` | Clic para seleccionar y abrir, pestañas, rueda, cambiar un campo del detalle con clic, cerrar ventanas con clic fuera, botones de confirmación, un reporte de mouse nunca dispara atajos; lectura SGR, capas y región más pequeña; tema claro/oscuro por `COLORFGBG` y OSC 11 |
 | Copias y actualizaciones | `test/application/backup.test.ts`, `test/application/update.test.ts` | Copia diaria que guarda 7, manual, restaurar guardando el estado previo; comparar versiones, consultar GitHub como mucho una vez al día, instalar el paquete del release, silencio sin `gh` |
 | Extremo a extremo | `test/e2e/team.e2e.ts` (`npm run test:e2e`, y en CI) | Backend real + PostgreSQL + CLI de dos developers: importar historial local, tasks y chat sin conexión en ambos lados con números únicos al reconectar, archivar y borrar para el otro |
 | Importar local → equipo | `test/data/import.test.ts` | Vista previa, importación con números y carpetas conservados, archivadas incluidas, sin duplicar al repetir, sin datos locales |
@@ -1313,7 +1355,7 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **197 tests en verde** (más la suite de extremo a extremo). El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. `soja import-local` se verificó con el backend real y PostgreSQL: 15 tasks, 4 comentarios y 33 eventos con sus números, un developer no miembro reportado, la task archivada visible como archivada para otro developer y una segunda importación sin duplicados. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **207 tests en verde** (más la suite de extremo a extremo). El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. `soja import-local` se verificó con el backend real y PostgreSQL: 15 tasks, 4 comentarios y 33 eventos con sus números, un developer no miembro reportado, la task archivada visible como archivada para otro developer y una segunda importación sin duplicados. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1336,6 +1378,9 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - Chat: sin mensajes directos, canales privados, hilos, búsqueda ni notificaciones del sistema; los canales archivados se leen pero no aceptan mensajes.
 - Los *backlinks* del chat se calculan en tu máquina buscando `SOJA-n` en el texto, así que incluyen mensajes escritos antes de que la task existiera.
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
+
+- Mouse: no hay arrastrar ni selección con el mouse dentro de SOJA; para copiar texto, `Shift` + arrastrar en la terminal o `SOJA_MOUSE=0`.
+- La detección del tema depende de que la terminal responda a OSC 11 o defina `COLORFGBG`; si no, se usa la paleta oscura (`SOJA_THEME=light` la cambia).
 
 ### Roadmap propuesto
 
@@ -1380,6 +1425,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 1.0.0 r2 | 1.0.0 + v1.1 sin publicar | 2026-09-25 | §5 reescrita: interfaz tipo aplicación (barras, barra lateral, paneles, ventanas flotantes, avisos), paleta clara/oscura, mouse, asistente tipo instalador; §10 `SOJA_THEME` y `SOJA_MOUSE`; §12 carpetas `chrome/` y `kit/`; §13 decisiones de la interfaz (InkUI como referencia, mouse, medición). |
 | 1.0.0 r1 | 1.0.0 | 2026-09-24 | Publicación de v1.0.0: cabecera, estado actual y roadmap. Requiere `soja-backend` ≥ 1.0.0 para importar y borrar. |
 | 0.6.0 r5 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Robustez e instalación: §2 instalar desde GitHub Releases con `gh` y `soja update`; §10 copias diarias y `soja backup`; §14 CI (check, domain, e2e, release), `npm run test:e2e`, `check:domain`; §17 el tag publica el release. |
 | 0.6.0 r4 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §9 *Llevar tu trabajo local al equipo*: `soja import-local` (proyectos, tasks, comentarios y timeline; números conservados o renumerados; developers por username; idempotente; solo owners); sugerencia tras `soja login`; `remote.imports` en la config. |

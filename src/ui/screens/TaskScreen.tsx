@@ -1,5 +1,5 @@
 import { Box, Text } from 'ink';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { TaskGitState, TaskPullRequestState } from '../../application/services/index.js';
 import { PullRequestSummary } from '../components/PullRequestLabel.js';
 import type { TimelineEntry } from '../../application/types.js';
@@ -8,7 +8,11 @@ import { formatRelative, formatStamp } from '../../utils/time.js';
 import { clampLines, wrapText } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
 import { EmptyState } from '../components/EmptyState.js';
-import { PriorityLabel, StatusLabel } from '../components/Labels.js';
+import { PriorityMeter, StatusBadge } from '../components/Labels.js';
+import { Badge } from '../kit/Badge.js';
+import { Clickable } from '../kit/Clickable.js';
+import { Panel } from '../kit/Panel.js';
+import { Spinner } from '../kit/Spinner.js';
 import { useLayout } from '../hooks/use-layout.js';
 import { useQuery } from '../hooks/use-query.js';
 import { useTaskActions } from '../hooks/use-task-actions.js';
@@ -76,16 +80,27 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   // Git state loads on its own so the task shows instantly even in big repositories.
   const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
 
-  // Everything above the timeline, measured in rows, so the timeline gets the rest.
-  const titleLines = task ? wrapText(task.title, width).length : 1;
-  const descriptionLines = task?.description ? clampLines(wrapText(task.description, width - 2), Math.max(1, Math.min(6, height - 18))) : [];
-  const mentionRows = mentionList.length ? mentionList.length + 2 : 0;
-  const fixedRows = 1 + titleLines + 1 + 1 + 6 + 1 + Math.max(1, descriptionLines.length) + 1 + 1 + mentionRows;
-  const timelineRows = Math.max(2, height - fixedRows);
-  const timeline = task ? timelineLines(task.timeline, width) : [];
+  // Layout: header, title, chips and notices; then Details + Description; the Activity panel gets the rest.
+  // Details and Description side by side only when both keep a useful width.
+  const wide = width >= 110;
+  const titleLines = task ? clampLines(wrapText(task.title, width), 2) : [''];
+  const noticeLines = Math.min(2, notices.data?.length ?? 0);
+  const detailsHeight = 8;
+  // Title, chips (with a gap) and notices; then the details panel (with a gap).
+  const headRows = titleLines.length + 2 + noticeLines + 1 + detailsHeight;
+  // Stacked (narrow) layouts give the description what is left above the activity's minimum (2 rows + borders);
+  // with no room it is hidden (d still edits it).
+  const stackedDescription = Math.min(5, height - headRows - 4);
+  const descriptionHeight = wide ? detailsHeight : stackedDescription >= 3 ? stackedDescription : 0;
+  const upperRows = headRows + (wide ? 0 : descriptionHeight);
+  const timelineRows = Math.max(2, height - upperRows - 2);
+  const showMentions = wide && mentionList.length > 0;
+  const activityWidth = showMentions ? Math.floor(width * 0.62) - 4 : width - 4;
+  const timeline = task ? timelineLines(task.timeline, activityWidth) : [];
   const actorWidth = Math.min(18, Math.max(8, ...timeline.map((line) => line.actor.length)) + 2);
   const maxScroll = Math.max(0, timeline.length - timelineRows);
   const offset = Math.min(scroll, maxScroll);
+  const scrollBy = (delta: number) => setScroll(Math.max(0, Math.min(maxScroll, offset + delta)));
 
   useKeys(
     Layer.screen,
@@ -133,92 +148,115 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
 
   if (!task) {
     return (
-      <ScreenFrame hints={[['esc', 'back']]}>
-        {query.error ? <EmptyState lines={[query.error.message, query.error.hint ?? '']} /> : <Text dimColor>Loading…</Text>}
+      <ScreenFrame title={taskRef} hints={[['esc', 'back']]}>
+        {query.error ? <EmptyState lines={[query.error.message, query.error.hint ?? '']} icon={symbols.cross} /> : <Spinner label="Loading…" />}
       </ScreenFrame>
     );
   }
 
   const end = timeline.length - offset;
   const visibleTimeline = timeline.slice(Math.max(0, end - timelineRows), end);
+  const description = task.description ? clampLines(wrapText(task.description, (wide ? width - Math.floor(width / 2) : width) - 5), Math.max(1, descriptionHeight - 2)) : [];
+  const detailsWidth = wide ? Math.floor(width / 2) : width;
   return (
-    <ScreenFrame hints={hints}>
-      <Box justifyContent="space-between">
-        <Text>
-          <Text bold color={palette.accent}>
-            {task.ref}
-          </Text>
-          <Text dimColor>{`  ${TYPE_LABELS[task.type]}`}</Text>
+    <ScreenFrame
+      title={`${task.ref} · ${TYPE_LABELS[task.type]}`}
+      aside={width >= 70 ? `created ${formatStamp(task.createdAt)}${task.creator ? ` by @${task.creator.username}` : ''} ${symbols.dot} updated ${formatRelative(task.updatedAt)}` : undefined}
+      hints={hints}
+    >
+      {titleLines.map((line, index) => (
+        <Text key={index} bold color={palette.text}>
+          {line}
         </Text>
-        {width >= 70 ? (
-          <Text dimColor>
-            {`created ${formatStamp(task.createdAt)}${task.creator ? ` by @${task.creator.username}` : ''} ${symbols.dot} updated ${formatRelative(task.updatedAt)}`}
+      ))}
+      <Box gap={2} marginTop={1}>
+        <Clickable onClick={() => actions.status(task)} active={active}>
+          <StatusBadge status={task.status} />
+        </Clickable>
+        <Clickable onClick={() => actions.priority(task)} active={active}>
+          <PriorityMeter priority={task.priority} />
+        </Clickable>
+        {task.archivedAt ? <Badge tone="warning">{`archived ${formatRelative(task.archivedAt)} · e to restore`}</Badge> : null}
+        {isClosed(task.status) && task.completedAt ? <Text color={palette.muted}>{`closed ${formatRelative(task.completedAt)}`}</Text> : null}
+      </Box>
+      {(notices.data ?? []).slice(0, 2).map((notice) => (
+        <Clickable key={notice.id} onClick={openNotices} active={active}>
+          <Text color={notice.kind === 'conflict' ? palette.warning : palette.danger} wrap="truncate-end">
+            {`! ${notice.message}`}
           </Text>
+        </Clickable>
+      ))}
+
+      <Box marginTop={1} flexDirection={wide ? 'row' : 'column'} gap={wide ? 1 : 0}>
+        <Panel title="Details" width={detailsWidth} height={detailsHeight}>
+          <Field label="Project" value={task.project?.name} onClick={() => actions.project(task)} active={active} />
+          <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} onClick={() => actions.assign(task)} active={active} />
+          <Field label="Requested by" value={task.requester ?? undefined} onClick={() => actions.requester(task)} active={active} />
+          <GitFields
+            state={git.data}
+            fallbackBranch={task.branch ?? task.suggestedBranch}
+            recorded={task.branch !== null}
+            closed={isClosed(task.status)}
+            onBranch={() => actions.branch(task)}
+            onCommits={() => openOverlay({ kind: 'git-log' })}
+            active={active}
+          />
+          <PullRequestField state={task.branch ? pullRequest.data : null} loading={pullRequest.loading} onClick={() => actions.gitMenu(task)} active={active} />
+        </Panel>
+        {descriptionHeight ? (
+        <Panel title="Description" aside={description.length ? 'd edit' : undefined} height={descriptionHeight} flexGrow={1}>
+          <Clickable onClick={() => void actions.description(task)} active={active} flexDirection="column">
+            {description.length ? (
+              description.map((line, index) => (
+                <Text key={index} color={palette.text}>
+                  {line}
+                </Text>
+              ))
+            ) : (
+              <Text color={palette.faint}>No description. Press d (or click) to write one.</Text>
+            )}
+          </Clickable>
+        </Panel>
         ) : null}
       </Box>
-      <Text bold>{task.title}</Text>
-      <Box gap={3}>
-        <StatusLabel status={task.status} />
-        <PriorityLabel priority={task.priority} />
-        {task.archivedAt ? <Text color={palette.warning}>{`archived ${formatRelative(task.archivedAt)} · e to restore`}</Text> : null}
-      </Box>
 
-      <Box marginTop={1} flexDirection="column">
-        <Field label="Project" value={task.project?.name} />
-        <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} />
-        <Field label="Requested by" value={task.requester ?? undefined} />
-        <GitFields state={git.data} fallbackBranch={task.branch ?? task.suggestedBranch} recorded={task.branch !== null} closed={isClosed(task.status)} />
-        <PullRequestField state={task.branch ? pullRequest.data : null} loading={pullRequest.loading} />
+      <Box flexGrow={1} gap={1}>
+        <Panel title="Activity" aside={maxScroll > 0 ? (offset > 0 ? '↓ newer' : '↑ older') : undefined} height={timelineRows + 2} flexGrow={1}>
+          <Clickable onWheel={(direction) => scrollBy(-direction)} active={active} flexDirection="column">
+            {visibleTimeline.map((line) => (
+              <Text key={line.key} wrap="truncate-end">
+                <Text color={palette.faint}>{line.stamp.padEnd(7)}</Text>
+                <Text color={line.actor ? palette.muted : palette.faint}>{line.actor.padEnd(actorWidth)}</Text>
+                {line.kind === 'comment' ? <Text color={palette.accent}>{line.first ? `${symbols.comment} ` : '  '}</Text> : <Text color={palette.faint}>{'• '}</Text>}
+                <Text color={line.kind === 'event' ? palette.muted : palette.text}>{line.text}</Text>
+              </Text>
+            ))}
+            {visibleTimeline.length === 0 ? <Text color={palette.faint}>Nothing yet.</Text> : null}
+          </Clickable>
+        </Panel>
+        {showMentions ? (
+          <Panel title="Mentioned in chat" height={timelineRows + 2} width={Math.floor(width * 0.38)}>
+            {mentionList.map((message) => (
+              <Box key={message.id} flexDirection="column" marginBottom={1}>
+                <Text wrap="truncate-end">
+                  <Text color={palette.muted}>{`${message.author ? `@${message.author.username}` : 'someone'} `}</Text>
+                  <Text color={palette.faint}>{formatStamp(message.createdAt)}</Text>
+                </Text>
+                <Text color={palette.text} wrap="truncate-end">
+                  {message.body.split('\n')[0]}
+                </Text>
+              </Box>
+            ))}
+          </Panel>
+        ) : null}
       </Box>
-
-      {(notices.data ?? []).slice(0, 2).map((notice) => (
-        <Text key={notice.id} color={notice.kind === 'conflict' ? palette.warning : palette.danger} wrap="truncate-end">
-          {`! ${notice.message}`}
-        </Text>
-      ))}
-      <Box marginTop={1} flexDirection="column" paddingLeft={2}>
-        {descriptionLines.length ? (
-          descriptionLines.map((line, index) => <Text key={index}>{line}</Text>)
-        ) : (
-          <Text dimColor>No description. Press d to add one.</Text>
-        )}
-      </Box>
-
-      {mentionList.length ? (
-        <Box marginTop={1} flexDirection="column">
-          <Text dimColor bold>
-            MENTIONED IN CHAT
-          </Text>
-          {mentionList.map((message) => (
-            <Text key={message.id} wrap="truncate-end">
-              <Text dimColor>{formatStamp(message.createdAt).padEnd(7)}</Text>
-              <Text>{`${message.author ? `@${message.author.username}` : 'someone'} `}</Text>
-              <Text dimColor>{message.body.split('\n')[0]}</Text>
-            </Text>
-          ))}
-        </Box>
-      ) : null}
-      <Box marginTop={1} justifyContent="space-between">
-        <Text dimColor bold>
-          ACTIVITY
-        </Text>
-        {maxScroll > 0 ? <Text dimColor>{offset > 0 ? 'j newer' : 'k older'}</Text> : null}
-      </Box>
-      {visibleTimeline.map((line) => (
-        <Text key={line.key} wrap="truncate-end">
-          <Text dimColor>{line.stamp.padEnd(7)}</Text>
-          <Text dimColor={!line.actor}>{line.actor.padEnd(actorWidth)}</Text>
-          {line.kind === 'comment' ? <Text color={palette.accent}>{line.first ? `${symbols.comment} ` : '  '}</Text> : null}
-          <Text dimColor={line.kind === 'event'}>{line.text}</Text>
-        </Text>
-      ))}
     </ScreenFrame>
   );
 }
 
-function PullRequestField({ state, loading }: { state: TaskPullRequestState | null | undefined; loading: boolean }) {
+function PullRequestField({ state, loading, onClick, active }: { state: TaskPullRequestState | null | undefined; loading: boolean; onClick: () => void; active: boolean }) {
   return (
-    <Box>
+    <FieldRow onClick={onClick} active={active}>
       <Box width={LABEL_WIDTH} flexShrink={0}>
         <Text dimColor>Pull request</Text>
       </Box>
@@ -229,23 +267,44 @@ function PullRequestField({ state, loading }: { state: TaskPullRequestState | nu
       ) : state?.status === 'none' ? (
         <Text dimColor wrap="truncate-end">{`none · g to open one`}</Text>
       ) : (
-        <Text dimColor>{loading && state === undefined ? 'checking GitHub…' : '—'}</Text>
+        loading && state === undefined ? <Spinner label="checking GitHub…" color={palette.faint} /> : <Text color={palette.faint}>—</Text>
       )}
-    </Box>
+    </FieldRow>
   );
 }
 
-function Field({ label, value, hint }: { label: string; value: string | undefined; hint?: string | undefined }) {
+/** A row of the Details panel: clicking it opens what changes it. */
+function FieldRow({ onClick, active, children }: { onClick?: (() => void) | undefined; active: boolean; children: ReactNode }) {
   return (
-    <Box>
+    <Clickable onClick={onClick} active={active}>
+      <Box flexGrow={1}>{children}</Box>
+    </Clickable>
+  );
+}
+
+function Field({
+  label,
+  value,
+  hint,
+  onClick,
+  active = true,
+}: {
+  label: string;
+  value: string | undefined;
+  hint?: string | undefined;
+  onClick?: (() => void) | undefined;
+  active?: boolean;
+}) {
+  return (
+    <FieldRow onClick={onClick} active={active}>
       <Box width={LABEL_WIDTH} flexShrink={0}>
-        <Text dimColor>{label}</Text>
+        <Text color={palette.muted}>{label}</Text>
       </Box>
       <Text wrap="truncate-end">
-        {value ? <Text>{value}</Text> : <Text dimColor>—</Text>}
-        {hint ? <Text dimColor>{value ? `  ${hint}` : `  suggested ${hint}`}</Text> : null}
+        {value ? <Text color={palette.text}>{value}</Text> : <Text color={palette.faint}>—</Text>}
+        {hint ? <Text color={palette.muted}>{value ? `  ${hint}` : `  suggested ${hint}`}</Text> : null}
       </Text>
-    </Box>
+    </FieldRow>
   );
 }
 
@@ -255,32 +314,43 @@ function GitFields({
   fallbackBranch,
   recorded,
   closed,
+  onBranch,
+  onCommits,
+  active,
 }: {
   state: TaskGitState | undefined;
   fallbackBranch: string;
   recorded: boolean;
   closed: boolean;
+  onBranch: () => void;
+  onCommits: () => void;
+  active: boolean;
 }) {
   if (!state) {
     return (
       <>
-        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} />
-        <Field label="Commits" value={undefined} />
+        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} onClick={onBranch} active={active} />
+        <FieldRow active={active}>
+          <Box width={LABEL_WIDTH} flexShrink={0}>
+            <Text color={palette.muted}>Commits</Text>
+          </Box>
+          <Spinner label="reading Git…" color={palette.faint} />
+        </FieldRow>
       </>
     );
   }
   if (state.status === 'unavailable') {
     return (
       <>
-        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} />
-        <Box>
+        <Field label="Branch" value={recorded ? fallbackBranch : undefined} hint={recorded ? undefined : fallbackBranch} onClick={onBranch} active={active} />
+        <FieldRow onClick={onBranch} active={active}>
           <Box width={LABEL_WIDTH} flexShrink={0}>
-            <Text dimColor>Git</Text>
+            <Text color={palette.muted}>Git</Text>
           </Box>
-          <Text dimColor wrap="truncate-end">
+          <Text color={palette.faint} wrap="truncate-end">
             {state.reason}
           </Text>
-        </Box>
+        </FieldRow>
       </>
     );
   }
@@ -288,29 +358,30 @@ function GitFields({
   const [latest] = state.commits;
   return (
     <>
-      <Box>
+      <FieldRow onClick={onBranch} active={active}>
         <Box width={LABEL_WIDTH} flexShrink={0}>
-          <Text dimColor>Branch</Text>
+          <Text color={palette.muted}>Branch</Text>
         </Box>
+        {/* The state first: branch names are long and are the part that gets cut. */}
         <Text wrap="truncate-end">
-          <Text dimColor={!state.branchExists}>{closed && !state.recorded && !state.branchExists ? '—' : state.branch}</Text>
           {state.checkedOut ? (
-            <Text color={palette.success}>{`  ${symbols.active} checked out`}</Text>
+            <Text color={palette.success}>{`${symbols.active} checked out  `}</Text>
           ) : state.branchExists ? (
-            <Text dimColor>{'  not checked out'}</Text>
+            <Text color={palette.muted}>{'not checked out  '}</Text>
           ) : state.recorded && !closed ? (
-            <Text color={palette.warning}>{'  deleted, no merge found · b recreate · g forget'}</Text>
+            <Text color={palette.warning}>{'deleted, no merge found · b recreate · g forget  '}</Text>
           ) : state.recorded ? (
-            <Text dimColor>{'  deleted'}</Text>
+            <Text color={palette.muted}>{'deleted  '}</Text>
           ) : closed ? null : (
-            <Text dimColor>{'  suggested · b to start'}</Text>
+            <Text color={palette.muted}>{'suggested · b to start  '}</Text>
           )}
-          {state.uncommitted > 0 ? <Text color={palette.warning}>{`  ${state.uncommitted} uncommitted`}</Text> : null}
+          {state.uncommitted > 0 ? <Text color={palette.warning}>{`${state.uncommitted} uncommitted  `}</Text> : null}
+          <Text color={state.branchExists ? palette.text : palette.faint}>{closed && !state.recorded && !state.branchExists ? '—' : state.branch}</Text>
         </Text>
-      </Box>
-      <Box>
+      </FieldRow>
+      <FieldRow onClick={onCommits} active={active}>
         <Box width={LABEL_WIDTH} flexShrink={0}>
-          <Text dimColor>Commits</Text>
+          <Text color={palette.muted}>Commits</Text>
         </Box>
         {latest ? (
           <Text wrap="truncate-end">
@@ -319,9 +390,9 @@ function GitFields({
             <Text dimColor>{`  ${formatRelative(latest.date)}${state.commits.length > 1 ? `  +${state.commits.length - 1} more` : ''}`}</Text>
           </Text>
         ) : (
-          <Text dimColor>none yet</Text>
+          <Text color={palette.faint}>none yet</Text>
         )}
-      </Box>
+      </FieldRow>
     </>
   );
 }

@@ -1,11 +1,14 @@
-import { Text } from 'ink';
+import { Box, Text } from 'ink';
 import type { ConsoleLine } from '../../git/console.js';
 import { palette } from '../theme/theme.js';
 
-/** Git console lines: commands stand out, Git's chatter is dim, results are colored. */
-export function ConsoleLines({ lines }: { lines: readonly ConsoleLine[] }) {
+/**
+ * Git console lines on an inset like a small terminal: commands stand out,
+ * Git's chatter is dim, results are colored.
+ */
+export function ConsoleLines({ lines, minRows = 0 }: { lines: readonly ConsoleLine[]; minRows?: number }) {
   return (
-    <>
+    <Box flexDirection="column" backgroundColor={palette.bar} paddingX={1} minHeight={minRows}>
       {lines.map((line) => (
         <Text
           key={line.id}
@@ -18,13 +21,12 @@ export function ConsoleLines({ lines }: { lines: readonly ConsoleLine[] }) {
                 ? palette.danger
                 : line.kind === 'success'
                   ? palette.success
-                  : undefined
+                  : palette.muted
           }
-          dimColor={line.kind === 'stdout' || line.kind === 'stderr' || line.kind === 'info'}
         >
           {line.kind === 'command' ? line.text : `  ${line.text}`}
         </Text>
       ))}
-    </>
+    </Box>
   );
 }

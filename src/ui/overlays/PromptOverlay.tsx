@@ -1,7 +1,8 @@
 import { Box, Text } from 'ink';
 import { useState } from 'react';
 import { useAppState } from '../app-state.js';
-import { TextInput } from '../components/TextInput.js';
+import { TextField } from '../components/TextField.js';
+import { palette } from '../theme/theme.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
 import { OverlayFrame } from './OverlayFrame.js';
@@ -51,12 +52,12 @@ export function PromptOverlay({ spec }: { spec: PromptSpec }) {
         ['esc', 'cancel'],
       ]}
     >
-      <TextInput value={value} onChange={setValue} placeholder={spec.placeholder} />
+      <TextField value={value} onChange={setValue} placeholder={spec.placeholder} />
       {completion ? (
-        <Text dimColor>{`  tab → ${completion}`}</Text>
+        <Text color={palette.muted}>{`tab → ${completion}`}</Text>
       ) : others.length ? (
         <Box marginTop={1}>
-          <Text dimColor wrap="truncate-end">{`  known: ${others.join(', ')}`}</Text>
+          <Text color={palette.faint} wrap="truncate-end">{`known: ${others.join(', ')}`}</Text>
         </Box>
       ) : null}
     </OverlayFrame>

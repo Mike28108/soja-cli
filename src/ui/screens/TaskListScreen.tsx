@@ -1,10 +1,14 @@
 import { Box, Text } from 'ink';
 import { useState } from 'react';
 import { FILTER_LABELS, TASK_FILTERS, type TaskFilter } from '../../application/filters.js';
-import type { ProjectSummary } from '../../application/types.js';
-import { activeCount, countStatuses, type StatusCounts } from '../../domain/task.js';
+import type { ProjectSummary, TaskView } from '../../application/types.js';
+import type { PullRequest } from '../../git/types.js';
+import { activeCount, countStatuses, TYPE_LABELS, type StatusCounts } from '../../domain/task.js';
+import { formatRelative } from '../../utils/time.js';
 import { useAppState } from '../app-state.js';
 import { EmptyState } from '../components/EmptyState.js';
+import { PriorityMeter, StatusBadge } from '../components/Labels.js';
+import { PullRequestSummary } from '../components/PullRequestLabel.js';
 import { TaskTable, tableRows } from '../components/TaskTable.js';
 import { EMPTY_TASKS, summaryRemark } from '../copy.js';
 import { useLayout } from '../hooks/use-layout.js';
@@ -13,11 +17,16 @@ import { useQuery } from '../hooks/use-query.js';
 import { useTaskActions } from '../hooks/use-task-actions.js';
 import { Layer } from '../input/dispatcher.js';
 import { useKeys } from '../input/KeyProvider.js';
+import { Panel } from '../kit/Panel.js';
+import { Tabs } from '../kit/Tabs.js';
 import { palette, symbols } from '../theme/theme.js';
+import { clampLines, wrapText } from '../../utils/text.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
-const HEADING: Record<TaskFilter, string> = { ...FILTER_LABELS, mine: 'My Work' };
+const HEADING: Record<TaskFilter, string> = { ...FILTER_LABELS, mine: 'My work' };
 const TAB_LABELS: Record<TaskFilter, string> = { ...FILTER_LABELS, mine: 'Mine', all: 'All' };
+/** Rows of the preview panel, including its borders. */
+const PREVIEW_ROWS = 8;
 
 interface TaskListScreenProps {
   active: boolean;
@@ -28,10 +37,13 @@ interface TaskListScreenProps {
 
 /** "What do I have to do now?" Home is this screen with no project. */
 export function TaskListScreen({ active, projectId, initialFilter }: TaskListScreenProps) {
-  const { services, session, go, cwd } = useAppState();
+  const { services, session, go, cwd, homeFilter, setHomeFilter } = useAppState();
   const actions = useTaskActions();
   const { width, height } = useLayout();
-  const [filter, setFilter] = useState<TaskFilter>(initialFilter ?? (projectId ? 'all' : 'mine'));
+  // Home shares its filter with the sidebar; a project list keeps its own.
+  const [projectFilter, setProjectFilter] = useState<TaskFilter>(initialFilter ?? 'all');
+  const filter = projectId ? projectFilter : homeFilter;
+  const setFilter = projectId ? setProjectFilter : setHomeFilter;
 
   const scope = projectId ? { projectId } : {};
   const tasks = useQuery(
@@ -50,18 +62,23 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
   );
 
   const list = tasks.data ?? [];
-  // Heading, gap, gap, summary; plus the project heading (two lines and a gap).
-  const chromeRows = 4 + (projectId ? 3 : 0);
+  // Tabs and a gap; the project line; the preview panel when there is room for it.
+  const withPreview = height >= 22 && list.length > 0;
+  const chromeRows = 2 + (projectId ? 2 : 0) + (withPreview ? PREVIEW_ROWS : 0);
   const tableHeight = Math.max(3, height - chromeRows);
   const nav = useList(list.length, tableRows(tableHeight));
   const selected = list[nav.index];
 
+  const pick = (next: TaskFilter) => {
+    setFilter(next);
+    nav.select(0);
+  };
   const setFilterAt = (index: number) => {
     const next = TASK_FILTERS[(index + TASK_FILTERS.length) % TASK_FILTERS.length];
-    if (next) {
-      setFilter(next);
-      nav.select(0);
-    }
+    if (next) pick(next);
+  };
+  const open = (task: TaskView | undefined) => {
+    if (task) go({ type: 'push', route: { name: 'task', ref: task.ref } });
   };
 
   useKeys(
@@ -74,7 +91,7 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
       if ((key.tab && !key.shift) || input === 'l' || key.rightArrow) setFilterAt(tabIndex + 1);
       else if ((key.tab && key.shift) || input === 'h' || key.leftArrow) setFilterAt(tabIndex === -1 ? TASK_FILTERS.length - 1 : tabIndex - 1);
       else if (/^[1-7]$/.test(input)) setFilterAt(Number(input) - 1);
-      else if (key.return && selected) go({ type: 'push', route: { name: 'task', ref: selected.ref } });
+      else if (key.return) open(selected);
       else if (input === 's' && selected) actions.status(selected);
       else if (input === 'a' && selected) void actions.assign(selected);
       else if (input === 'x' && selected) void actions.toggleDone(selected);
@@ -85,28 +102,40 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
   );
 
   const counts = countStatuses(list);
+  const compactTabs = width < 96;
+  const title = project.data ? `${project.data.name} · ${project.data.key}` : HEADING[filter];
   return (
     <ScreenFrame
+      title={title}
+      aside={summaryText(filter, counts, list.length)}
       hints={[
-        ['j/k', 'move'],
+        ['↑↓', 'move'],
         ['enter', 'open'],
         ['n', 'new'],
-        ['h/l', 'filter'],
+        ['s', 'status'],
+        ['x', 'done'],
+        ['←→', 'filter'],
         ['/', 'search'],
         [':', 'commands'],
         ['?', 'help'],
       ]}
     >
-      {project.data ? <ProjectHeading project={project.data} /> : null}
+      {project.data ? <ProjectLine project={project.data} /> : null}
       <Box justifyContent="space-between">
-        <Text bold>{projectId ? HEADING[filter] : HEADING[filter].toUpperCase()}</Text>
-        <FilterTabs current={filter} width={width - HEADING[filter].length - 4} />
+        <Tabs
+          items={TASK_FILTERS.map((value, index) => ({ value, label: TAB_LABELS[value], shortcut: String(index + 1) }))}
+          value={(TASK_FILTERS as readonly TaskFilter[]).includes(filter) ? filter : null}
+          onChange={pick}
+          active={active}
+          compact={compactTabs}
+        />
+        {filter === 'archived' ? <Text color={palette.warning}>{'archived tasks'}</Text> : null}
       </Box>
       <Box marginTop={1} flexDirection="column" height={tableHeight}>
         {tasks.error ? (
-          <EmptyState lines={[tasks.error.message, tasks.error.hint ?? '']} />
+          <EmptyState lines={[tasks.error.message, tasks.error.hint ?? '']} icon={symbols.cross} />
         ) : list.length === 0 && !tasks.loading ? (
-          <EmptyState lines={EMPTY_TASKS[filter]} />
+          <EmptyState lines={EMPTY_TASKS[filter]} icon={symbols.check} />
         ) : (
           <TaskTable
             tasks={list}
@@ -116,65 +145,74 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
             width={width}
             showAssignee={filter !== 'mine'}
             pullRequests={pullRequests.data}
+            onSelect={(index) => nav.select(index)}
+            onOpen={(index) => open(list[index])}
+            onScroll={(delta) => nav.select(nav.index + delta)}
+            active={active}
           />
         )}
       </Box>
-      <Box marginTop={1} justifyContent="space-between">
-        <Summary filter={filter} counts={counts} total={list.length} />
-        {list.length > tableRows(tableHeight) ? <Text dimColor>{`${nav.index + 1}/${list.length}`}</Text> : null}
-      </Box>
+      {withPreview && selected ? <TaskPreview task={selected} pr={pullRequests.data?.get(selected.id)} width={width} remark={summaryRemark(counts)} /> : null}
     </ScreenFrame>
   );
 }
 
-function FilterTabs({ current, width }: { current: TaskFilter; width: number }) {
-  // Labels with their number shortcut when there is room; the active one only when very narrow.
-  const full = TASK_FILTERS.map((filter, index) => `${index + 1} ${TAB_LABELS[filter]}`).join('  ');
-  const compact = full.length > width;
-  if (compact && width < 30) return <Text color={palette.accent}>{TAB_LABELS[current]}</Text>;
+function summaryText(filter: TaskFilter, counts: StatusCounts, total: number): string | undefined {
+  if (total === 0) return undefined;
+  if (filter === 'done' || filter === 'archived') return `${total} ${filter}`;
+  return `${activeCount(counts)} active ${symbols.dot} ${counts.in_progress} in progress ${symbols.dot} ${counts.review} review ${symbols.dot} ${counts.blocked} blocked`;
+}
+
+/** The selected task at a glance, so most of the time you do not need to open it. */
+function TaskPreview({ task, pr, width, remark }: { task: TaskView; pr: PullRequest | undefined; width: number; remark: string | null }) {
+  const description = task.description ? clampLines(wrapText(task.description, width - 4), 2) : [];
+  const meta = [
+    TYPE_LABELS[task.type],
+    task.project?.name,
+    task.assignee ? `@${task.assignee.username}` : 'unassigned',
+    task.requester ? `for ${task.requester}` : null,
+    `updated ${formatRelative(task.updatedAt)}`,
+  ].filter(Boolean);
   return (
-    <Box gap={compact ? 1 : 2}>
-      {TASK_FILTERS.map((filter, index) => (
-        <Text key={filter} color={filter === current ? palette.accent : undefined} dimColor={filter !== current} bold={filter === current}>
-          {compact ? TAB_LABELS[filter] : `${index + 1} ${TAB_LABELS[filter]}`}
+    <Box marginTop={1}>
+      <Panel title={task.ref} aside={remark ?? undefined} height={PREVIEW_ROWS - 1} flexGrow={1}>
+        <Text wrap="truncate-end" color={palette.text} bold>
+          {task.title}
         </Text>
-      ))}
+        <Box gap={2}>
+          <StatusBadge status={task.status} />
+          <PriorityMeter priority={task.priority} />
+          <Text color={palette.muted} wrap="truncate-end">
+            {meta.join(` ${symbols.dot} `)}
+          </Text>
+        </Box>
+        {pr ? (
+          <PullRequestSummary pr={pr} />
+        ) : task.branch ? (
+          <Text color={palette.muted} wrap="truncate-end">{`${symbols.link} ${task.branch}`}</Text>
+        ) : (
+          <Text color={palette.faint}>{'no branch yet · b in the task starts one'}</Text>
+        )}
+        {description.length ? (
+          description.map((line, index) => (
+            <Text key={index} color={palette.muted}>
+              {line}
+            </Text>
+          ))
+        ) : (
+          <Text color={palette.faint}>{'No description.'}</Text>
+        )}
+      </Panel>
     </Box>
   );
 }
 
-function Summary({ filter, counts, total }: { filter: TaskFilter; counts: StatusCounts; total: number }) {
-  if (total === 0) return <Text> </Text>;
-  if (filter === 'done') return <Text dimColor>{`${total} done`}</Text>;
-  const remark = summaryRemark(counts);
-  const sep = ` ${symbols.dot} `;
-  return (
-    <Text>
-      <Text>{`${activeCount(counts)} active`}</Text>
-      <Text dimColor>{sep}</Text>
-      <Text color={counts.in_progress ? palette.warning : undefined} dimColor={!counts.in_progress}>{`${counts.in_progress} in progress`}</Text>
-      <Text dimColor>{sep}</Text>
-      <Text color={counts.review ? palette.info : undefined} dimColor={!counts.review}>{`${counts.review} review`}</Text>
-      <Text dimColor>{sep}</Text>
-      <Text color={counts.blocked ? palette.danger : undefined} dimColor={!counts.blocked}>{`${counts.blocked} blocked`}</Text>
-      {remark ? <Text dimColor>{`   ${remark}`}</Text> : null}
-    </Text>
-  );
-}
-
-function ProjectHeading({ project }: { project: ProjectSummary }) {
+function ProjectLine({ project }: { project: ProjectSummary }) {
   const location = project.repositoryPath ?? project.repositoryUrl;
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Text>
-        <Text bold color={palette.accent}>
-          {project.name}
-        </Text>
-        <Text dimColor>{`  ${project.key}${project.description ? `  ${symbols.dot}  ${project.description}` : ''}`}</Text>
-      </Text>
-      <Text dimColor wrap="truncate-end">
-        {`${project.active} active ${symbols.dot} ${project.counts.done} done`}
-        {location ? `  ${symbols.dot}  ${location}` : ''}
+    <Box marginBottom={1}>
+      <Text color={palette.muted} wrap="truncate-end">
+        {[project.description, `${project.active} active`, `${project.counts.done} done`, location].filter(Boolean).join(`  ${symbols.dot}  `)}
       </Text>
     </Box>
   );

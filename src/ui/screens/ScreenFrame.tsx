@@ -1,20 +1,21 @@
-import { Box } from 'ink';
 import type { ReactNode } from 'react';
-import { Footer, type Hint } from '../components/Footer.js';
+import { useHints, type Hint } from '../chrome/context.js';
 import { useLayout } from '../hooks/use-layout.js';
+import { Panel } from '../kit/Panel.js';
 
-/** Body + contextual footer. Body height is fixed so the footer never jumps. */
-export function ScreenFrame({ hints, children }: { hints: readonly Hint[]; children: ReactNode }) {
-  const { width, height } = useLayout();
+/**
+ * A screen: one panel filling the main area, titled in its border. Its
+ * shortcuts go to the status bar while it is on top. Content keeps its
+ * natural height and is clipped, never squeezed into overlapping rows.
+ */
+export function ScreenFrame({ hints, title, aside, children }: { hints: readonly Hint[]; title?: string | undefined; aside?: string | undefined; children: ReactNode }) {
+  useHints(hints);
+  const { height } = useLayout();
   return (
-    <Box flexDirection="column" height={height + 2}>
-      <Box flexDirection="column" height={height} overflow="hidden">
-        {/* Content keeps its natural height and is clipped, never squeezed into overlapping rows. */}
-        <Box flexDirection="column" flexShrink={0}>
-          {children}
-        </Box>
-      </Box>
-      <Footer hints={hints} width={width} />
-    </Box>
+    <Panel title={title} aside={aside} focused height={height + 2} flexGrow={1}>
+      {children}
+    </Panel>
   );
 }
+
+export type { Hint };
