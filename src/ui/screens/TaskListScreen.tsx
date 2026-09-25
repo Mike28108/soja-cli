@@ -73,9 +73,11 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
   const mascotRows = showMascot ? 15 : 0;
   const chromeRows = 2 + (projectId ? 2 : 0) + (withPreview ? PREVIEW_ROWS : 0);
   const tableHeight = Math.max(3, height - chromeRows - mascotRows);
-  const nav = useList(list.length, tableRows(tableHeight));
-  const selected = list[nav.index];
   const selectedId = useRef<string | null>(null);
+  const nav = useList(list.length, tableRows(tableHeight), true, 0, (index) => {
+    selectedId.current = list[index]?.id ?? null;
+  });
+  const selected = list[nav.index];
 
   useEffect(() => {
     if (tasks.loading) return;
@@ -95,6 +97,9 @@ export function TaskListScreen({ active, projectId, initialFilter }: TaskListScr
     selectedId.current = null;
     setFilter(next);
     nav.select(0);
+    // Filter changes intentionally reset to the first result, regardless of
+    // which task occupied index zero in the previous result set.
+    selectedId.current = null;
   };
   const setFilterAt = (index: number) => {
     const next = TASK_FILTERS[(index + TASK_FILTERS.length) % TASK_FILTERS.length];
