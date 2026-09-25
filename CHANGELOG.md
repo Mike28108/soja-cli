@@ -23,6 +23,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 - **Copias de seguridad:** una diaria al abrir la interfaz (se guardan 7) de la base en uso (local o réplica), `soja backup`, `soja backup list` y `soja backup restore <nombre>` (guarda antes el estado actual).
 - **CI:** lint, tests y build en cada push y PR; chequeo de que el dominio compartido coincide con `soja-backend` (`npm run check:domain`); suite de extremo a extremo con backend real y PostgreSQL (`npm run test:e2e`). Los dos últimos necesitan el secret `SOJA_REPOS_TOKEN`.
 
+### Fixed
+
+- Los tests de Git dependían de la identidad global de Git de la máquina (los commits que hace SOJA la usaban) y fallaban en una máquina limpia. Ahora todo Git en los tests usa una identidad fija y ignora la configuración global (`test/setup.ts`); lo detectó el primer CI.
+
 ### Changed
 
 - Los números de tasks borradas no se reutilizan en modo local (`workspaces.last_deleted_number`; migración `0006`, que también añade `tasks.archived_at`).
