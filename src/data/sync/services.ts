@@ -191,6 +191,17 @@ export class ReplicaProjectService implements ProjectOperations {
   unlinkRepository(session: Session, project: Project): Promise<Project> {
     return this.local.unlinkRepository(session, project);
   }
+
+  /** Shared with the team, so it needs the server (like creating one). */
+  async update(session: Session, project: Project, changes: Parameters<ProjectOperations['update']>[2]): Promise<Project> {
+    const payload = Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined));
+    if (Object.keys(payload).length === 0) return project;
+    const updated = await online('Editing a project', () =>
+      this.context.api.patch<Omit<Project, 'repositoryPath'>>(`/v1/workspaces/${session.workspace.id}/projects/${project.id}`, payload),
+    );
+    await this.context.store.upsertProject(updated);
+    return this.local.get(session, project.id);
+  }
 }
 
 type Target = Parameters<TaskOperations['get']>[1];

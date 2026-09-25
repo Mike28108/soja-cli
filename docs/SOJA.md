@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.6.0** |
-| Versión del documento | **0.6.0** (revisión 2) |
+| Versión del documento | **0.6.0** (revisión 3) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -289,6 +289,7 @@ ID, prioridad y título siempre se muestran.
 - `enter` abre la vista de proyecto: la misma lista de tasks, acotada al proyecto, con descripción, stats y ruta del repositorio si existe.
 - `n` crea un proyecto en dos pasos: nombre y luego key, con una sugerencia editable.
 - `r` abre el **selector de repositorio**: la lista de subcarpetas de tus carpetas padre, con filtro al escribir (ver [§8](#8-flujo-de-trabajo-con-git)).
+- `e` edita el proyecto: nombre, descripción, URL del repositorio y carpeta vinculada. La key no cambia (la usan personas y scripts). En equipo, editar requiere conexión.
 - En terminales anchas, la columna REPO muestra la carpeta vinculada.
 
 ### Workspaces
@@ -317,7 +318,7 @@ CHANNELS                  #general  Everything, everyone
 - **Estados de un mensaje:** `⋯` pendiente de envío, `(edited)`, *message deleted*. Los que te mencionan se resaltan en amarillo. Una respuesta muestra arriba la cita (`↳ @autor: …`).
 - **Leído:** abrir un canal lo marca como leído en todas tus máquinas. El header muestra `✉ 3 · @1` (no leídos · menciones) en las demás pantallas.
 - **Crear una task desde un mensaje** (`t`): el título es la primera línea, la descripción cita el mensaje con su autor y canal, el requester es el autor, y SOJA responde en el canal con `→ SOJA-n título`. Funciona sin conexión: la respuesta sale con el número real (`SOJA-42`, no `SOJA-?1`).
-- **Canales nuevos:** en el selector de canales, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión).
+- **Canales nuevos:** en el selector de canales, escribe un nombre que no exista y elige *Create #nombre* (requiere conexión). El mismo selector cambia el **tema** del canal actual y lo **archiva** o restaura (owners; `#general` no se archiva).
 - Si el servidor rechaza un mensaje (por ejemplo, porque archivaron el canal mientras estabas sin conexión), aparece un aviso sobre el campo de escritura; `!` en la lista de mensajes ofrece **devolverte el texto** al campo o descartar el aviso.
 
 ### Overlays
@@ -395,7 +396,7 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `a` | Asignar |
 | `c` | Comentar |
 | `e` | Menú de edición (todos los campos) |
-| `d` | Descripción |
+| `d` | Descripción en tu editor (`$VISUAL`, `$EDITOR` o `vi`): SOJA se aparta mientras editas y guarda al salir; si el editor sale con error, no cambia nada. *Description, one line* en el menú Edit la edita sin salir |
 | `m` | Mover a otro proyecto |
 | `t` | Tipo |
 | `r` | Requester |
@@ -411,6 +412,7 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | --- | --- |
 | `n` | Nuevo proyecto |
 | `r` | Elegir el repositorio del proyecto (selector de carpetas) |
+| `e` | Editar nombre, descripción o URL |
 
 ### Chat
 
@@ -458,6 +460,8 @@ soja task show <id>
 soja task start <id>      # te la asigna y la pasa a In Progress (sin Git)
 soja task done <id>
 soja task reopen <id>     # de Done o Cancelled a Todo
+soja task comment <id> [texto|-]    # sin texto abre $EDITOR; - lee stdin
+soja task describe <id> [texto|-]   # reemplaza la descripción; sin texto la edita en $EDITOR
 soja task archive <id>    # fuera de las listas; soja task list --archived las muestra
 soja task restore <id>
 soja task delete <id> [--yes]   # definitivo, solo owners; pide escribir el ID
@@ -490,6 +494,7 @@ soja project list
 soja project create <nombre…> [--key <KEY>] [--description <texto>] [--repo-path <dir>] [--repo-url <url>]
 soja project link <key|nombre> [ruta|carpeta]   # por defecto, el directorio actual
 soja project unlink <key|nombre>
+soja project edit <key> [--name <n>] [--description <d>] [--url <u>]   # "" borra descripción o URL
 ```
 
 En `project link`, un nombre sin `/` que no existe como carpeta en el directorio actual se busca entre las subcarpetas de tus carpetas padre: `soja project link ENROLL enrollbridge`. Si el nombre existe en más de una carpeta padre, SOJA pide la ruta completa.
@@ -553,6 +558,8 @@ echo "Build roto en main" | soja chat send ci -   # `-` lee el mensaje de stdin 
 soja chat log [#canal] [-n 20]         # últimos mensajes (no los marca como leídos)
 soja chat channels                     # canales con no leídos y menciones
 soja chat new <nombre> [--topic "…"]  # crea un canal (requiere conexión)
+soja chat topic <canal> "texto"        # cambia el tema (vacío lo borra)
+soja chat archive|unarchive <canal>    # owners; #general no se archiva
 ```
 
 `#canal` y `canal` son equivalentes; en la shell, `#` al inicio de una palabra es un comentario, así que usa comillas (`'#general'`) o escribe el nombre sin `#`.
@@ -1245,12 +1252,13 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
+| Deudas de uso | `test/application/usability.test.ts`, `test/data/chat.test.ts`, `test/data/sync.test.ts` | `$EDITOR` (preferencia, argumentos, editor que falla), renombrar y describir proyectos sin duplicar nombres y en equipo con conexión, tema y archivo de canales |
 | Archivar y borrar | `test/application/archive.test.ts`, `test/data/sync.test.ts` | Archivadas fuera de listas y contadores pero en la búsqueda, restaurar y timeline; borrar solo owners y sin reutilizar números; en equipo: archivar offline, borrar para todos, borrado rechazado que devuelve la task |
 | Merges externos | `test/git/merge-detection.test.ts` | Branch recién creada (no cuenta), merge manual, fast-forward, branch borrada tras el merge, squash de GitHub, borrada sin merge (aviso y *forget*), una sola task, repos no disponibles; reglas de evidencia |
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **185 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **190 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1258,9 +1266,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 ### Limitaciones actuales
 
-- La descripción se edita en una sola línea dentro de la TUI; no hay integración con `$EDITOR`.
 - No se pueden borrar proyectos ni editarlos después de crearlos.
-- La CLI no tiene comando para comentar (la TUI sí).
 - El estado Git del detalle no se refresca en vivo: los commits hechos fuera de SOJA aparecen al reabrir la task o tras otro cambio.
 - `soja start` no hace fetch: `--from origin/main` usa lo último que descargaste. SOJA tampoco hace pull.
 - Borrar una branch borra solo la local; la del remoto queda (bórrala desde el PR o con `git push origin --delete <branch>`).
@@ -1272,7 +1278,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - La búsqueda es por subcadena del título o por ID; no es difusa ni busca en la descripción.
 - En modo local no hay autenticación: los developers son registros locales.
 - El tiempo real solo existe con la interfaz abierta; la CLI sincroniza antes y después de cada comando.
-- Chat: sin mensajes directos, canales privados, hilos, búsqueda ni notificaciones del sistema; no se pueden archivar canales ni cambiar su tema desde SOJA (el servidor ya lo permite).
+- Chat: sin mensajes directos, canales privados, hilos, búsqueda ni notificaciones del sistema; los canales archivados se leen pero no aceptan mensajes.
 - Los *backlinks* del chat se calculan en tu máquina buscando `SOJA-n` en el texto, así que incluyen mensajes escritos antes de que la task existiera.
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
 - No se migran datos del modo local a un servidor.
@@ -1320,6 +1326,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.6.0 r3 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Deudas de uso: descripción en `$EDITOR` (`d`), `soja task comment/describe`, editar proyectos (`e` en Proyectos, `soja project edit`), tema y archivo de canales (selector del chat, `soja chat topic/archive`). |
 | 0.6.0 r2 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §4 *Archivar y borrar*: tasks archivadas (fuera de listas y contadores, en la búsqueda, filtro *Archived*) y borrado definitivo solo para owners con doble confirmación; los números no se reutilizan (`workspaces.last_deleted_number`); `soja task archive/restore/delete`, `task list --archived`; eventos `task_archived`/`task_unarchived`; migración `0006`. |
 | 0.6.0 r1 | 0.6.0 | 2026-09-24 | Publicación de v0.6.0 (GitHub): cabecera, estado actual y roadmap. |
 | 0.5.0 r2 | 0.5.0 + v0.6 sin publicar | 2026-09-24 | §8 *Pull requests y CI en GitHub*: estado del PR y checks en el detalle y las listas, merge del PR desde SOJA, PR mergeado en GitHub cierra la task, checks fallidos en el timeline; `soja pr status/merge`; eventos `pr_merged` y `pr_checks_failed` (migración `0005`). |

@@ -1,3 +1,4 @@
+import { useApp } from 'ink';
 import type { TaskView } from '../../application/types.js';
 import { pullRequestWarnings } from '../../application/services/index.js';
 import {
@@ -10,6 +11,7 @@ import {
   type TaskType,
 } from '../../domain/task.js';
 import { toDisplayError } from '../../utils/errors.js';
+import { editInEditor } from '../../utils/editor.js';
 import { tildify } from '../../utils/text.js';
 import { useAppState } from '../app-state.js';
 import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statusOptions, typeOptions } from '../overlays/options.js';
@@ -20,6 +22,7 @@ import { fromOption, memberOptions, NONE, priorityOptions, projectOptions, statu
  */
 export function useTaskActions() {
   const { services, session, openOverlay, run, notify, cwd, route, go } = useAppState();
+  const { suspendTerminal } = useApp();
   const { tasks } = services;
 
   const report = (error: unknown) => {
@@ -137,7 +140,23 @@ export function useTaskActions() {
         onSubmit: (value) => update(task, { title: value }, 'renamed'),
       });
     },
-    description(task: TaskView) {
+    /** Multi-line descriptions belong in a real editor: SOJA steps aside while $EDITOR runs. */
+    async description(task: TaskView) {
+      let edited: string | null = null;
+      try {
+        await suspendTerminal(async () => {
+          edited = await editInEditor(task.description ?? '', { name: `${task.ref}.md` });
+        });
+      } catch (error) {
+        report(error);
+        return;
+      }
+      const text: string | null = edited;
+      if (text === null) notify('The editor closed without saving. Nothing changed.');
+      else if (text === (task.description ?? '')) notify('Description unchanged.');
+      else await update(task, { description: text }, 'description saved');
+    },
+    descriptionInline(task: TaskView) {
       openOverlay({
         kind: 'prompt',
         title: 'Description',
@@ -397,7 +416,8 @@ export function useTaskActions() {
     edit(task: TaskView) {
       const fields = [
         ['title', 'Title', 'e'],
-        ['description', 'Description', 'd'],
+        ['description', 'Description in $EDITOR', 'd'],
+        ['descriptionInline', 'Description, one line', ''],
         ['status', 'Status', 's'],
         ['priority', 'Priority', 'p'],
         ['assign', 'Assignee', 'a'],

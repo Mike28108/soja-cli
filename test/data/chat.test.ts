@@ -259,3 +259,17 @@ describe('chat in remote mode', () => {
     stopRefused();
   });
 });
+
+describe('managing channels', () => {
+  it('sets topics and archives channels online; #general stays', async () => {
+    const michael = await client(michaelId);
+    const payments = await michael.chat.createChannel(michael.session, 'payments');
+    expect((await michael.chat.updateChannel(michael.session, payments.id, { topic: 'Stripe and PayPal' })).topic).toBe('Stripe and PayPal');
+    const archived = await michael.chat.updateChannel(michael.session, payments.id, { archived: true });
+    expect(archived.archivedAt).toBeInstanceOf(Date);
+    await expect(michael.chat.send(michael.session, 'payments', 'hello?')).rejects.toThrow(/archived/);
+    await expect(michael.chat.updateChannel(michael.session, server.general, { archived: true })).rejects.toThrow(/cannot be archived/);
+    server.online = false;
+    await expect(michael.chat.updateChannel(michael.session, payments.id, { archived: false })).rejects.toThrow(/needs a connection/);
+  });
+});

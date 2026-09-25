@@ -121,10 +121,42 @@ export function useFlows() {
     });
   };
 
+  const prompt = (project: Project, field: 'name' | 'description' | 'repositoryUrl', title: string, placeholder: string) =>
+    openOverlay({
+      kind: 'prompt',
+      title,
+      context: `${project.key} · ${project.name}`,
+      initial: project[field] ?? '',
+      placeholder,
+      allowEmpty: field !== 'name',
+      onSubmit: (value) => run(() => services.projects.update(session, project, { [field]: value }), `${project.key} updated`),
+    });
+
   return {
     switchWorkspace,
     pickRepository,
     addParentFolder,
+
+    /** Name, description and repository URL. The key stays (people and scripts use it). */
+    editProject(project: Project) {
+      openOverlay({
+        kind: 'picker',
+        title: 'Edit project',
+        context: `${project.key} · ${project.name}`,
+        options: [
+          { value: 'name', label: 'Name', hint: project.name },
+          { value: 'description', label: 'Description', hint: project.description ?? '—' },
+          { value: 'repositoryUrl', label: 'Repository URL', hint: project.repositoryUrl ?? '—' },
+          { value: 'repo', label: 'Linked folder on this machine…', hint: project.repositoryPath ? tildify(project.repositoryPath) : 'r' },
+        ],
+        onSelect: (value) => {
+          if (value === 'name') prompt(project, 'name', 'Project name', 'EnrollBridge');
+          else if (value === 'description') prompt(project, 'description', 'Description', 'What this project is');
+          else if (value === 'repositoryUrl') prompt(project, 'repositoryUrl', 'Repository URL', 'https://github.com/org/repo');
+          else if (value === 'repo') void pickRepository(project);
+        },
+      });
+    },
 
     /** Lists parent folders; choosing one offers to remove it. */
     manageParentFolders() {
