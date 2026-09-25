@@ -256,3 +256,17 @@ describe('archiving and deleting in remote mode', () => {
     expect(notices?.[0]?.message).toMatch(/Could not delete SOJA-1: Only workspace owners/);
   });
 });
+
+describe('editing projects in remote mode', () => {
+  it('changes the shared project on the server, and needs a connection', async () => {
+    const michael = await client(michaelId);
+    const angel = await client(angelId);
+    const project = await michael.runtime.services.projects.create(michael.session, { name: 'EnrollBridge' });
+    const updated = await michael.runtime.services.projects.update(michael.session, project, { description: 'Enrollment' });
+    expect(updated.description).toBe('Enrollment');
+    await angel.sync();
+    expect((await angel.runtime.services.projects.list(angel.session))[0]?.description).toBe('Enrollment');
+    server.online = false;
+    await expect(michael.runtime.services.projects.update(michael.session, updated, { name: 'X' })).rejects.toThrow(/needs a connection/);
+  });
+});

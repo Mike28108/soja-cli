@@ -71,6 +71,6 @@ export type {
 } from './git-workflow-service.js';
 export { pullRequestWarnings } from './git-workflow-service.js';
 export type { FolderEntry, ParentFolder } from './folder-service.js';
-export type { CreateProjectInput } from './project-service.js';
+export type { CreateProjectInput, ProjectChanges } from './project-service.js';
 export type { SetupInput } from './session-service.js';
 export type { CreateTaskInput, TaskChanges, TaskTarget } from './task-service.js';

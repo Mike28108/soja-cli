@@ -31,6 +31,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
       if (key.return && project) go({ type: 'push', route: { name: 'project', projectId: project.id } });
       else if (input === 'n') flows.newProject();
       else if (input === 'r' && project) void flows.pickRepository(project);
+      else if (input === 'e' && project) flows.editProject(project);
       else return false;
       return true;
     },
@@ -45,6 +46,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
         ['enter', 'open'],
         ['n', 'new project'],
         ['r', 'link repo'],
+        ['e', 'edit'],
         ['esc', 'back'],
       ]}
     >

@@ -12,6 +12,11 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 - **Archivar tasks:** desde el menú Edit (`e`) o `soja task archive|restore <id>`. Salen de las listas y los contadores, siguen en la búsqueda y en *Archived tasks* (palette) o `soja task list --archived`. En equipo se sincroniza, también sin conexión.
 - **Borrar tasks para siempre** (solo owners): menú Edit con dos confirmaciones, o `soja task delete <id>` escribiendo el ID. Se van los comentarios y el timeline, para todo el equipo; si el servidor lo rechaza, la task vuelve con un aviso. Requiere `soja-backend` con soporte de borrado.
 
+- **Descripción en tu editor:** `d` abre `$VISUAL`/`$EDITOR` (o `vi`) con la descripción y SOJA se aparta mientras editas; *Description, one line* sigue en el menú Edit.
+- `soja task comment <id> [texto|-]` y `soja task describe <id> [texto|-]`: sin texto abren `$EDITOR`, `-` lee stdin.
+- **Editar proyectos:** `e` en Proyectos o `soja project edit <key> --name/--description/--url` (la key no cambia; en equipo requiere conexión).
+- **Canales:** tema y archivo desde el selector del chat, `soja chat topic <canal> <texto>` y `soja chat archive|unarchive <canal>`.
+
 ### Changed
 
 - Los números de tasks borradas no se reutilizan en modo local (`workspaces.last_deleted_number`; migración `0006`, que también añade `tasks.archived_at`).
