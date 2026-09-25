@@ -1,0 +1,66 @@
+name: Publish npm package
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Check release tag
+        run: node -e "if (process.env.GITHUB_REF_NAME !== 'v' + require('./package.json').version) process.exit(1)"
+      - name: Pack the release
+        run: mkdir -p /tmp/soja-publish && npm pack --ignore-scripts --pack-destination /tmp/soja-publish
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: npm-package
+          path: /tmp/soja-publish/*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: npm-package
+          path: /tmp/soja-publish
+      # The first version is published by hand (npm only lets you add a trusted publisher to an
+      # existing package); a version that is already on npm is skipped instead of failing.
+      - name: Already on npm?
+        id: published
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! npm view soja-cli name >/dev/null 2>&1; then
+            echo "::notice::soja-cli is not on npm yet: publish the first version by hand (docs/NPM_PUBLISH.md)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif npm view "soja-cli@$version" version >/dev/null 2>&1; then
+            echo "soja-cli@$version is already on npm; nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The source repository is public, so npm records where and how the package was built.
+      - if: steps.published.outputs.skip != 'true'
+        run: npm publish /tmp/soja-publish/*.tgz --access public --provenance

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { FileConfigStore } from '../../config/config.js';
 import { CredentialStore } from '../../config/credentials.js';
 import { resolvePaths } from '../../config/paths.js';
+import { DEFAULT_SERVER_URL, isSecureServerUrl } from '../../config/server.js';
 import { ApiClient } from '../../data/remote/api-client.js';
 import { SojaError, ValidationError } from '../../domain/errors.js';
 import type { User } from '../../domain/entities.js';
@@ -19,7 +20,7 @@ import { palette } from '../theme/theme.js';
 
 type Country = { code: string; name: string; flag: string };
 type LoginUser = User & { accessStatus: 'pending' | 'approved' | 'rejected'; isCeo: boolean };
-type Stage = 'choose' | 'server' | 'waiting' | 'profile' | 'workspace' | 'newworkspace' | 'error';
+type Stage = 'choose' | 'waiting' | 'profile' | 'workspace' | 'newworkspace' | 'error';
 const sleep = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
 /** First-run choice between private local data and the GitHub-backed team service. */
@@ -30,7 +31,7 @@ export function WelcomeScreen({ onLocal }: { onLocal(): void }) {
   const config = useMemo(() => new FileConfigStore(paths.configFile), [paths.configFile]);
   const credentials = useMemo(() => new CredentialStore(paths.credentialsFile), [paths.credentialsFile]);
   const [stage, setStage] = useState<Stage>('choose');
-  const [server, setServer] = useState(config.load()?.remote?.apiUrl ?? '');
+  const server = config.load()?.remote?.apiUrl ?? DEFAULT_SERVER_URL;
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -55,7 +56,7 @@ export function WelcomeScreen({ onLocal }: { onLocal(): void }) {
     setBusy(true); setError(''); setStage('waiting');
     try {
       const base = server.trim().replace(/\/$/, '');
-      if (!/^https?:\/\//.test(base)) throw new ValidationError('Indica la URL base del backend SOJA.');
+      if (!isSecureServerUrl(base)) throw new ValidationError('El servidor SOJA debe usar HTTPS. Solo se permite HTTP en localhost durante el desarrollo.');
       const api = new ApiClient(base, null);
       const started = await api.post<{ deviceCode: string; userCode: string; verificationUri: string; interval: number; expiresIn: number }>('/v1/auth/device');
       setDevice({ uri: started.verificationUri, code: started.userCode });
@@ -141,9 +142,8 @@ export function WelcomeScreen({ onLocal }: { onLocal(): void }) {
   useKeys(Layer.screen, (input, key) => {
     if (stage === 'choose') {
       if (input === '1' || input.toLowerCase() === 'l') { chooseLocal(); return true; }
-      if (input === '2' || input.toLowerCase() === 'g') { setStage(server ? 'waiting' : 'server'); if (server) void signIn(); return true; }
+      if (input === '2' || input.toLowerCase() === 'g') { void signIn(); return true; }
     }
-    if (stage === 'server' && key.return) { void signIn(); return true; }
     if (stage === 'error' && key.escape) { setStage('choose'); setError(''); setMessage(''); return true; }
     if (stage === 'workspace') {
       if (key.upArrow) { setCountryCursor((n) => Math.max(0, n - 1)); return true; }
@@ -172,15 +172,10 @@ export function WelcomeScreen({ onLocal }: { onLocal(): void }) {
         <Box justifyContent="center"><Splash compact /></Box>
         {stage === 'choose' ? <Panel title="Welcome to SOJA" focused width={width}>
           <Text color={palette.text}>Choose how you want to work.</Text>
-          <Box marginTop={1}><Button label="Sign in with GitHub" variant="primary" layer={Layer.screen} onPress={() => { setStage(server ? 'waiting' : 'server'); if (server) void signIn(); }} /></Box>
+          <Box marginTop={1}><Button label="Sign in with GitHub" variant="primary" layer={Layer.screen} onPress={() => void signIn()} /></Box>
           <Box marginTop={1}><Button label="Local mode" layer={Layer.screen} onPress={chooseLocal} /></Box>
           <Box marginTop={1}><Text color={palette.muted}>Local mode keeps tasks on this machine and has no team chat.</Text></Box>
           <Box marginTop={1}><Text color={palette.faint}>g GitHub · l local · enter select</Text></Box>
-        </Panel> : null}
-        {stage === 'server' ? <Panel title="SOJA server" focused width={width}>
-          <Text color={palette.muted}>Backend URL (for example https://soja-backend.example.com)</Text>
-          <TextField value={server} onChange={setServer} placeholder="https://…" width={width - 6} />
-          <Text color={palette.faint}>enter continue · esc back</Text>
         </Panel> : null}
         {stage === 'waiting' ? <Panel title="Sign in with GitHub" focused width={width}>
           {device ? <><Text>Open {device.uri}</Text><Text bold color={palette.accent}>Enter code: {device.code}</Text></> : <Text>Connecting to SOJA…</Text>}

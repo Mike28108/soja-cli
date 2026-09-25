@@ -7,6 +7,25 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-09-25
+
+Distribución por npm y seguridad (hito v1.4). Requiere `soja-backend` ≥ 1.2.0 para `soja account delete`.
+
+### Added
+
+- **Instalación con `npm install --global soja-cli`.** Las actualizaciones (`soja update` y el aviso diario) consultan el registro de npm; ya no hace falta `gh` ni acceso al repositorio.
+- **`soja account delete`:** revoca todas tus sesiones, borra tu perfil y tu solicitud y anonimiza tu autoría en el contenido compartido. Si eres el único miembro de un workspace del que eres owner, primero hay que transferirlo.
+- `soja login` y la pantalla de bienvenida usan el backend oficial por defecto; `soja login --server <url>` elige otro.
+- Aviso de privacidad (`docs/PRIVACY.md`), licencia propietaria (`LICENSE`), guía de publicación (`docs/NPM_PUBLISH.md`) y de contribución (`CONTRIBUTING.md`).
+- **Repositorio público con contribuciones controladas:** solo los colaboradores aprobados por el propietario pueden abrir pull requests (los demás se cierran automáticamente); `main` exige PR con revisión del propietario y CI en verde.
+
+### Security
+
+- El cliente rechaza servidores remotos sin HTTPS (HTTP solo en localhost) y URLs con usuario o contraseña. En el backend (1.2.0), las sesiones vencen a los 30 días y el login público tiene límites por IP.
+- La publicación en npm usa *Trusted Publishing* (OIDC) con *provenance*: el paquete se construye y valida en un job sin permisos de publicación, y otro job publica ese mismo archivo, sin tokens de larga duración. El paquete no incluye *source maps*.
+- CI sin credenciales persistidas en el checkout y acciones externas fijadas por SHA; Dependabot semanal para npm y GitHub Actions.
+- `esbuild` (dependencia transitiva de desarrollo) fijado a una versión corregida; `npm audit` sin vulnerabilidades conocidas.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

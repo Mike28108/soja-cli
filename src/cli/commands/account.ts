@@ -4,6 +4,7 @@ import { stdin, stdout } from 'node:process';
 import { FileConfigStore } from '../../config/config.js';
 import { CredentialStore, normalize } from '../../config/credentials.js';
 import { resolvePaths } from '../../config/paths.js';
+import { DEFAULT_SERVER_URL, isSecureServerUrl } from '../../config/server.js';
 import { ApiClient } from '../../data/remote/api-client.js';
 import type { WorkspaceWithRole } from '../../data/repositories.js';
 import type { User } from '../../domain/entities.js';
@@ -12,6 +13,7 @@ import { symbols } from '../../ui/theme/theme.js';
 import { bold, color, dim, print, success } from '../output.js';
 import { withSession } from '../runtime.js';
 import { parseCommand } from './args.js';
+import { confirmTyped } from '../prompt.js';
 
 interface DeviceStart {
   deviceCode: string;
@@ -59,9 +61,9 @@ export async function loginCommand(args: string[]): Promise<void> {
   const { values } = parseCommand(args, { server: { type: 'string', short: 's' } });
   const { config, credentials } = stores();
   const current = config.load();
-  const server = normalize(values.server ?? current?.remote?.apiUrl ?? '');
-  if (!/^https?:\/\//.test(server)) {
-    throw new ValidationError('Which SOJA server?', { hint: 'soja login --server https://your-soja-server' });
+  const server = normalize(values.server ?? current?.remote?.apiUrl ?? DEFAULT_SERVER_URL);
+  if (!isSecureServerUrl(server)) {
+    throw new ValidationError('La URL del servidor SOJA debe usar HTTPS.', { hint: 'HTTP solo se permite en localhost para desarrollo. Usa `soja login --server <url>` para indicar otro servidor.' });
   }
 
   const api = new ApiClient(server, null);
@@ -155,6 +157,21 @@ export async function logoutCommand(): Promise<void> {
   credentials.remove(server);
   if (current) config.save({ ...current, mode: 'local' });
   success(`Signed out of ${server}. SOJA is back in local mode.`);
+}
+
+/** `soja account delete`: revokes sessions and anonymizes shared authorship. */
+export async function deleteAccountCommand(args: string[]): Promise<void> {
+  const { values } = parseCommand(args, { yes: { type: 'boolean', short: 'y' } });
+  const { config, credentials } = stores();
+  const current = config.load();
+  const server = current?.remote?.apiUrl;
+  const token = server ? credentials.token(server) : null;
+  if (!server || !token) throw new SojaError('No hay una cuenta SOJA Online activa para borrar.', { hint: 'Inicia sesión primero con `soja login`.' });
+  if (!(await confirmTyped('Esto revoca todas tus sesiones y anonimiza tu perfil en el contenido compartido.', 'BORRAR', values.yes))) return print(dim('Cancelado.'));
+  await new ApiClient(server, token).delete('/v1/account');
+  credentials.remove(server);
+  if (current) config.save({ ...current, mode: 'local' });
+  success('Cuenta eliminada. El contenido compartido se conserva con autoría anonimizada.');
 }
 
 /** `soja mode [local|remote]`: shows or switches where SOJA reads and writes. */

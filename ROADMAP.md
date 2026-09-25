@@ -4,6 +4,12 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
+## v1.4 — Distribución y seguridad (publicado en v1.4.0)
+
+- Distribución propietaria en npm con trusted publishing OIDC, *provenance* y artefactos sin source maps. El repositorio fuente pasa a ser público (licencia propietaria); solo los colaboradores aprobados abren pull requests.
+- Endurecer sesiones, transporte HTTPS, límites del login público, eliminación de cuentas con autoría anonimizada y CI sin credenciales persistentes.
+- La primera versión se publica a mano (npm solo permite un trusted publisher en paquetes existentes); después, cada tag publica solo. Pendiente: revisión legal de la licencia y del aviso de privacidad.
+
 ## v0.1 — Base local (publicado en v0.1.0)
 
 TUI y CLI, setup, workspaces, proyectos, tareas, comentarios, actividad, filtros y búsqueda. SQLite local funciona sin conexión. `soja task start <id>` ya asigna la tarea al usuario actual y cambia su estado a In Progress; todavía no toca Git.
@@ -91,6 +97,8 @@ Pulir la respuesta visual de la interfaz y darle más personalidad, manteniendo 
 La sincronización sigue siendo en segundo plano y los cambios nuevos deben reflejarse sin reiniciar la navegación ni recargar pantallas no relacionadas. Las animaciones son decorativas: no bloquean acciones ni sustituyen los estados y avisos accesibles por texto.
 
 ## v1.3 — Acceso aprobado y perfiles (desplegado en v1.3.0)
+
+Decisión añadida (2026-09-25): el cliente usa la URL pública del backend oficial como valor predeterminado tanto en la pantalla inicial como en `soja login`; `--server <url>` permite usar una instancia distinta. La URL es pública y no contiene credenciales.
 
 Rediseñar la entrada a SOJA y el alta de cuentas remotas, coordinando `soja-cli` con `soja-backend`. El modo local seguirá disponible sin cuenta ni capacidades colaborativas. El backend continuará siendo la autoridad para autenticar usuarios, aprobar el acceso y aislar los datos por membresía de workspace.
 

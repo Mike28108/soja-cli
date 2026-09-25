@@ -1,4 +1,5 @@
 import { ConflictError, NotFoundError, SojaError, ValidationError } from '../../domain/errors.js';
+import { isSecureServerUrl } from '../../config/server.js';
 import { terminalSafe } from '../../utils/text.js';
 
 /** The server could not be reached at all (as opposed to answering with an error). */
@@ -38,7 +39,11 @@ export class ApiClient {
     readonly baseUrl: string,
     readonly token: string | null,
     private readonly fetcher: typeof fetch = fetch,
-  ) {}
+  ) {
+    if (!isSecureServerUrl(baseUrl)) {
+      throw new ValidationError('SOJA servers must use HTTPS (HTTP is allowed only on localhost for development).');
+    }
+  }
 
   get<T>(path: string): Promise<T> {
     return this.request<T>('GET', path);
@@ -50,6 +55,10 @@ export class ApiClient {
 
   patch<T>(path: string, body: unknown): Promise<T> {
     return this.request<T>('PATCH', path, body);
+  }
+
+  delete<T>(path: string): Promise<T> {
+    return this.request<T>('DELETE', path);
   }
 
   /** Like `post`, but also returns the HTTP status (for the login poll's 202). */

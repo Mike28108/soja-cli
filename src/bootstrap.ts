@@ -12,8 +12,8 @@ import { createReplicaServices, replicaFile } from './data/sync/index.js';
 import { SojaError } from './domain/errors.js';
 import { BackupService } from './application/services/backup-service.js';
 import { UpdateService } from './application/services/update-service.js';
-import { GhReleases } from './git/releases.js';
-import { APP_REPOSITORY, APP_VERSION } from './ui/branding/brand.js';
+import { NpmReleases } from './git/releases.js';
+import { APP_VERSION } from './ui/branding/brand.js';
 import { join } from 'node:path';
 import type { GitClient } from './git/types.js';
 
@@ -114,5 +114,5 @@ export function activeDatabase(paths: SojaPaths = resolvePaths(), config: Config
 
 /** Newer SOJA versions, from its GitHub releases (checked at most daily for notices). */
 export function createUpdater(paths: SojaPaths = resolvePaths()): UpdateService {
-  return new UpdateService(new GhReleases(APP_REPOSITORY), APP_VERSION, join(paths.dataDir, 'update-check.json'));
+  return new UpdateService(new NpmReleases(), APP_VERSION, join(paths.dataDir, 'update-check.json'));
 }

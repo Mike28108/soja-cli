@@ -1,0 +1,28 @@
+name: Pull request access
+
+# Only collaborators the owner has approved may open pull requests. Anyone else's
+# is closed with an explanation. `pull_request_target` runs this repository's copy
+# of the workflow and never checks out the pull request's code, so it is safe.
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  guard:
+    if: >-
+      !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close pull requests from non-collaborators
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr comment "$PR" --repo "$REPO" --body "Thanks for your interest in SOJA. Pull requests are only accepted from collaborators approved by the owner, so this one was closed automatically. See CONTRIBUTING.md."
+          gh pr close "$PR" --repo "$REPO"
