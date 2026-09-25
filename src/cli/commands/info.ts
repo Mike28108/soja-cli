@@ -1,10 +1,13 @@
+import { createUpdater } from '../../bootstrap.js';
 import { APP_AUTHOR, APP_DESCRIPTION, APP_NAME, APP_SLOGAN, APP_VERSION } from '../../ui/branding/brand.js';
 import { bold, color, dim, print } from '../output.js';
 
-export function printVersion(): void {
+export async function printVersion(): Promise<void> {
   print(`${bold(APP_NAME)} ${color('green', `v${APP_VERSION}`)}`);
   print(APP_DESCRIPTION);
   print(dim(APP_AUTHOR));
+  const update = await createUpdater().cachedCheck();
+  if (update?.available) print(color('yellow', `v${update.latest} is available: soja update`));
 }
 
 const COMMANDS: readonly (readonly [string, string])[] = [
@@ -44,6 +47,8 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['chat new <name> [--topic]', 'Create a channel'],
   ['chat topic <channel> <text>', 'Set a channel topic (empty clears it)'],
   ['chat archive|unarchive <channel>', 'Archive a channel or bring it back (owners)'],
+  ['update [--check]', 'Install the newest SOJA release (with gh and npm)'],
+  ['backup [list | restore <name>]', 'Copy the database now, list copies (one a day is automatic), or restore one'],
   ['folders [list]', 'Parent folders and their subfolders, like ls -1'],
   ['folders add|remove <path>', 'Register or forget a folder that contains repositories'],
   ['workspace list', 'Your workspaces'],

@@ -11,6 +11,7 @@ import { TaskService } from './task-service.js';
 import { WorkspaceService } from './workspace-service.js';
 import type {
   ChatOperations,
+  BackupOperations,
   FolderOperations,
   ImportOperations,
   GitOperations,
@@ -38,10 +39,13 @@ export interface AppServices {
   chat?: ChatOperations;
   /** Brings local-mode data to the server; remote mode only. */
   importer?: ImportOperations;
+  /** Copies of the database in use (local, or the remote-mode replica). */
+  backups: BackupOperations;
 }
 
 export interface ServiceOptions {
   git: GitClient;
+  backups: BackupOperations;
   gitConsole?: GitConsole;
   clock?: () => Date;
 }
@@ -59,6 +63,7 @@ export function createServices(repos: Repositories, config: ConfigStore, options
     folders: new FolderService(config),
     gitConsole: options.gitConsole ?? new GitConsole(),
     environment: { mode: 'local' },
+    backups: options.backups,
   };
 }
 
@@ -75,5 +80,6 @@ export type {
 export { pullRequestWarnings } from './git-workflow-service.js';
 export type { FolderEntry, ParentFolder } from './folder-service.js';
 export type { CreateProjectInput, ProjectChanges } from './project-service.js';
+export type { Backup } from './backup-service.js';
 export type { SetupInput } from './session-service.js';
 export type { CreateTaskInput, TaskChanges, TaskTarget } from './task-service.js';

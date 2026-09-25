@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **0.6.0** |
-| Versión del documento | **0.6.0** (revisión 4) |
+| Versión del documento | **0.6.0** (revisión 5) |
 | Última actualización | 2026-09-24 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -72,6 +72,18 @@ El chat requiere `soja-backend` ≥ 0.3.0.
 - **Node.js 24 o superior**: SOJA usa el módulo nativo `node:sqlite`.
 - npm 10 o superior.
 - Una terminal con soporte Unicode. Se recomiendan terminales modernas (kitty, WezTerm, iTerm2, Alacritty, GNOME Terminal…).
+
+### Instalar (recomendado)
+
+Cada versión se publica en GitHub Releases con su paquete. El repositorio es privado, así que se descarga con la [CLI `gh`](https://cli.github.com) (con una cuenta que tenga acceso) y se instala con npm:
+
+```bash
+gh release download --repo Mike28108/soja-cli --pattern 'soja-cli-*.tgz' --dir /tmp/soja
+npm install -g /tmp/soja/soja-cli-*.tgz
+soja
+```
+
+**Actualizar:** `soja update` descarga e instala la última versión (pide confirmación); `soja update --check` solo avisa. SOJA también avisa de versiones nuevas al abrir la interfaz y en `soja --version`, consultando GitHub como mucho una vez al día. Tus datos y tu configuración no se tocan.
 
 ### Desde el código fuente
 
@@ -905,6 +917,20 @@ SOJA sigue la especificación XDG.
 | Configuración | `$XDG_CONFIG_HOME/soja/config.json` | `~/.config/soja/config.json` |
 | Réplica local de un servidor SOJA (modo remoto) | `$XDG_DATA_HOME/soja/remote/<servidor>.db` | `~/.local/share/soja/remote/<servidor>.db` |
 | Tokens de servidores SOJA (modo remoto) | `$XDG_CONFIG_HOME/soja/credentials.json` (permisos `0600`) | `~/.config/soja/credentials.json` |
+| Copias de la base de datos | `$XDG_DATA_HOME/soja/backups/` | `~/.local/share/soja/backups/` |
+| Última consulta de versiones | `$XDG_DATA_HOME/soja/update-check.json` | `~/.local/share/soja/update-check.json` |
+
+### Copias de seguridad
+
+SOJA copia la base de datos que estás usando (la local, o en modo remoto la réplica, con los cambios que aún esperan enviarse) **una vez al día al abrir la interfaz**, y guarda las últimas 7. La copia es consistente aunque SOJA esté en uso (`VACUUM INTO` de SQLite).
+
+```bash
+soja backup                     # una copia ahora
+soja backup list                # copias de la base de datos del modo actual, la más nueva primero
+soja backup restore <nombre>    # la pone en su lugar; antes guarda el estado actual (before-restore)
+```
+
+Restaura con SOJA cerrado. En modo remoto, restaurar la réplica solo recupera cambios pendientes: la siguiente sincronización trae lo que tiene el servidor.
 
 Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa modo WAL, así que junto a ella aparecen los archivos `soja.db-wal` y `soja.db-shm`.
 
@@ -1213,6 +1239,15 @@ El problema previsto en v0.1 se resolvió como se recomendaba: en modo remoto, l
 | `npm run db:migrate` | Aplica las migraciones (también ocurre en cada arranque) |
 | `npm run db:seed` | Datos demo |
 | `npm run db:reset` | Borra la base de datos y la config (con confirmación) |
+| `npm run test:e2e` | Suite de extremo a extremo: `soja-backend` real (su `test/e2e/server.ts`, con login simulado) + PostgreSQL + la CLI de dos developers. Necesita `DATABASE_URL` (una base local vacía) y `SOJA_BACKEND_DIR` (por defecto `../../services/soja-backend`) |
+| `npm run check:domain` | Compara `src/domain/{task,workflow,naming,activity}.ts` con los de `soja-backend`: deben ser idénticos |
+
+### Integración continua
+
+GitHub Actions (`.github/workflows/`):
+
+- **ci.yml**, en cada push a `main` y en cada PR: `check` (lint, tests, build); `domain` (los archivos de dominio compartidos coinciden con `soja-backend`); `e2e` (la suite de extremo a extremo con PostgreSQL). `domain` y `e2e` leen el repositorio privado del backend y necesitan el secret **`SOJA_REPOS_TOKEN`** (un token *fine-grained* con lectura de contenidos de `soja-backend`); sin él fallan explicando qué falta.
+- **release.yml**, al subir un tag `vX.Y.Z`: verifica, construye, empaqueta (`npm pack`) y publica el release de GitHub con el paquete y las notas del CHANGELOG.
 
 ### Probar sin tocar tus datos reales
 
@@ -1269,6 +1304,8 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
+| Copias y actualizaciones | `test/application/backup.test.ts`, `test/application/update.test.ts` | Copia diaria que guarda 7, manual, restaurar guardando el estado previo; comparar versiones, consultar GitHub como mucho una vez al día, instalar el paquete del release, silencio sin `gh` |
+| Extremo a extremo | `test/e2e/team.e2e.ts` (`npm run test:e2e`, y en CI) | Backend real + PostgreSQL + CLI de dos developers: importar historial local, tasks y chat sin conexión en ambos lados con números únicos al reconectar, archivar y borrar para el otro |
 | Importar local → equipo | `test/data/import.test.ts` | Vista previa, importación con números y carpetas conservados, archivadas incluidas, sin duplicar al repetir, sin datos locales |
 | Deudas de uso | `test/application/usability.test.ts`, `test/data/chat.test.ts`, `test/data/sync.test.ts` | `$EDITOR` (preferencia, argumentos, editor que falla), renombrar y describir proyectos sin duplicar nombres y en equipo con conexión, tema y archivo de canales |
 | Archivar y borrar | `test/application/archive.test.ts`, `test/data/sync.test.ts` | Archivadas fuera de listas y contadores pero en la búsqueda, restaurar y timeline; borrar solo owners y sin reutilizar números; en equipo: archivar offline, borrar para todos, borrado rechazado que devuelve la task |
@@ -1276,7 +1313,7 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Git | `test/git/git-workflow.test.ts` | Vinculación (subcarpetas, `origin`, rutas inválidas), crear, cambiar y recrear branches, `--from`, cambios sin guardar, nombres inválidos, repositorio desaparecido, resolución de repositorio, fallo de Git a mitad del flujo (task intacta), commits relacionados |
 | UI (flujos) | `test/ui/app.test.tsx` | Setup completo, abrir task, cambiar estado, crear task, comentar, buscar, filtros y palette, comportamiento de `esc`, iniciar branch con `b`, vincular un repositorio con el selector desde cero, commit eligiendo archivos, merge con confirmación y siguientes pasos, doble confirmación al borrar una branch sin mergear, cierre automático al abrir SOJA tras un merge externo, PR con checks en el detalle y merge del PR desde el menú Git; en modo remoto (`test/ui/remote.test.tsx`), número real tras sincronizar y el chat completo: badge `✉`, enviar, mensaje en vivo, responder y crear una task desde un mensaje |
 
-Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **192 tests en verde**. El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. `soja import-local` se verificó con el backend real y PostgreSQL: 15 tasks, 4 comentarios y 33 eventos con sus números, un developer no miembro reportado, la task archivada visible como archivada para otro developer y una segunda importación sin duplicados. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
+Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Los de Git crean repositorios reales en directorios temporales, con una identidad fija y sin la configuración global del usuario. Estado actual: **197 tests en verde** (más la suite de extremo a extremo). El modo remoto y la sincronización offline se verificaron además de extremo a extremo con `soja-backend` real, PostgreSQL real y dos developers en máquinas distintas: tasks creadas con el servidor caído, reconexión, convergencia, conflicto con aviso y la TUI mostrando `offline · 1 pending`. Solo GitHub estaba simulado. El chat se verificó igual con `soja-backend` 0.3.0: mensajes offline de dos developers (mismo orden en ambos), texto hostil, un mensaje en vivo en la TUI real (pty), task desde un mensaje con respuesta `→ SOJA-1`, backlinks en el detalle y una ráfaga de 35 mensajes (30 enviados, 5 en cola que salieron solos a los 10 s, en orden). En producción (Railway) se comprobó que el WebSocket atraviesa el proxy. `soja import-local` se verificó con el backend real y PostgreSQL: 15 tasks, 4 comentarios y 33 eventos con sus números, un developer no miembro reportado, la task archivada visible como archivada para otro developer y una segunda importación sin duplicados. La lectura de PRs se comprobó contra GitHub real con `gh` 2.100 (formato JSON y PRs mergeados).
 
 ---
 
@@ -1329,7 +1366,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 2. En `CHANGELOG.md`, mueve lo que está en **Unreleased** a la nueva versión, con fecha.
 3. En este documento, actualiza la tabla de cabecera y el historial de revisiones.
 4. Haz commit (`release: vX.Y.Z`) y crea el tag `vX.Y.Z`.
-5. Sube ambos: `git push && git push --tags`.
+5. Sube ambos: `git push && git push --tags`. El tag dispara `release.yml`, que publica el release de GitHub con el paquete instalable y las notas del CHANGELOG (no hace falta crearlo a mano).
 
 ### Reglas de este documento
 
@@ -1343,6 +1380,7 @@ Desde la 1.0 se aplica SemVer estricto (MAJOR para cambios incompatibles).
 | --- | --- | --- | --- |
 | 0.1.0 r1 | 0.1.0 | 2026-09-24 | Documento inicial: primera milestone completa (TUI, CLI, datos locales, arquitectura). |
 | 0.1.0 r2 | 0.1.0 | 2026-09-24 | Roadmap trasladado a archivo propio; §14 alineada con Git local antes de backend, sincronización y chat. |
+| 0.6.0 r5 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Robustez e instalación: §2 instalar desde GitHub Releases con `gh` y `soja update`; §10 copias diarias y `soja backup`; §14 CI (check, domain, e2e, release), `npm run test:e2e`, `check:domain`; §17 el tag publica el release. |
 | 0.6.0 r4 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §9 *Llevar tu trabajo local al equipo*: `soja import-local` (proyectos, tasks, comentarios y timeline; números conservados o renumerados; developers por username; idempotente; solo owners); sugerencia tras `soja login`; `remote.imports` en la config. |
 | 0.6.0 r3 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | Deudas de uso: descripción en `$EDITOR` (`d`), `soja task comment/describe`, editar proyectos (`e` en Proyectos, `soja project edit`), tema y archivo de canales (selector del chat, `soja chat topic/archive`). |
 | 0.6.0 r2 | 0.6.0 + v1.0 sin publicar | 2026-09-24 | §4 *Archivar y borrar*: tasks archivadas (fuera de listas y contadores, en la búsqueda, filtro *Archived*) y borrado definitivo solo para owners con doble confirmación; los números no se reutilizan (`workspaces.last_deleted_number`); `soja task archive/restore/delete`, `task list --archived`; eventos `task_archived`/`task_unarchived`; migración `0006`. |

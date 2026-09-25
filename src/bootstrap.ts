@@ -10,6 +10,11 @@ import { CredentialStore } from './config/credentials.js';
 import { ApiClient } from './data/remote/api-client.js';
 import { createReplicaServices, replicaFile } from './data/sync/index.js';
 import { SojaError } from './domain/errors.js';
+import { BackupService } from './application/services/backup-service.js';
+import { UpdateService } from './application/services/update-service.js';
+import { GhReleases } from './git/releases.js';
+import { APP_REPOSITORY, APP_VERSION } from './ui/branding/brand.js';
+import { join } from 'node:path';
 import type { GitClient } from './git/types.js';
 
 export interface AppRuntime {
@@ -61,7 +66,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
       replica.close();
       throw error;
     }
-    const services = createReplicaServices(api, replica, config, git, gitConsole, options.WebSocket, paths.databaseFile);
+    const services = createReplicaServices(api, replica, config, git, gitConsole, options.WebSocket, paths.databaseFile, new BackupService({ label: new URL(loaded.remote.apiUrl).host, backupTo: (file) => replica.backupTo(file) }, backupDir(paths)));
     return {
       services,
       paths,
@@ -81,9 +86,31 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
   }
   const repos = createLocalRepositories(handle, options.clock);
   const services = createServices(repos, config, {
+    backups: new BackupService({ label: 'local', backupTo: (file) => handle.backupTo(file) }, backupDir(paths), options.clock),
     git,
     gitConsole,
     ...(options.clock ? { clock: options.clock } : {}),
   });
   return { services, paths, close: () => handle.close() };
+}
+
+export function backupDir(paths: SojaPaths): string {
+  return join(paths.dataDir, 'backups');
+}
+
+/**
+ * The database the current mode uses, for restoring a backup without opening
+ * it: the local one, or the replica of the configured server.
+ */
+export function activeDatabase(paths: SojaPaths = resolvePaths(), config: ConfigStore = new FileConfigStore(paths.configFile)): { file: string; label: string } {
+  const loaded = config.load();
+  if (loaded?.mode === 'remote' && loaded.remote) {
+    return { file: replicaFile(paths.dataDir, loaded.remote.apiUrl), label: new URL(loaded.remote.apiUrl).host };
+  }
+  return { file: paths.databaseFile, label: 'local' };
+}
+
+/** Newer SOJA versions, from its GitHub releases (checked at most daily for notices). */
+export function createUpdater(paths: SojaPaths = resolvePaths()): UpdateService {
+  return new UpdateService(new GhReleases(APP_REPOSITORY), APP_VERSION, join(paths.dataDir, 'update-check.json'));
 }

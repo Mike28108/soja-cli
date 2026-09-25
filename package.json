@@ -35,6 +35,8 @@
     "start": "node dist/cli/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "check:domain": "node scripts/check-domain.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit && eslint .",
     "db:generate": "drizzle-kit generate",

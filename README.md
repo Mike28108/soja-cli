@@ -20,9 +20,19 @@ SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. 
 - **Git-aware:** branch, commit, push, PR y merge desde la task, con log en vivo y errores con sugerencias. Ve el estado de cada PR y su CI en GitHub y hace el merge sin salir de la terminal. Usa tus credenciales de Git y `gh`.
 - **Scriptable:** una CLI no interactiva que usa los mismos servicios que la interfaz.
 
-## Inicio rápido
+## Instalar
 
-Requiere **Node.js 24+**.
+Requiere **Node.js 24+** y la [CLI `gh`](https://cli.github.com) con acceso a este repositorio:
+
+```bash
+gh release download --repo Mike28108/soja-cli --pattern 'soja-cli-*.tgz' --dir /tmp/soja
+npm install -g /tmp/soja/soja-cli-*.tgz
+soja
+```
+
+`soja update` instala versiones nuevas (SOJA avisa cuando hay una).
+
+## Desde el código
 
 ```bash
 git clone https://github.com/Mike28108/soja-cli.git
