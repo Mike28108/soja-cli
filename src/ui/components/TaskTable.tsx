@@ -49,7 +49,7 @@ export function TaskTable({
   const visible = tasks.slice(offset, offset + rows);
 
   return (
-    <Clickable onWheel={onScroll} layer={layer} active={active} flexDirection="column">
+    <Clickable onWheel={onScroll} layer={layer} active={active} flexDirection="column" width={width} height={height}>
       <Box flexDirection="column" flexGrow={1}>
         {showHeader ? (
           <Box>
@@ -75,6 +75,7 @@ export function TaskTable({
                   key={task.id}
                   layer={layer}
                   active={active}
+                  width="100%"
                   onClick={() => (isSelected ? onOpen?.(index) : onSelect?.(index))}
                 >
                   <Box flexGrow={1} {...bg}>
