@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **1.3.0** |
-| Versión del documento | **1.3.0** (revisión 7) |
+| Versión del documento | **1.3.0** (revisión 8) |
 | Última actualización | 2026-09-25 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -1411,7 +1411,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 
 El plan detallado y sus límites están en [`ROADMAP.md`](../ROADMAP.md). Los hitos previstos son v0.2 Git Workflow local, v0.3 backend y colaboración, v0.4 sincronización offline, v0.5 chat asociado a tareas, v0.6 GitHub/PR/CI, v1.0 consolidación, v1.1 interfaz tipo aplicación y v1.2 actualización selectiva, mascotas animadas y marca fija en el footer.
 
-Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0, v1.0 (consolidación) en v1.0.0 y v1.1 (interfaz tipo aplicación: paneles, paleta clara/oscura, mouse) en v1.1.0. v1.2 está en desarrollo.
+Publicados: v0.2 (Git), v0.3–v0.4 (modo remoto con sincronización offline + `soja-backend`) en v0.4.0, v0.5 (chat en tiempo real) en v0.5.0, v0.6 (pull requests y CI de GitHub con `gh`) en v0.6.0, v1.0 (consolidación) en v1.0.0 y v1.1 (interfaz tipo aplicación: paneles, paleta clara/oscura, mouse) en v1.1.0. v1.2 (sincronización selectiva, mascotas animadas y marca fija en el footer) y v1.3 (acceso aprobado, perfiles y workspaces) están incluidos en v1.3.0.
 
 **Fuera de alcance hasta nuevo aviso:** interfaz web, mobile, integraciones con WhatsApp o Slack, telemetría, billing.
 
