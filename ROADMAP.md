@@ -4,9 +4,9 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
-## v1.5 — Repositorio al día y modo teclado (propuesto)
+## v1.5 — Repositorio al día y modo teclado (en desarrollo)
 
-Alcance solicitado (2026-09-26):
+Alcance solicitado (2026-09-26). Adelantado en v1.5.0: apagar y encender el mouse sin reiniciar (`M`, interruptor en la barra de estado, command palette y `soja mouse on|off`). El resto sigue pendiente y saldrá en versiones 1.5.x/1.6.
 
 - **Saber si vas atrasado:** en el detalle de la task y en la línea del proyecto, mostrar cuántos commits va la branch **detrás y por delante** de su base remota (`origin/main`) y de su upstream, por ejemplo `↓3 main · ↑1`. Las cuentas salen de lo último descargado, así que SOJA muestra cuándo fue el último *fetch* y, si es viejo o nunca se hizo, lo indica con la acción a seguir.
 - **Fetch:** `f` en el menú Git y `soja fetch [proyecto]` ejecutan `git fetch --prune`. Opcionalmente, un fetch en segundo plano mientras SOJA está abierto (configurable y desactivable), sin pedir nunca credenciales (`GIT_TERMINAL_PROMPT=0`); si Git necesita autenticarse, se avisa y el fetch se hace a mano. El fetch no toca tus archivos ni tus branches.

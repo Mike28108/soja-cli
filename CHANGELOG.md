@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-26
+
+Interruptor del mouse (adelantado del hito v1.5) y publicación en npm con aprobación 2FA.
+
 ### Added
 
 - **Interruptor del mouse:** `M` (en cualquier pantalla), un botón `M ● mouse on` al final de la barra de estado, *Mouse off / on* en la command palette y `soja mouse on|off` apagan o encienden el mouse sin reiniciar SOJA. Con el mouse apagado la terminal vuelve a seleccionar y copiar texto normalmente. La elección se recuerda en `config.json` (`mouse`); `SOJA_MOUSE=0` sigue apagándolo solo para esa ejecución.
@@ -14,7 +18,6 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 ### Changed
 
 - **Publicación por etapas en npm:** `publish.yml` ya no publica directamente; deja la versión en espera (`npm stage publish`, con *provenance*) y solo sale a npm cuando el propietario la aprueba con 2FA (`npm stage approve`). El Trusted Publisher solo tiene permiso para dejarla en espera.
-
 - El README ya no es de uso interno: explica el modo local sin cuenta y que, en esta primera etapa, el modo en equipo se habilita por solicitud tras `soja login`, revisada en unas 24–48 h.
 
 ### Fixed
@@ -238,7 +241,9 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Mike28108/soja-cli/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/Mike28108/soja-cli/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Mike28108/soja-cli/compare/v1.1.0...v1.3.0
 [0.4.1]: https://github.com/Mike28108/soja-cli/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Mike28108/soja-cli/compare/v0.2.0...v0.4.0
