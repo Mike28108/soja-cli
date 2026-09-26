@@ -9,6 +9,8 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ### Changed
 
+- **Publicación por etapas en npm:** `publish.yml` ya no publica directamente; deja la versión en espera (`npm stage publish`, con *provenance*) y solo sale a npm cuando el propietario la aprueba con 2FA (`npm stage approve`). El Trusted Publisher solo tiene permiso para dejarla en espera.
+
 - El README ya no es de uso interno: explica el modo local sin cuenta y que, en esta primera etapa, el modo en equipo se habilita por solicitud tras `soja login`, revisada en unas 24–48 h.
 
 ### Fixed
