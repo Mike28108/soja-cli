@@ -6,9 +6,9 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.5.1** |
-| Versión del documento | **1.5.1** (revisión 1) |
-| Última actualización | 2026-09-25 |
+| Versión de la app | **1.6.0** |
+| Versión del documento | **1.6.0** (revisión 1) |
+| Última actualización | 2026-09-26 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
@@ -212,7 +212,7 @@ Se permite pasar de cualquier estado a cualquier otro. Las reglas de fechas son:
 
 En workspaces remotos, un miembro puede mover su ticket remunerado a **Done**, pero el servidor lo deja en **Review** para que lo apruebe un designado. Solo owners/designados pueden fijar o cambiar precios y cerrar tickets de otros miembros. La regla también se aplica a cambios que llegan por sync.
 
-### Tickets remunerados y finanzas (v1.6 en implementación)
+### Tickets remunerados y finanzas (v1.6)
 
 - Cada ticket es no remunerado por defecto. Pulsa `$` en el detalle para asignar un precio usando la moneda del workspace; vuelve a escribir el precio para corregirlo o escribe `unpaid` para retirarlo.
 - La pantalla **Finance & performance** se abre con `f`. El owner configura la moneda con `c`; cada persona configura su salario base con `s`. El salario se devuelve solo al usuario actual y nunca entra en los ingresos por tickets ni en comparativas.
@@ -1474,6 +1474,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.6.0 r1 | 1.6.0 | 2026-09-26 | Finanzas por workspace, permisos de designados y tickets externos con aprobación del owner y consulta del estado/comentarios/asignación por API. |
 | 1.5.1 r1 | 1.5.1 | 2026-09-26 | Corrección: la consulta de actualizaciones a npm pedía un formato que `/latest` rechaza (406). |
 | 1.5.0 r1 | 1.5.0 | 2026-09-26 | Publicación de v1.5.0: interruptor del mouse (`M`, barra de estado, palette, `soja mouse`) y publicación en npm por etapas con aprobación 2FA. |
 | 1.4.0 r4 | 1.4.0 + sin publicar | 2026-09-26 | Interruptor del mouse: `M`, botón en la barra de estado, command palette y `soja mouse on` / `off`; preferencia `mouse` en `config.json` (§5, §6, §7, §10). |
