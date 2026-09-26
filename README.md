@@ -6,7 +6,7 @@
 ▄▄▄▄▄▄█▀  ▀█▄▄▄▄█▀  ▀█▄▄▄▄█▀  ██    ██ ▄▄▄
 ```
 
-**Software Operations & Job Assistant** · v1.3.0 · by Enmauel.biz
+**Software Operations & Job Assistant** · v1.4.0 · by Enmauel.biz
 
 > No dashboards. No browser. No bullshit. Just work.
 
@@ -15,7 +15,7 @@ SOJA es un gestor de tareas para equipos de desarrollo que vive en la terminal. 
 - **Terminal-native, con aspecto de aplicación:** interfaz TUI con React + Ink, con paneles, barra lateral, ventanas flotantes, tema claro/oscuro y mouse; todo se maneja también con el teclado y atajos estilo Vim.
 - **Rápido:** para crear una task basta el título.
 - **Trazable:** cada cambio queda en el timeline de la task, junto a los comentarios.
-- **Local-first:** tus datos viven en SQLite en tu máquina. En equipo, `soja login` conecta con [`soja-backend`](https://github.com/Mike28108/soja-backend) y sigue funcionando sin conexión.
+- **Local-first:** tus datos viven en SQLite en tu máquina. En equipo, `soja login` conecta con el servidor de SOJA y sigue funcionando sin conexión.
 - **Chat del equipo** (modo remoto): canales en tiempo real junto al trabajo, con menciones, referencias `SOJA-12` y tasks creadas desde un mensaje. `#` lo abre.
 - **Git-aware:** branch, commit, push, PR y merge desde la task, con log en vivo y errores con sugerencias. Ve el estado de cada PR y su CI en GitHub y hace el merge sin salir de la terminal. Usa tus credenciales de Git y `gh`.
 - **Scriptable:** una CLI no interactiva que usa los mismos servicios que la interfaz.
@@ -31,13 +31,29 @@ soja
 
 `soja update` instala versiones nuevas (SOJA avisa cuando hay una).
 
+## Acceso al servicio
+
+SOJA funciona de dos maneras:
+
+- **Modo local:** no necesita cuenta ni solicitud. Instalas, ejecutas `soja` y empiezas; tus datos se quedan en tu máquina.
+- **Modo en equipo** (servidor de SOJA): workspaces compartidos, sincronización entre máquinas y chat del equipo.
+
+**En esta primera etapa, el acceso al modo en equipo es por solicitud:**
+
+1. Inicia sesión con GitHub: `soja login` (o desde la pantalla de bienvenida de `soja`).
+2. Completa la solicitud: nombre, fecha de nacimiento, país y una carta breve (hasta 100 caracteres) sobre por qué te interesa SOJA.
+3. La revisamos en un plazo aproximado de **24 a 48 horas** y se aprueba si encaja con esta etapa del proyecto.
+
+Mientras tanto SOJA sigue en modo local, sin perder nada de lo que hagas. Consulta el estado con `soja access status`. Cuando se apruebe, vuelve a ejecutar `soja login` para elegir o crear tu workspace; `soja import-local` sube a ese workspace lo que hiciste en modo local. Si una solicitud se rechaza, puedes enviar otra con `soja access request`.
+
+Puedes borrar tu cuenta en cualquier momento con `soja account delete`.
+
 SOJA es software propietario. La instalación permite usar el paquete sin conceder derechos de redistribución o modificación; consulta [LICENSE](LICENSE). El aviso de privacidad está en [docs/PRIVACY.md](docs/PRIVACY.md).
 
-Las contribuciones están limitadas a colaboradores aprobados; consulta [CONTRIBUTING.md](CONTRIBUTING.md).
-
-La configuración de publicación está en [docs/NPM_PUBLISH.md](docs/NPM_PUBLISH.md).
-
 ## Desde el código
+
+El código es público para que puedas revisarlo y verificar el paquete de npm (se publica con *provenance* desde este repositorio). Las contribuciones están limitadas a colaboradores aprobados; consulta [CONTRIBUTING.md](CONTRIBUTING.md). La configuración de publicación está en [docs/NPM_PUBLISH.md](docs/NPM_PUBLISH.md).
+
 
 ```bash
 git clone https://github.com/Mike28108/soja-cli.git
@@ -81,7 +97,7 @@ soja merge SOJA-12 --delete --done
 
 - 📘 **[docs/SOJA.md](docs/SOJA.md)**: la documentación completa (conceptos, interfaz, atajos, CLI, configuración, modelo de datos, arquitectura y guía de desarrollo).
 - 📝 **[CHANGELOG.md](CHANGELOG.md)**: los cambios de cada versión.
-- 🗺️ **[ROADMAP.md](ROADMAP.md)**: próximos hitos, empezando por Git local en v0.2.
+- 🗺️ **[ROADMAP.md](ROADMAP.md)**: hitos publicados y próximos.
 
 ## Desarrollo
 
@@ -98,4 +114,4 @@ Stack: TypeScript · React · Ink · `node:sqlite` · Drizzle ORM · Zod · Vite
 
 ---
 
-Uso interno. © Enmauel.biz
+© Enmauel.biz. Software propietario: ver [LICENSE](LICENSE).
