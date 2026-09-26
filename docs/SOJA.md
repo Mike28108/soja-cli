@@ -216,6 +216,7 @@ En workspaces remotos, un miembro puede mover su ticket remunerado a **Done**, p
 
 - Cada ticket es no remunerado por defecto. Pulsa `$` en el detalle para asignar un precio usando la moneda del workspace; vuelve a escribir el precio para corregirlo o escribe `unpaid` para retirarlo.
 - La pantalla **Finance & performance** se abre con `f`. El owner configura la moneda con `c`; cada persona configura su salario base con `s`. El salario se devuelve solo al usuario actual y nunca entra en los ingresos por tickets ni en comparativas.
+- La pantalla muestra un estado de carga mientras consulta el resumen y un estado vacío cuando aún no hay tickets con precio; ninguno de esos casos requiere tener devengos previos.
 - Al aprobar un ticket remunerado en Done, SOJA registra el importe como **devengado**, no como una transferencia bancaria confirmada. Reabrirlo crea una reversión; corregir el precio de un ticket completado mediante un designado guarda un ajuste explícito.
 - Las gráficas de finanzas cuentan solo tickets remunerados y comparan a los miembros del workspace; desempeño incluye tickets de todo tipo y calcula duración desde creación hasta Done. Los tickets cancelados no cuentan en el promedio de cierre.
 
