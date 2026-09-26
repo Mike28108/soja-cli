@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isNewer, UpdateService } from '../../src/application/services/update-service.js';
-import type { ReleaseSource } from '../../src/git/releases.js';
+import { NpmReleases, type ReleaseSource } from '../../src/git/releases.js';
 import { tempDir } from '../helpers.js';
 
 let dir: ReturnType<typeof tempDir>;
@@ -56,5 +56,27 @@ describe('updates', () => {
       install: () => Promise.resolve(),
     };
     expect(await new UpdateService(failing, '1.0.0', join(dir.path, 'x.json')).cachedCheck()).toBeNull();
+  });
+});
+
+describe('npm as the release source', () => {
+  const registry = (status: number, body: unknown) => {
+    const requests: { url: string; accept: string | null }[] = [];
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      requests.push({ url: String(input), accept: new Headers(init?.headers).get('accept') });
+      return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    return { requests, fetchImpl };
+  };
+
+  it('asks the /latest document for plain JSON, the only format it serves', async () => {
+    const { requests, fetchImpl } = registry(200, { name: 'soja-cli', version: '1.5.1' });
+    await expect(new NpmReleases('soja-cli', fetchImpl).latest()).resolves.toBe('1.5.1');
+    expect(requests).toEqual([{ url: 'https://registry.npmjs.org/soja-cli/latest', accept: 'application/json' }]);
+  });
+
+  it('explains a registry error and rejects a malformed version', async () => {
+    await expect(new NpmReleases('soja-cli', registry(406, {}).fetchImpl).latest()).rejects.toThrow('npm registry returned 406');
+    await expect(new NpmReleases('soja-cli', registry(200, { version: '1.5; rm -rf' }).fetchImpl).latest()).rejects.toThrow('invalid SOJA version');
   });
 });

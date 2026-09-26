@@ -7,6 +7,12 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-09-26
+
+### Fixed
+
+- `soja update` y el aviso de versión nueva fallaban con *npm registry returned 406*: pedían al registro de npm un formato que el documento `/latest` no sirve. Ahora piden JSON normal. Desde 1.4.0 o 1.5.0 hay que actualizar una vez a mano con `npm install --global soja-cli@latest`; después `soja update` funciona.
+
 ## [1.5.0] - 2026-09-26
 
 Interruptor del mouse (adelantado del hito v1.5) y publicación en npm con aprobación 2FA.
@@ -241,7 +247,8 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/Mike28108/soja-cli/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Mike28108/soja-cli/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Mike28108/soja-cli/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Mike28108/soja-cli/compare/v1.1.0...v1.3.0

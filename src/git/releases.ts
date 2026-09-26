@@ -46,11 +46,15 @@ export class GhReleases implements ReleaseSource {
 
 /** Public release metadata and tarballs from npm; no GitHub account is needed to update. */
 export class NpmReleases implements ReleaseSource {
-  constructor(private readonly packageName = 'soja-cli') {}
+  constructor(
+    private readonly packageName = 'soja-cli',
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
 
   async latest(): Promise<string> {
-    const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(this.packageName)}/latest`, {
-      headers: { accept: 'application/vnd.npm.install-v1+json' },
+    // The `/latest` document only speaks plain JSON: the abbreviated install format gets a 406.
+    const response = await this.fetchImpl(`https://registry.npmjs.org/${encodeURIComponent(this.packageName)}/latest`, {
+      headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new GitError(`npm registry returned ${response.status} while checking for updates.`);
