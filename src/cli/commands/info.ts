@@ -41,6 +41,7 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['logout', 'Sign out and go back to local mode'],
   ['account delete [--yes]', 'Delete the Online account and anonymize shared authorship'],
   ['mode [local|remote]', 'Show or switch where SOJA keeps data'],
+  ['mouse [on|off]', 'Show or switch whether the interface uses the mouse (M in the interface)'],
   ['whoami', 'Current user, workspace and mode'],
   ['import-local [--from <slug>]', 'Bring local-mode projects, tasks and history to the team server (owners)'],
   ['sync [--dismiss]', 'Sync now (remote mode); shows conflicts and rejected changes'],

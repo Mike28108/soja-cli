@@ -1,13 +1,14 @@
 import { useApp, useInput, useStdout, type DOMElement } from 'ink';
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { KeyDispatcher, Layer, type KeyHandler } from './dispatcher.js';
 import { MOUSE_OFF, MOUSE_ON, MouseDispatcher, parseMouse, rectOf, type MouseTarget } from './mouse.js';
 
 interface InputContext {
   keys: KeyDispatcher;
   mouse: MouseDispatcher;
-  /** Whether the terminal reports the mouse (off with SOJA_MOUSE=0 and in tests). */
+  /** Whether the terminal reports the mouse right now (off with SOJA_MOUSE=0, `M` and in tests). */
   mouseEnabled: boolean;
+  setMouseEnabled: (on: boolean) => void;
 }
 
 const InputContext = createContext<InputContext | null>(null);
@@ -17,7 +18,9 @@ const InputContext = createContext<InputContext | null>(null);
  * reports to the clickable regions. A mouse report never reaches a key handler.
  */
 export function KeyProvider({ children, mouse = false }: { children: ReactNode; mouse?: boolean }) {
-  const [context] = useState<InputContext>(() => ({ keys: new KeyDispatcher(), mouse: new MouseDispatcher(), mouseEnabled: mouse }));
+  const [dispatchers] = useState(() => ({ keys: new KeyDispatcher(), mouse: new MouseDispatcher() }));
+  const [mouseEnabled, setMouseEnabled] = useState(mouse);
+  const context = useMemo<InputContext>(() => ({ ...dispatchers, mouseEnabled, setMouseEnabled }), [dispatchers, mouseEnabled]);
   const { stdout } = useStdout();
 
   useInput((input, key) => {
@@ -26,8 +29,9 @@ export function KeyProvider({ children, mouse = false }: { children: ReactNode; 
     else context.keys.dispatch(input, key);
   });
 
+  // Turning the mouse off hands selection and copy back to the terminal.
   useEffect(() => {
-    if (!mouse) return;
+    if (!mouseEnabled) return;
     stdout.write(MOUSE_ON);
     // Whatever way SOJA ends, the terminal must stop sending mouse reports.
     const off = () => stdout.write(MOUSE_OFF);
@@ -36,9 +40,15 @@ export function KeyProvider({ children, mouse = false }: { children: ReactNode; 
       off();
       process.off('exit', off);
     };
-  }, [mouse, stdout]);
+  }, [mouseEnabled, stdout]);
 
   return <InputContext.Provider value={context}>{children}</InputContext.Provider>;
+}
+
+/** The mouse switch: whether it is on, and turning it on or off for this session. */
+export function useMouseSwitch(): { enabled: boolean; set: (on: boolean) => void } {
+  const { mouseEnabled, setMouseEnabled } = useInputContext();
+  return { enabled: mouseEnabled, set: setMouseEnabled };
 }
 
 function useInputContext(): InputContext {

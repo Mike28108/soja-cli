@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Added
+
+- **Interruptor del mouse:** `M` (en cualquier pantalla), un botón `M ● mouse on` al final de la barra de estado, *Mouse off / on* en la command palette y `soja mouse on|off` apagan o encienden el mouse sin reiniciar SOJA. Con el mouse apagado la terminal vuelve a seleccionar y copiar texto normalmente. La elección se recuerda en `config.json` (`mouse`); `SOJA_MOUSE=0` sigue apagándolo solo para esa ejecución.
+
 ### Changed
 
 - **Publicación por etapas en npm:** `publish.yml` ya no publica directamente; deja la versión en espera (`npm stage publish`, con *provenance*) y solo sale a npm cuando el propietario la aprueba con 2FA (`npm stage approve`). El Trusted Publisher solo tiene permiso para dejarla en espera.

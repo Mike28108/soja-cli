@@ -171,6 +171,7 @@ export const symbols = {
   check: '✓',
   cross: '✕',
   active: '●',
+  inactive: '○',
   rule: '─',
   comment: '›',
   ellipsis: '…',
