@@ -225,7 +225,10 @@ export function ProjectsScreen({ active }: { active: boolean }) {
       placeholder: 'support_customer, workspace_admin',
       onSubmit: (rolesInput) => {
         const allowedRoles = [...new Set(rolesInput.split(',').map((value) => value.trim()).filter(Boolean))];
-        if (!allowedRoles.length || allowedRoles.some((role) => !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/.test(role))) return false;
+        // Application role labels may be human-readable (for example, "Super Administrador").
+        if (!allowedRoles.length || allowedRoles.some((role) =>
+          role.length > 64 || !/^[\p{L}\p{N}][\p{L}\p{N} _.:-]*$/u.test(role) || !/[\p{L}\p{N}]$/u.test(role)
+        )) return false;
         return promptExportPath(sourceIssuer, allowedOrigins, allowedRoles);
       },
     });
