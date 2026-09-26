@@ -6,7 +6,7 @@ Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos a
 
 ## v1.6 — Finanzas, rendimiento e ingreso externo de tickets (en implementación)
 
-Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde existen workspaces con varios usuarios; el modo local conserva finanzas y métricas personales sin comparativas entre miembros. Base del flujo financiero, designados y API remota añadida; falta cerrar auditoría de rechazos, validación de despliegue y criterios de cierre.
+Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde existen workspaces con varios usuarios; el modo local conserva finanzas y métricas personales sin comparativas entre miembros. Base del flujo financiero, designados y API remota añadida. Pendiente cerrar auditoría de rechazos, validación de despliegue y criterios de cierre. La pantalla de finanzas ya contempla la carga y workspaces sin tickets remunerados.
 
 ### 1. Modelo de tickets remunerados y finanzas
 

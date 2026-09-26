@@ -5,6 +5,14 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
+## [Unreleased]
+
+## [1.6.3] - 2026-09-26
+
+### Fixed
+
+- Finanzas ya no cierra SOJA al abrirse mientras carga el resumen: el indicador de carga se renderiza como texto Ink. También se conserva el estado vacío cuando el workspace todavía no tiene tickets remunerados.
+
 ## [1.6.2] - 2026-09-26
 
 ### Fixed
