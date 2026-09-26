@@ -73,3 +73,18 @@ export function commitFile(dir: string, file: string, content: string, message: 
   git(dir, 'add', file);
   git(dir, 'commit', '--quiet', '-m', message);
 }
+
+/**
+ * Polls the rendered frame until `done` holds, then returns it. UI tests wait
+ * for what they assert instead of a fixed delay, which breaks on a loaded
+ * machine (a slow search still shows the results of an earlier keystroke).
+ * On timeout it returns the last frame, so the assertion reports what was on screen.
+ */
+export async function waitForFrame(lastFrame: () => string | undefined, done: (frame: string) => boolean, timeoutMs = 3000): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const frame = lastFrame() ?? '';
+    if (done(frame) || Date.now() > deadline) return frame;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+}

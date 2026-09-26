@@ -4,7 +4,7 @@ import type { Session } from '../../src/application/types.js';
 import { App } from '../../src/ui/App.js';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { commitFile, createRepo, createSetUpApp, createTestApp, git, tempDir, type TestApp } from '../helpers.js';
+import { commitFile, createRepo, createSetUpApp, createTestApp, git, tempDir, waitForFrame, type TestApp } from '../helpers.js';
 import { CliGit } from '../../src/git/cli-git.js';
 import { GitConsole } from '../../src/git/console.js';
 import { ghPr, installFakeGh } from '../git/fake-gh.js';
@@ -121,8 +121,7 @@ describe('daily use', () => {
     await settle(150);
     expect(lastFrame()).toContain('archived');
     await press(stdin, ESC);
-    await settle(150);
-    expect(lastFrame()).not.toContain('Fix Stripe webhook');
+    expect(await waitForFrame(lastFrame, (f) => !f.includes('Fix Stripe webhook'))).not.toContain('Fix Stripe webhook');
 
     await press(stdin, ':');
     await type(stdin, 'Archived');
@@ -143,10 +142,10 @@ describe('daily use', () => {
     await settle(80);
     expect(lastFrame()).toContain('Really delete it?');
     await press(stdin, '2');
-    await settle(200);
-    expect(lastFrame()).toContain('SOJA-1 deleted');
-    expect(lastFrame()).toContain('Archived');
-    expect(lastFrame()).not.toContain('Fix Stripe webhook');
+    const afterDelete = await waitForFrame(lastFrame, (f) => f.includes('SOJA-1 deleted') && !f.includes('Fix Stripe webhook'));
+    expect(afterDelete).toContain('SOJA-1 deleted');
+    expect(afterDelete).toContain('Archived');
+    expect(afterDelete).not.toContain('Fix Stripe webhook');
   });
 
   it('changes status from the task view and persists it', async () => {
@@ -191,8 +190,7 @@ describe('daily use', () => {
     const { stdin, lastFrame } = await seeded();
     await press(stdin, '/');
     await type(stdin, 'pitch');
-    await settle(100);
-    const frame = lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('Add pitch velocity') && !f.includes('Fix Stripe webhook'));
     expect(frame).toContain('Add pitch velocity');
     // The search window contains matching results only.
     expect(frame).not.toContain('Fix Stripe webhook');
