@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **1.4.0** |
-| Versión del documento | **1.4.0** (revisión 1) |
+| Versión del documento | **1.4.0** (revisión 2) |
 | Última actualización | 2026-09-25 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -611,7 +611,7 @@ soja sync [--dismiss]              # sincroniza ahora y muestra conflictos y rec
 
 Ver [§9](#9-modo-remoto-equipo).
 
-Una sesión GitHub pendiente o rechazada no habilita el modo remoto. Para nuevas cuentas, `soja login` solicita nombre, fecha de nacimiento, país (búsqueda por texto y selección de resultado) y una carta de interés. Hasta aprobarse, se conserva el trabajo local y las peticiones de workspace/chat no están disponibles. Cada aprobación debe ir seguida de la selección de workspace; una cuenta sin membresías no obtiene acceso por el hecho de ser aprobada.
+Una sesión GitHub pendiente o rechazada no habilita el modo remoto. En esta primera etapa el acceso al servidor oficial es solo por solicitud: se revisa en unas 24–48 h y se aprueba si encaja con la etapa del proyecto. Para nuevas cuentas, `soja login` solicita nombre, fecha de nacimiento, país (búsqueda por texto y selección de resultado) y una carta de interés. Hasta aprobarse, se conserva el trabajo local y las peticiones de workspace/chat no están disponibles. Cada aprobación debe ir seguida de la selección de workspace; una cuenta sin membresías no obtiene acceso por el hecho de ser aprobada.
 
 ### Chat
 
@@ -1454,6 +1454,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.4.0 r2 | 1.4.0 | 2026-09-26 | README para usuarios externos: modo local sin cuenta, acceso al modo en equipo por solicitud con revisión en 24–48 h (§7). Tests de UI esperan el frame en lugar de retardos fijos. |
 | 1.4.0 r1 | 1.4.0 | 2026-09-25 | Publicación de v1.4.0: instalación y actualizaciones desde npm, `soja account delete`, servidor oficial por defecto, HTTPS obligatorio, repositorio público con PRs solo de colaboradores aprobados (§17 *Contribuciones*), publicación con OIDC y provenance. |
 | 1.1.0 r6 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de aire entre los atajos del footer y el wordmark. |
 | 1.1.0 r5 | 1.1.0 + v1.2 en desarrollo | 2026-09-25 | §5: una fila de separación entre el panel y el footer; §13: altura del layout reserva esa fila. |

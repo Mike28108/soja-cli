@@ -7,6 +7,14 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Changed
+
+- El README ya no es de uso interno: explica el modo local sin cuenta y que, en esta primera etapa, el modo en equipo se habilita por solicitud tras `soja login`, revisada en unas 24–48 h.
+
+### Fixed
+
+- Tests de interfaz que fallaban a veces con la máquina cargada (por ejemplo durante `npm publish`): ahora esperan a que la pantalla muestre el resultado en lugar de una pausa fija.
+
 ## [1.4.0] - 2026-09-25
 
 Distribución por npm y seguridad (hito v1.4). Requiere `soja-backend` ≥ 1.2.0 para `soja account delete`.
