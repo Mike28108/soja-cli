@@ -4,6 +4,21 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
+## v1.5 — Repositorio al día y modo teclado (propuesto)
+
+Alcance solicitado (2026-09-26):
+
+- **Saber si vas atrasado:** en el detalle de la task y en la línea del proyecto, mostrar cuántos commits va la branch **detrás y por delante** de su base remota (`origin/main`) y de su upstream, por ejemplo `↓3 main · ↑1`. Las cuentas salen de lo último descargado, así que SOJA muestra cuándo fue el último *fetch* y, si es viejo o nunca se hizo, lo indica con la acción a seguir.
+- **Fetch:** `f` en el menú Git y `soja fetch [proyecto]` ejecutan `git fetch --prune`. Opcionalmente, un fetch en segundo plano mientras SOJA está abierto (configurable y desactivable), sin pedir nunca credenciales (`GIT_TERMINAL_PROMPT=0`); si Git necesita autenticarse, se avisa y el fetch se hace a mano. El fetch no toca tus archivos ni tus branches.
+- **Pull:** *Pull* en el menú Git y `soja pull [SOJA-n]` traen los cambios de la branch actual con `git pull --rebase` (en la branch base, `--ff-only`). Con cambios sin commitear, SOJA se detiene y lo explica antes de tocar nada. Log en vivo, conflictos listados con la opción de abortar (`git rebase --abort`) y errores con sugerencias, como el resto de operaciones Git.
+- **Actualizar la branch con main:** acción *Update from main* que rebasa (o mezcla, según configuración) la branch de la task sobre la base recién descargada, con confirmación.
+- **Merges detectados antes:** tras un fetch o pull, la detección local de merges (tasks a Done) se ejecuta de inmediato.
+
+- **Modo teclado:** diagnosticar primero qué atajos fallan y en qué terminales (con un diagnóstico de teclas, `soja keys`, que muestra lo que recibe SOJA), y corregir la causa. Además, apagar y encender el mouse sin reiniciar (`:mouse off`, guardado en la configuración, equivalente a `SOJA_MOUSE=0`): con el mouse apagado la terminal recupera su selección y copia normales.
+- **Línea de comandos estilo Vim:** `:` acepta comandos escritos con autocompletado (`:pull`, `:fetch`, `:open SOJA-12`, `:filter blocked`, `:mouse off`, `:q`), además de la búsqueda difusa de la command palette actual. Los campos de texto siguen siendo un modo de inserción del que `esc` siempre sale, para que ninguna letra se confunda con un atajo.
+
+Criterios de cierre: contadores detrás/delante verificados contra repositorios de prueba con remoto local, pull/rebase con conflictos y con cambios sin commitear, ningún proceso de fondo que pida credenciales, lista de atajos verificada con y sin mouse en al menos kitty, GNOME Terminal y la terminal de VS Code, y documentación y changelog actualizados.
+
 ## v1.4 — Distribución y seguridad (publicado en v1.4.0)
 
 - Distribución propietaria en npm con trusted publishing OIDC, *provenance* y artefactos sin source maps. El repositorio fuente pasa a ser público (licencia propietaria); solo los colaboradores aprobados abren pull requests.
