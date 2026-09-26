@@ -4,6 +4,7 @@ import { GitConsole } from '../../git/console.js';
 import type { SyncControl } from '../../data/sync/index.js';
 import type { GitClient } from '../../git/types.js';
 import { FolderService } from './folder-service.js';
+import { PreferenceService } from './preference-service.js';
 import { GitWorkflowService } from './git-workflow-service.js';
 import { ProjectService } from './project-service.js';
 import { SessionService } from './session-service.js';
@@ -13,6 +14,7 @@ import type {
   ChatOperations,
   BackupOperations,
   FolderOperations,
+  PreferenceOperations,
   ImportOperations,
   GitOperations,
   ProjectOperations,
@@ -29,6 +31,8 @@ export interface AppServices {
   tasks: TaskOperations;
   git: GitOperations;
   folders: FolderOperations;
+  /** Interface preferences of this machine (the mouse). */
+  preferences: PreferenceOperations;
   /** Live log of the Git commands SOJA runs, for the interface to display. */
   gitConsole: GitConsole;
   /** Where the data lives: this machine (SQLite) or a SOJA server. */
@@ -61,6 +65,7 @@ export function createServices(repos: Repositories, config: ConfigStore, options
     tasks,
     git: new GitWorkflowService(tasks, projects, options.git),
     folders: new FolderService(config),
+    preferences: new PreferenceService(config),
     gitConsole: options.gitConsole ?? new GitConsole(),
     environment: { mode: 'local' },
     backups: options.backups,

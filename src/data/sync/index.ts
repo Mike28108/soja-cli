@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
 import { GitWorkflowService } from '../../application/services/git-workflow-service.js';
 import { FolderService } from '../../application/services/folder-service.js';
+import { PreferenceService } from '../../application/services/preference-service.js';
 import type { AppServices } from '../../application/services/index.js';
 import { ProjectService } from '../../application/services/project-service.js';
 import { TaskService } from '../../application/services/task-service.js';
@@ -125,6 +126,7 @@ export function createReplicaServices(
     ...(localDatabaseFile ? { importer: new LocalImporter(localDatabaseFile, config, api, store, engine) } : {}),
     git: new GitWorkflowService(tasks, projects, git),
     folders: new FolderService(config),
+    preferences: new PreferenceService(config),
     gitConsole,
     environment: { mode: 'remote', server: api.baseUrl },
     backups,

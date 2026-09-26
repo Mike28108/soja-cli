@@ -11,6 +11,7 @@ import { chatCommand } from './commands/chat.js';
 import { importLocalCommand } from './commands/import.js';
 import { branchCommand, commitCommand, mergeCommand, pullRequestCommand, pushCommand } from './commands/git-ops.js';
 import { printHelp, printVersion } from './commands/info.js';
+import { mouseCommand } from './commands/preferences.js';
 import { projectCommand } from './commands/project.js';
 import { taskCommand } from './commands/task.js';
 import { startCommand } from './commands/start.js';
@@ -74,6 +75,8 @@ async function main(argv: string[]): Promise<void> {
       return whoamiCommand();
     case 'mode':
       return modeCommand(rest);
+    case 'mouse':
+      return mouseCommand(rest);
     case 'sync':
       return syncCommand(rest);
     case 'chat':

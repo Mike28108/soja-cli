@@ -32,6 +32,7 @@ import { AccessScreen } from './screens/AccessScreen.js';
 import { ApiClient } from '../data/remote/api-client.js';
 import { CredentialStore } from '../config/credentials.js';
 import { resolvePaths } from '../config/paths.js';
+import { useMouseToggle } from './hooks/use-mouse-toggle.js';
 
 /**
  * The running app, laid out like a desktop application: title bar, sidebar,
@@ -87,6 +88,7 @@ function Frame() {
     return () => clearInterval(timer);
   }, [followPullRequests]);
 
+  const mouseToggle = useMouseToggle();
   useKeys(Layer.global, (input, key) => {
     if (input === ':' || (key.ctrl && input === 'k')) openPalette();
     else if (key.ctrl || key.meta) return false;
@@ -96,6 +98,7 @@ function Frame() {
     else if (input === 'p') go({ type: 'push', route: { name: 'projects' } });
     else if (input === 'w') go({ type: 'push', route: { name: 'workspaces' } });
     else if (input === 'A') go({ type: 'push', route: { name: 'access' } });
+    else if (input === 'M') mouseToggle.toggle();
     else if (input === '#' && chat) go({ type: 'push', route: { name: 'chat' } });
     else if (key.escape && stack.length > 1) go({ type: 'pop' });
     else if (input === 'q') {
@@ -139,7 +142,13 @@ function Frame() {
         </Box>
       </Box>
       <Box height={FOOTER_GAP_ROWS} flexShrink={0} />
-      <StatusBar columns={columns} mode={overlay ? modeForOverlay(overlay) : modeFor(route)} hints={hints} right={server ? undefined : 'local'} />
+      <StatusBar
+        columns={columns}
+        mode={overlay ? modeForOverlay(overlay) : modeFor(route)}
+        hints={hints}
+        right={server ? undefined : 'local'}
+        mouse={{ on: mouseToggle.enabled, onToggle: mouseToggle.toggle, active: !overlay }}
+      />
       {overlay ? (
         <ActiveScope active>
           <OverlayFor overlay={overlay} />

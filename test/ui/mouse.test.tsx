@@ -1,6 +1,8 @@
 import { render } from 'ink-testing-library';
 import { afterEach, describe, expect, it } from 'vitest';
 import { App } from '../../src/ui/App.js';
+import { StatusBar } from '../../src/ui/chrome/StatusBar.js';
+import { KeyProvider } from '../../src/ui/input/KeyProvider.js';
 import { createSetUpApp, tempDir, type TestApp } from '../helpers.js';
 
 const settle = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,5 +112,39 @@ describe('the mouse', () => {
     await settle(120);
     expect(lastFrame()).toContain('My work');
     expect(lastFrame()).not.toContain('New task');
+  });
+
+  it('turns the mouse off from the status bar and back on with M, and remembers it', async () => {
+    const { stdin, frames } = await started();
+    // Switching the mouse writes terminal mode sequences; the screen is the last real frame.
+    const screen = () => [...frames].reverse().find((frame) => !frame.startsWith('\u001b[?')) ?? '';
+    expect(screen()).toContain('mouse on');
+    await click('mouse on');
+    expect(frames.at(-1)).toBe('\u001b[?1000l\u001b[?1006l');
+    // The toast sits over the switch for a moment and says the same.
+    expect(screen()).toContain('Mouse off');
+    expect(screen()).toContain('Press M to turn it back on.');
+    expect(app.services.preferences.mouse()).toBe(false);
+
+    stdin.write('M');
+    await settle(120);
+    expect(frames.at(-1)).toBe('\u001b[?1000h\u001b[?1006h');
+    expect(screen()).toContain('Mouse on');
+    expect(app.services.preferences.mouse()).toBe(true);
+  });
+
+  it('shows the switch at the end of the status bar in both states', () => {
+    const bar = (on: boolean) =>
+      render(
+        <KeyProvider>
+          <StatusBar columns={100} mode="tasks" hints={[['n', 'new']]} right="local" mouse={{ on, onToggle: () => undefined, active: true }} />
+        </KeyProvider>,
+      );
+    const on = bar(true);
+    expect(on.lastFrame()?.split('\n')[0]).toMatch(/local {2}M {2}● mouse on\s*$/);
+    on.unmount();
+    const off = bar(false);
+    expect(off.lastFrame()?.split('\n')[0]).toMatch(/local {2}M {2}○ mouse off\s*$/);
+    off.unmount();
   });
 });

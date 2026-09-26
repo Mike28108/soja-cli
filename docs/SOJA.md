@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **1.4.0** |
-| Versión del documento | **1.4.0** (revisión 3) |
+| Versión del documento | **1.4.0** (revisión 4) |
 | Última actualización | 2026-09-25 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -298,7 +298,8 @@ El teclado sigue siendo lo principal, pero todo responde también al mouse:
 - **Clic** en pestañas, en la barra lateral, en botones de las ventanas y en los campos del detalle (estado, prioridad, proyecto, assignee, requester, branch, PR, descripción) abre lo que los cambia.
 - **Rueda** para desplazar listas, el timeline y el chat.
 - **Clic fuera** de una ventana la cierra.
-- Para **seleccionar texto** y copiarlo, mantén `Shift` mientras arrastras (en la mayoría de terminales), o abre SOJA con `SOJA_MOUSE=0`.
+- Para **seleccionar texto** y copiarlo, mantén `Shift` mientras arrastras (en la mayoría de terminales), o apaga el mouse.
+- **Apagar y encender el mouse** sin reiniciar: `M`, clic en el interruptor `M ● mouse on` al final de la barra de estado, *Mouse off* en la command palette o `soja mouse off` desde la shell. Con el mouse apagado la terminal selecciona y copia texto como siempre y SOJA se usa solo con el teclado; el interruptor muestra `○ mouse off` y `M` lo vuelve a encender. La elección se guarda en `config.json` (`mouse`) y se conserva al reabrir SOJA.
 
 ### Splash
 
@@ -431,6 +432,7 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `p` | Proyectos |
 | `w` | Workspaces |
 | `#` | Chat (modo remoto) |
+| `M` | Apagar / encender el mouse (se recuerda) |
 | `?` | Ayuda |
 | `Ctrl+C` | Salir inmediatamente |
 
@@ -602,6 +604,7 @@ soja access approvals              # lista de solicitudes (CEO)
 soja access approve <id>           # aprobar solicitud (CEO)
 soja access reject <id>            # rechazar solicitud (CEO)
 soja logout
+soja mouse [on|off]                # muestra o cambia si la interfaz usa el mouse (también `M` dentro)
 soja mode [local|remote]
 soja whoami
 soja workspace create <nombre>     # en ambos modos; te deja como owner y la activa
@@ -995,6 +998,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
   "userId": "<uuid>",
   "workspaceId": "<uuid del workspace activo>",
   "parentFolders": ["/home/tu-usuario/workspace/products", "/home/tu-usuario/workspace/services"],
+  "mouse": true,
   "remote": {
     "apiUrl": "https://tu-servidor-soja",
     "userId": "<uuid de tu usuario en el servidor>",
@@ -1005,6 +1009,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 
 - Se valida con zod al cargar. Si el JSON está roto o la forma es inesperada, SOJA muestra un error claro y sugiere cómo arreglarlo.
 - `parentFolders` (opcional, por defecto `[]`): carpetas que contienen tus repositorios (ver [§8](#8-flujo-de-trabajo-con-git)). Los `config.json` de v0.1, que no tienen este campo, siguen funcionando. Cambiar de workspace conserva la lista.
+- `mouse` (opcional, por defecto encendido): si la interfaz usa el mouse en esta máquina. Lo cambian `M`, el interruptor de la barra de estado y `soja mouse on|off`. `SOJA_MOUSE=0` lo apaga para esa ejecución aunque aquí diga `true`.
 - `mode` elige de dónde salen los datos: `local` (SQLite, `userId`/`workspaceId`) o `remote` (bloque `remote`). Ambos bloques conviven; `soja mode` cambia entre ellos.
 - `remote` lo escribe `soja login`. El token **no** está aquí sino en `credentials.json`. `remote.imports` recuerda las importaciones hechas con `soja import-local` desde esta máquina, para avisar antes de repetirlas.
 - Si el workspace activo desaparece, SOJA cambia automáticamente a otro workspace del usuario. Si el usuario desaparece (por ejemplo, tras un reset), vuelve a ejecutar el setup.
@@ -1015,7 +1020,7 @@ Las variables XDG que no son rutas absolutas se ignoran. La base de datos usa mo
 | --- | --- |
 | `SOJA_DEBUG=1` | Muestra stack traces y la cadena de causas de los errores |
 | `SOJA_THEME=light` / `dark` | Fuerza la paleta clara u oscura (por defecto se detecta del fondo de la terminal) |
-| `SOJA_MOUSE=0` | Desactiva el mouse en la interfaz (para seleccionar texto sin `Shift`) |
+| `SOJA_MOUSE=0` | Arranca la interfaz con el mouse apagado, sin cambiar la preferencia guardada (`M` lo enciende) |
 | `VISUAL`, `EDITOR` | Editor para descripciones y comentarios largos (`d`, `soja task describe/comment`); por defecto `vi` |
 | `NO_COLOR` / `FORCE_COLOR` | Control de color de la CLI |
 | `XDG_DATA_HOME`, `XDG_CONFIG_HOME` | Ubicación de los datos (útil para aislar pruebas) |
@@ -1406,7 +1411,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - Los *backlinks* del chat se calculan en tu máquina buscando `SOJA-n` en el texto, así que incluyen mensajes escritos antes de que la task existiera.
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
 
-- Mouse: no hay arrastrar ni selección con el mouse dentro de SOJA; para copiar texto, `Shift` + arrastrar en la terminal o `SOJA_MOUSE=0`.
+- Mouse: no hay arrastrar ni selección con el mouse dentro de SOJA; para copiar texto, `Shift` + arrastrar en la terminal o apaga el mouse con `M`.
 - La detección del tema depende de que la terminal responda a OSC 11 o defina `COLORFGBG`; si no, se usa la paleta oscura (`SOJA_THEME=light` la cambia).
 
 ### Roadmap propuesto
@@ -1454,6 +1459,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.4.0 r4 | 1.4.0 + sin publicar | 2026-09-26 | Interruptor del mouse: `M`, botón en la barra de estado, command palette y `soja mouse on` / `off`; preferencia `mouse` en `config.json` (§5, §6, §7, §10). |
 | 1.4.0 r3 | 1.4.0 | 2026-09-26 | Publicación por etapas: `publish.yml` deja cada versión en espera en npm (`npm stage publish`) y el propietario la aprueba con 2FA (§17). |
 | 1.4.0 r2 | 1.4.0 | 2026-09-26 | README para usuarios externos: modo local sin cuenta, acceso al modo en equipo por solicitud con revisión en 24–48 h (§7). Tests de UI esperan el frame en lugar de retardos fijos. |
 | 1.4.0 r1 | 1.4.0 | 2026-09-25 | Publicación de v1.4.0: instalación y actualizaciones desde npm, `soja account delete`, servidor oficial por defecto, HTTPS obligatorio, repositorio público con PRs solo de colaboradores aprobados (§17 *Contribuciones*), publicación con OIDC y provenance. |

@@ -2,6 +2,7 @@ import { FILTER_LABELS, TASK_FILTERS } from '../../application/filters.js';
 import { useAppState } from '../app-state.js';
 import type { PickerSpec } from '../overlays/types.js';
 import { useFlows } from './use-flows.js';
+import { useMouseToggle } from './use-mouse-toggle.js';
 
 /** The command palette: every major action, filterable by typing. */
 export function useCommandPalette(newTaskProjectId: string | null): () => void {
@@ -12,6 +13,7 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
     go({ type: 'reset' });
   };
   const flows = useFlows();
+  const mouse = useMouseToggle();
 
   return () => {
     const commands: { id: string; label: string; key?: string; run: () => unknown }[] = [
@@ -43,6 +45,7 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
             },
           }]
         : []),
+      { id: 'mouse', label: mouse.enabled ? 'Mouse off' : 'Mouse on', key: 'M', run: mouse.toggle },
       { id: 'help', label: 'Help', key: '?', run: () => go({ type: 'push', route: { name: 'help' } }) },
       { id: 'quit', label: 'Quit', key: 'q', run: quit },
     ];

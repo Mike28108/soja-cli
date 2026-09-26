@@ -72,6 +72,7 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
       ['wheel', 'Scroll lists and chat'],
       ['click outside', 'Close a window'],
       ['shift+drag', 'Select text to copy'],
+      ['M', 'Mouse on / off (remembered)'],
     ],
   ],
   [
