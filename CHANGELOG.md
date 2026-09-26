@@ -7,6 +7,8 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-09-26
+
 ### Fixed
 
 - Finanzas ya no cierra SOJA al abrirse mientras carga el resumen: el indicador de carga se renderiza como texto Ink. También se conserva el estado vacío cuando el workspace todavía no tiene tickets remunerados.
