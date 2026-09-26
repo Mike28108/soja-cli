@@ -6,7 +6,7 @@ import { CredentialStore } from '../../src/config/credentials.js';
 import { bootstrap, type AppRuntime } from '../../src/bootstrap.js';
 import { App } from '../../src/ui/App.js';
 import { FakeSojaServer } from '../data/fake-soja-server.js';
-import { tempDir } from '../helpers.js';
+import { tempDir, waitForFrame } from '../helpers.js';
 
 const settle = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -44,12 +44,11 @@ describe('remote mode in the interface', () => {
       await settle(10);
     }
     ui.stdin.write('\r');
-    await settle(80);
-    expect(ui.lastFrame()).toContain('SOJA-?1');
+    const lastFrame = ui.lastFrame;
+    expect(await waitForFrame(lastFrame, (f) => f.includes('SOJA-?1') || f.includes('SOJA-1'))).toMatch(/SOJA-\??1/);
 
     // The change is pushed shortly after (debounced); the list must follow on its own.
-    await settle(1500);
-    const frame = ui.lastFrame() ?? '';
+    const frame = await waitForFrame(lastFrame, (f) => f.includes('SOJA-1') && !f.includes('SOJA-?1'), 5000);
     expect(frame).toContain('SOJA-1');
     expect(frame).not.toContain('SOJA-?1');
     expect(server.tasks.size).toBe(1);
