@@ -128,6 +128,7 @@ export function TaskTable({
                     <Box flexGrow={1} flexShrink={1}>
                       <Text wrap="truncate-end" {...bg}>
                         {task.archivedAt ? <Text color={palette.faint}>{'archived · '}</Text> : null}
+                        {task.remunerated ? <Text color={palette.success}>{'$ '}</Text> : null}
                         {pr ? <PullRequestMark pr={pr} /> : null}
                         <Text color={closed ? palette.muted : palette.text} bold={isSelected} strikethrough={task.status === 'cancelled'}>
                           {task.title}

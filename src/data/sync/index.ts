@@ -13,6 +13,8 @@ import { createLocalRepositories } from '../local/index.js';
 import type { ApiClient } from '../remote/api-client.js';
 import { LiveConnection } from '../remote/live.js';
 import { ReplicaChatService } from './chat.js';
+import { ReplicaFinanceService } from './finance.js';
+import { ReplicaIntakeService } from './intake.js';
 import { LocalImporter } from './importer.js';
 import type { BackupOperations } from '../../application/ports.js';
 import { SyncEngine, type SyncReport, type SyncStatus } from './engine.js';
@@ -123,6 +125,8 @@ export function createReplicaServices(
     projects,
     tasks,
     chat: new ReplicaChatService(context, tasks),
+    finance: new ReplicaFinanceService(context),
+    intake: new ReplicaIntakeService(context),
     ...(localDatabaseFile ? { importer: new LocalImporter(localDatabaseFile, config, api, store, engine) } : {}),
     git: new GitWorkflowService(tasks, projects, git),
     folders: new FolderService(config),

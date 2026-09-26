@@ -149,6 +149,8 @@ Un espacio de trabajo aislado (*Bravos Development*, *Personal*, *Freelance*). C
 
 Roles actuales: `owner` y `member`.
 
+En el modo remoto, el owner puede nombrar uno o varios **designados** para fijar precios y cerrar tickets de otros miembros. En Workspaces, pulsa `Tab` para enfocar miembros y `d` para alternar la designación; también están disponibles `soja workspace designate <usuario>` y `soja workspace designate <usuario> --remove`. El servidor verifica el permiso y conserva el historial al otorgarlo o revocarlo.
+
 ### Proyecto
 
 Una plataforma o sistema mantenido por el equipo: EnrollBridge, SPRING, Taskfeeds… Cada proyecto tiene un **key** corto (`ENROLL`, `SPRING`, `TASK`):
@@ -208,6 +210,19 @@ Se permite pasar de cualquier estado a cualquier otro. Las reglas de fechas son:
 - Salir de Done o Cancelled hacia un estado abierto limpia `completed_at` y registra `task_reopened`.
 - **Cancelled** no cuenta como completada: `completed_at` queda vacío.
 
+En workspaces remotos, un miembro puede mover su ticket remunerado a **Done**, pero el servidor lo deja en **Review** para que lo apruebe un designado. Solo owners/designados pueden fijar o cambiar precios y cerrar tickets de otros miembros. La regla también se aplica a cambios que llegan por sync.
+
+### Tickets remunerados y finanzas (v1.6 en implementación)
+
+- Cada ticket es no remunerado por defecto. Pulsa `$` en el detalle para asignar un precio usando la moneda del workspace; vuelve a escribir el precio para corregirlo o escribe `unpaid` para retirarlo.
+- La pantalla **Finance & performance** se abre con `f`. El owner configura la moneda con `c`; cada persona configura su salario base con `s`. El salario se devuelve solo al usuario actual y nunca entra en los ingresos por tickets ni en comparativas.
+- Al aprobar un ticket remunerado en Done, SOJA registra el importe como **devengado**, no como una transferencia bancaria confirmada. Reabrirlo crea una reversión; corregir el precio de un ticket completado mediante un designado guarda un ajuste explícito.
+- Las gráficas de finanzas cuentan solo tickets remunerados y comparan a los miembros del workspace; desempeño incluye tickets de todo tipo y calcula duración desde creación hasta Done. Los tickets cancelados no cuentan en el promedio de cierre.
+
+### Ingreso externo de tickets
+
+Desde **Projects**, selecciona un proyecto y pulsa `i` para configurar/exportar, revisar solicitudes o revocar su intake. La configuración pide issuer Supabase, origins permitidos, roles autorizados y ruta de salida. SOJA genera una llave RSA de 3072 bits, registra la clave pública y rota el secreto atómicamente; exporta el contrato OpenAPI junto con un archivo `.env` para Supabase. La ruta inicial queda bajo el directorio de configuración de SOJA (`intake/`), fuera del repo, con directorio `0700` y archivos `0600`; no sobrescribe archivos existentes. Mueve el `.env` a Supabase Secrets y bórralo de la máquina cuando termines. La app externa debe validar sesión con Supabase Auth, rechazar usuarios anónimos, consultar el rol real en el servidor y enviar una aserción RS256 de corta duración. SOJA fija el ticket al proyecto integrado, no permite enviar precio/estado/responsable, y exige credencial de integración, origin allowlisted, rol permitido e idempotencia. Todo ticket recibido queda pendiente; el owner lo aprueba o rechaza desde **Review pending tickets**. Los pendientes y rechazados no se mezclan con tareas normales; una aprobación lo publica al workspace y un rechazo lo cancela. El GET externo `/v1/intake/{integrationId}/tickets` devuelve a los roles autorizados la aprobación, estado de trabajo, comentarios y responsable de todos los tickets del proyecto. Contrato OpenAPI y plantilla de Edge Function: [`soja-backend/docs/PROJECT_INTAKE_API.md`](../../services/soja-backend/docs/PROJECT_INTAKE_API.md).
+
 ### Archivar y borrar
 
 - **Archivar** saca la task de todas las listas y contadores sin perder nada: sigue apareciendo en la búsqueda (`/`, marcada *archived*), en *Archived tasks* (palette) y con `soja task list --archived`. Se restaura igual. Queda en el timeline (`task_archived`, `task_unarchived`) y, en equipo, se sincroniza como cualquier cambio, también sin conexión.
@@ -226,7 +241,7 @@ Texto libre que indica qué departamento o persona originó la solicitud (Market
 
 Cada cambio real genera un evento. Si no cambia nada, no se registra nada. Los eventos y los comentarios forman el **timeline** de la task.
 
-Tipos de evento: `task_created`, `task_updated` (título, descripción, tipo, requester o branch), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`, y los de Git: `git_committed`, `git_merged`, `git_branch_deleted`, `git_pushed`, `pr_opened`, `git_merge_detected`, y los de pull requests en GitHub: `pr_merged`, `pr_checks_failed`.
+Tipos de evento: `task_created`, `task_updated` (incluye cambios de precio), `status_changed`, `assigned`, `unassigned`, `priority_changed`, `project_changed`, `comment_added`, `task_completed`, `task_reopened`, y los de Git: `git_committed`, `git_merged`, `git_branch_deleted`, `git_pushed`, `pr_opened`, `git_merge_detected`, y los de pull requests en GitHub: `pr_merged`, `pr_checks_failed`.
 
 ### Branch sugerida
 

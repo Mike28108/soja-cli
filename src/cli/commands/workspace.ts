@@ -10,7 +10,8 @@ export async function workspaceCommand(args: string[]): Promise<void> {
   if (sub === 'use' || sub === 'switch') return switchWorkspace(rest);
   if (sub === 'create' || sub === 'new') return create(rest);
   if (sub === 'add' || sub === 'add-member') return addMember(rest);
-  throw new ValidationError(`Unknown workspace command “${sub}”.`, { hint: 'Try: list, create <name>, add <username>, use <workspace>.' });
+  if (sub === 'designate') return designate(rest);
+  throw new ValidationError(`Unknown workspace command “${sub}”.`, { hint: 'Try: list, create <name>, add <username>, designate <username>.' });
 }
 
 async function list(): Promise<void> {
@@ -51,5 +52,15 @@ async function addMember(args: string[]): Promise<void> {
   await withSession(async (services, session) => {
     const member = await services.workspaces.addMember(session, { username, ...(values.name ? { displayName: values.name } : {}) });
     success(`@${member.username} joined ${bold(session.workspace.name)}`);
+  });
+}
+
+async function designate(args: string[]): Promise<void> {
+  const { values, positionals } = parseCommand(args, { remove: { type: 'boolean', short: 'r' } });
+  const username = requireArg(positionals[0], 'workspace member', 'soja workspace designate angel');
+  await withSession(async (services, session) => {
+    const member = await services.workspaces.findMember(session, username);
+    await services.workspaces.setDesignated(session, member.id, !values.remove);
+    success(`${values.remove ? 'Removed designate access from' : 'Designated'} @${member.username} ${values.remove ? 'in ' + bold(session.workspace.name) : 'for ' + bold(session.workspace.name)}`);
   });
 }

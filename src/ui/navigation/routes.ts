@@ -6,6 +6,7 @@ export type Route =
   | { name: 'projects' }
   | { name: 'project'; projectId: string }
   | { name: 'workspaces' }
+  | { name: 'finance' }
   | { name: 'access' }
   | { name: 'chat'; channel?: string }
   | { name: 'help' };

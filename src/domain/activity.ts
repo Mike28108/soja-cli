@@ -1,7 +1,7 @@
 import type { TaskPriority, TaskStatus } from './task.js';
 
 /** Plain-text task fields whose edits are recorded as `task_updated`. */
-export type TaskTextField = 'title' | 'description' | 'type' | 'requester' | 'branch';
+export type TaskTextField = 'title' | 'description' | 'type' | 'requester' | 'branch' | 'price';
 
 export interface ActivityPayloads {
   task_created: Record<string, never>;

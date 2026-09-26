@@ -70,6 +70,12 @@ export function Sidebar({ width, height, active }: { width: number; height: numb
           ))}
         </>
       ) : null}
+      {services.finance ? (
+        <>
+          <Section title="REPORTS" />
+          <Item label="Finance & performance" selected={route.name === 'finance'} onClick={() => open({ name: 'finance' })} active={active} />
+        </>
+      ) : null}
       <Section title="PROJECTS" />
       {(projects.data ?? []).slice(0, projectRows).map((project) => (
         <Item

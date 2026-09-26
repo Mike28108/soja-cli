@@ -35,6 +35,14 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
     ],
   ],
   [
+    'Projects (online)',
+    [
+      ['i', 'Configure/export project ticket API'],
+      ['r', 'Link repository'],
+      ['e', 'Edit project'],
+    ],
+  ],
+  [
     'Git (in a task)',
     [
       ['b', 'Start / switch branch'],
@@ -61,6 +69,7 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
       [': or ctrl+k', 'Commands'],
       ['p', 'Projects'],
       ['w', 'Workspaces'],
+      ['f', 'Finance & performance (online)'],
       ['A', 'Access approvals (CEO, remote mode)'],
       ['r', 'Link repo (in Projects)'],
     ],

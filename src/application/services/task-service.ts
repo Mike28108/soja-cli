@@ -47,6 +47,9 @@ const changesSchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
   assigneeId: z.string().nullable().optional(),
   requester: optionalText(80),
+  remunerated: z.boolean().optional(),
+  priceMinor: z.number().int().nonnegative().nullable().optional(),
+  currencyCode: z.string().regex(/^[A-Z]{3}$/).nullable().optional(),
   branch: optionalText(250),
   /** Bookkeeping for merges; changes are not shown in the timeline. */
   baseBranch: optionalText(250),
@@ -150,6 +153,10 @@ export class TaskService {
         assigneeId,
         creatorId: session.user.id,
         requester: data.requester ?? null,
+        remunerated: false,
+        priceMinor: null,
+        externalApprovalStatus: null,
+        currencyCode: null,
         branch: null,
         baseBranch: null,
         branchStart: null,
@@ -189,6 +196,21 @@ export class TaskService {
     if (changed(data.requester, task.requester)) {
       patch.requester = data.requester;
       events.push({ type: 'task_updated', metadata: { field: 'requester', from: task.requester, to: data.requester } });
+    }
+    const nextRemunerated = data.remunerated ?? task.remunerated;
+    const nextPrice = data.remunerated === false && data.priceMinor === undefined ? null : data.priceMinor === undefined ? task.priceMinor : data.priceMinor;
+    const nextCurrency = data.remunerated === false && data.currencyCode === undefined ? null : data.currencyCode === undefined ? task.currencyCode : data.currencyCode;
+    if (nextRemunerated && (nextPrice === null || nextCurrency === null)) throw new ValidationError('A paid task needs a price and currency.');
+    if (!nextRemunerated && (nextPrice !== null || nextCurrency !== null)) throw new ValidationError('Remove the price and currency before marking a task unpaid.');
+    if (nextRemunerated !== task.remunerated || nextPrice !== task.priceMinor || nextCurrency !== task.currencyCode) {
+      patch.remunerated = nextRemunerated;
+      patch.priceMinor = nextPrice;
+      patch.currencyCode = nextCurrency;
+      events.push({ type: 'task_updated', metadata: {
+        field: 'price',
+        from: task.priceMinor === null ? null : `${task.priceMinor} ${task.currencyCode ?? ''}`.trim(),
+        to: nextPrice === null ? null : `${nextPrice} ${nextCurrency ?? ''}`.trim(),
+      } });
     }
     if (changed(data.branch, task.branch)) {
       patch.branch = data.branch;
@@ -327,7 +349,7 @@ export class TaskService {
   private async resolve(session: Session, target: TaskTarget): Promise<Task> {
     if (typeof target === 'object') {
       const task = await this.repos.tasks.findById(target.id);
-      if (task && task.workspaceId === session.workspace.id) return task;
+      if (task && task.workspaceId === session.workspace.id && task.externalApprovalStatus !== 'pending' && task.externalApprovalStatus !== 'rejected') return task;
       throw new NotFoundError('That task no longer exists.');
     }
     const number = typeof target === 'number' ? target : parseTaskRef(target);
@@ -335,7 +357,7 @@ export class TaskService {
       throw new ValidationError(`“${String(target)}” is not a task ID.`, { hint: 'Use something like SOJA-12.' });
     }
     const task = await this.repos.tasks.findByNumber(session.workspace.id, number);
-    if (!task) throw new NotFoundError(`${formatTaskRef(number)} does not exist in ${session.workspace.name}.`);
+    if (!task || task.externalApprovalStatus === 'pending' || task.externalApprovalStatus === 'rejected') throw new NotFoundError(`${formatTaskRef(number)} does not exist in ${session.workspace.name}.`);
     return task;
   }
 

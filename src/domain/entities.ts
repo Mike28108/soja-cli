@@ -27,6 +27,7 @@ export interface WorkspaceMember {
   workspaceId: string;
   userId: string;
   role: WorkspaceRole;
+  designated?: boolean;
 }
 
 export interface Project {

@@ -32,7 +32,7 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
 
   async listForUser(userId: string): Promise<WorkspaceWithRole[]> {
     const rows = await this.db
-      .select({ workspace: workspaces, role: workspaceMembers.role })
+      .select({ workspace: workspaces, role: workspaceMembers.role, designated: workspaceMembers.designated })
       .from(workspaceMembers)
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
       .where(eq(workspaceMembers.userId, userId))
@@ -55,11 +55,15 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
 
   async listMembers(workspaceId: string): Promise<MemberWithUser[]> {
     const rows = await this.db
-      .select({ user: users, role: workspaceMembers.role })
+      .select({ user: users, role: workspaceMembers.role, designated: workspaceMembers.designated })
       .from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId))
       .where(eq(workspaceMembers.workspaceId, workspaceId))
       .orderBy(asc(users.username));
-    return rows.map((row) => ({ ...row.user, role: row.role }));
+    return rows.map((row) => ({ ...row.user, role: row.role, designated: row.role === 'owner' || row.designated }));
+  }
+
+  async setDesignated(workspaceId: string, userId: string, designated: boolean): Promise<void> {
+    await this.db.update(workspaceMembers).set({ designated }).where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
   }
 }

@@ -29,6 +29,7 @@ import { TaskScreen } from './screens/TaskScreen.js';
 import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
 import { ChatScreen } from './screens/ChatScreen.js';
 import { AccessScreen } from './screens/AccessScreen.js';
+import { FinanceScreen } from './screens/FinanceScreen.js';
 import { ApiClient } from '../data/remote/api-client.js';
 import { CredentialStore } from '../config/credentials.js';
 import { resolvePaths } from '../config/paths.js';
@@ -97,6 +98,7 @@ function Frame() {
     else if (input === '?') go({ type: 'push', route: { name: 'help' } });
     else if (input === 'p') go({ type: 'push', route: { name: 'projects' } });
     else if (input === 'w') go({ type: 'push', route: { name: 'workspaces' } });
+    else if (input === 'f' && services.finance) go({ type: 'push', route: { name: 'finance' } });
     else if (input === 'A') go({ type: 'push', route: { name: 'access' } });
     else if (input === 'M') mouseToggle.toggle();
     else if (input === '#' && chat) go({ type: 'push', route: { name: 'chat' } });
@@ -171,6 +173,8 @@ function ScreenFor({ route, active }: { route: Route; active: boolean }) {
       return <TaskListScreen active={active} projectId={route.projectId} />;
     case 'workspaces':
       return <WorkspacesScreen active={active} />;
+    case 'finance':
+      return <FinanceScreen active={active} />;
     case 'access':
       return <AccessScreen active={active} />;
     case 'help':
@@ -211,6 +215,8 @@ function trailFor(route: Route, projectName: string | null | undefined): string[
       return ['Projects'];
     case 'workspaces':
       return ['Workspaces'];
+    case 'finance':
+      return ['Finance'];
     case 'access':
       return ['Access approvals'];
     case 'help':

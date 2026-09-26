@@ -51,6 +51,8 @@ export class LocalTaskRepository implements TaskRepository {
 
   async list(query: TaskQuery): Promise<Task[]> {
     const conditions: SQL[] = [eq(tasks.workspaceId, query.workspaceId)];
+    const externallyVisible = or(isNull(tasks.externalApprovalStatus), eq(tasks.externalApprovalStatus, 'approved'));
+    if (externallyVisible) conditions.push(externallyVisible);
     if (query.assigneeId) conditions.push(eq(tasks.assigneeId, query.assigneeId));
     if (query.projectId) conditions.push(eq(tasks.projectId, query.projectId));
     if (query.statuses) conditions.push(inArray(tasks.status, [...query.statuses]));
@@ -82,10 +84,11 @@ export class LocalTaskRepository implements TaskRepository {
   }
 
   async countByProjectAndStatus(workspaceId: string): Promise<StatusCountRow[]> {
+    const externallyVisible = or(isNull(tasks.externalApprovalStatus), eq(tasks.externalApprovalStatus, 'approved'));
     return this.db
       .select({ projectId: tasks.projectId, status: tasks.status, count: count() })
       .from(tasks)
-      .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt)))
+      .where(and(eq(tasks.workspaceId, workspaceId), isNull(tasks.archivedAt), ...(externallyVisible ? [externallyVisible] : [])))
       .groupBy(tasks.projectId, tasks.status);
   }
 

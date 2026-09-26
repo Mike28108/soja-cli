@@ -89,6 +89,8 @@ export function describe(item: TaskActivity, lookups: TimelineLookups): string {
           return to ? `set requester to ${to}` : 'cleared the requester';
         case 'branch':
           return to ? `linked branch ${to}` : 'unlinked the branch';
+        case 'price':
+          return to ? `set ticket price to ${to}` : 'removed the ticket price';
       }
     }
   }

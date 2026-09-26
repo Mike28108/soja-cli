@@ -4,6 +4,57 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
+## v1.6 — Finanzas, rendimiento e ingreso externo de tickets (en implementación)
+
+Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde existen workspaces con varios usuarios; el modo local conserva finanzas y métricas personales sin comparativas entre miembros. Base del flujo financiero, designados y API remota añadida; falta cerrar auditoría de rechazos, validación de despliegue y criterios de cierre.
+
+### 1. Modelo de tickets remunerados y finanzas
+
+- Cada ticket indica si es **remunerado**; los tickets nuevos y los datos migrados quedan como no remunerados por defecto. Un ticket remunerado tiene precio, moneda del workspace y autoría del cambio. Usar unidades monetarias exactas (minor units o `numeric`), nunca `float`.
+- Distinguir importe **devengado en SOJA** de pago efectivamente liquidado: pasar un ticket remunerado a `DONE` registra el devengo, no confirma una transferencia bancaria. El evento guarda el precio vigente al cerrar, quién lo aprobó, fecha y moneda; es idempotente con operaciones de sync.
+- Mantener un ledger auditable para cierres, reaperturas, correcciones y ajustes, sin duplicar ingresos al reintentar una sync. Un precio editado después del cierre no reescribe el historial: necesita un ajuste explícito de un designado.
+- Cada persona puede configurar su salario base y periodicidad en el workspace. Se muestra solo a esa persona; queda fuera de ingresos por tickets, totales y todas las comparativas entre miembros. El panel separa salario base de importes devengados por tickets.
+- Primera versión: una moneda ISO 4217 por workspace; no convertir monedas. Elegir moneda y periodicidad del salario al configurar finanzas.
+
+### 2. Permisos de designados y flujo de cierre
+
+- El owner puede designar y retirar una o varias personas por workspace. El permiso se valida en el backend para rutas normales y operaciones de sync; ocultar botones en TUI no cuenta como control de acceso.
+- Designados pueden establecer o cambiar el precio de tickets de otras personas y cerrar tickets ajenos. El resto puede trabajar en sus tickets remunerados y moverlos a `REVIEW`; solo un designado puede aprobarlos y pasarlos a `DONE`, lo que crea el devengo. Los tickets no remunerados conservan el cierre normal de su responsable; cerrar tickets ajenos requiere ser designado.
+- Registrar en el timeline quién cambió precio, designación y estado, con validación de workspace y prevención de acciones retroactivas no autorizadas.
+
+### 3. Panel de finanzas y rendimiento en terminal
+
+- Añadir un apartado de finanzas y desempeño en la TUI con gráficos compactos de terminal, reutilizando tema, accesibilidad de teclado y adaptación a terminales estrechas.
+- Finanzas: importe devengado por tickets remunerados en `DONE`, desglose por persona/proyecto y evolución temporal. Las comparativas entre miembros excluyen siempre salarios base y consideran solo tickets remunerados cerrados.
+- Rendimiento: incluir tickets de todo tipo; mostrar volumen, abiertos/en curso y antigüedad de los tickets aún abiertos. El promedio de cierre usa el tiempo desde creación hasta `DONE`, excluye cancelados y desglosa por la persona responsable al cerrar; reaberturas no deben duplicar tickets ni devengos.
+- Mostrar comparativas solo cuando haya al menos dos miembros elegibles en el workspace, siempre acotadas al workspace activo. Definir en la UI periodo y fórmulas visibles; mostrar un estado vacío si faltan datos.
+- Backend entrega agregados acotados por workspace y actor; la réplica offline señala frescura y no presenta devengos pendientes como confirmados.
+
+### 4. API de entrada y aplicaciones con Supabase
+
+- Cada proyecto puede habilitar/exportar/revocar su propia integración desde SOJA: en Projects, `i` configura origins/roles/issuer, genera llave RSA, registra la clave pública y guarda un `.env` protegido junto con OpenAPI 3.1; el backend ofrece rotación/revocación y aplica límites/idempotencia. La plantilla de Edge Function está documentada.
+- Contrato: `POST` crea un ticket pendiente de revisión del owner; define campos, límites, errores, idempotencia (`Idempotency-Key`), respuesta con identificador y estado, rate limits y versión. `GET` exporta una tabla paginada con todos los tickets del proyecto, aprobación, estado de trabajo, comentarios y asignación. La API nunca acepta precio o `DONE` del formulario externo: esas decisiones quedan sujetas a permisos internos.
+- Autorizar por roles de la aplicación de origen: al configurar/exportar la integración, el owner selecciona qué roles pueden abrir tickets para ese proyecto (allowlist; denegar por defecto). La configuración fija el proyecto/workspace destino; el formulario no puede elegir ni cambiar el destino.
+- En la configuración, documentar el origen del rol (claim concreto del JWT verificado o consulta de autorización en la Edge Function), y permitir mapear los nombres de la app a roles normalizados de la integración. Guardar allowlist y mapeo en la configuración de esa integración; rol ausente, desconocido o no permitido se deniega por defecto. Ofrecer una vista previa/validación de la configuración antes de activarla.
+- Las aplicaciones externas mantienen su propia base Supabase y continúan usando Supabase Auth/RLS para sus usuarios. El navegador invoca una **Edge Function** de esa aplicación; esta valida sesión y dominio `Origin`, rechaza usuarios anónimos y llama a SOJA desde el servidor. La función guarda el secreto de integración en Supabase Secrets; no se conecta directamente a la base de SOJA ni expone secretos en frontend.
+- La Edge Function obtiene el rol desde una fuente confiable de la app (claim de acceso gestionado por servidor o consulta autorizada a su base), lo mapea a un identificador de rol acordado y SOJA comprueba ese rol contra la allowlist del proyecto. Si SOJA no puede verificar directamente ese rol como claim confiable del JWT, la Edge Function debe enviar una aserción de autorización firmada, de vida corta y ligada a issuer, `sub`, integración/proyecto, rol y expiración; definir claves públicas, rotación y revocación en el contrato. No confiar en un rol enviado en el body ni en `user_metadata` editable por el usuario; tampoco confundir el claim `role` de Postgres/Supabase con el rol de negocio de la app. Si la app usa otros nombres/jerarquías, debe configurar el mapeo explícito; solo roles permitidos pueden crear.
+- SOJA verifica credencial por proyecto, identidad Supabase autenticada (issuer y `sub` válidos; no anónima), proyecto/dominio registrado y permisos. El dominio se aplica como allowlist/CORS y defensa contra uso desde otros sitios, no como autenticación por sí sola: llamadas servidor-a-servidor y clientes fuera del navegador requieren credencial verificable.
+- Las solicitudes deben quedar asociadas a una identidad real: guardar issuer y subject del remitente, sin aceptar un `userId` arbitrario del payload. Definir durante el diseño cómo se vincula esa identidad externa al requester visible en SOJA y qué perfil mínimo se conserva.
+- Respuesta de autorización: `401` para sesión/token inválido o anónimo y `403` para rol faltante/no permitido; no crear el ticket en esos casos. Registrar motivo, integración, proyecto y actor en auditoría sin persistir tokens ni secretos.
+- Si la app primero persiste el formulario en su Supabase, usar una Edge Function/webhook con reintentos e idempotencia; no intentar una transacción distribuida entre ambas bases. La respuesta de SOJA incluye el `taskId` para guardar la asociación en la app externa.
+
+### Orden de entrega y criterios de cierre
+
+1. ADR de reglas de dinero, moneda/periodicidad, identidad externa, privacidad y efectos de reapertura; cerrar la decisión de autenticación no-anónima antes de fijar el contrato.
+2. Migraciones local/backend, ledger y designados; aplicar autorización también a sync y API, con auditoría de cambios.
+3. Métricas agregadas por workspace y vistas/gráficos de terminal; validar cálculos, privacidad salarial, tiempos, cierres, reaperturas y datos offline.
+4. API versionada por proyecto, exportación OpenAPI/JSON Schema y plantilla Edge Function; probar dominios válidos/inválidos, JWT anónimo, rol permitido/denegado/ausente, manipulación de rol, afirmaciones expiradas, credenciales rotadas, reintentos y abuso/rate limit.
+5. Actualizar `docs/SOJA.md`, documentación del backend, guía de integración Supabase y changelogs en cada entrega; despliegue coordinado con versión compatible del backend.
+
+**Decisiones confirmadas (2026-09-26):** validar el JWT de Supabase Auth de la app de origen y rechazar explícitamente usuarios anónimos. Guardar su identidad externa como requester; no se requiere que esa persona ya tenga cuenta SOJA/GitHub. Las integraciones permitirán configurar una allowlist de roles de negocio para autorizar quién puede abrir tickets; el destino queda asociado a la integración/proyecto y no lo determina cada petición.
+
+**Avance de implementación (2026-09-26):** finanzas, salario privado, designados, reglas de sync/ledger, panel de comparativas y asistente `i` de intake están implementados en cliente/backend. Las solicitudes externas esperan aprobación del owner y se ocultan de listas, búsqueda, detalle, contadores, finanzas y sync hasta aprobarse; el rechazo las marca Cancelled. `GET /v1/intake/{integrationId}/tickets` expone a los roles permitidos todos los tickets del proyecto con aprobación, estado, comentarios y asignación. El backend verifica identidad no anónima, issuer, aserción RS256, rol allowlisted, origin exacto, idempotencia y replay. Contrato y Edge Function: `soja-backend/docs/PROJECT_INTAKE_API.md`. Falta validar integración en despliegue y completar criterios de cierre.
+
 ## v1.5 — Repositorio al día y modo teclado (en desarrollo)
 
 Alcance solicitado (2026-09-26). Adelantado en v1.5.0: apagar y encender el mouse sin reiniciar (`M`, interruptor en la barra de estado, command palette y `soja mouse on|off`). El resto sigue pendiente y saldrá en versiones 1.5.x/1.6.

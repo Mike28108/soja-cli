@@ -1,4 +1,5 @@
 import { Box, Text } from 'ink';
+import { useState } from 'react';
 import { useAppState } from '../app-state.js';
 import { useFlows } from '../hooks/use-flows.js';
 import { useLayout } from '../hooks/use-layout.js';
@@ -14,6 +15,8 @@ import { ScreenFrame } from './ScreenFrame.js';
 
 export function WorkspacesScreen({ active }: { active: boolean }) {
   const { services, session } = useAppState();
+  const { invalidateQueries, run } = useAppState();
+  const [membersFocus, setMembersFocus] = useState(false);
   const { height, width } = useLayout();
   const data = useQuery(async () => {
     const [workspaces, members] = await Promise.all([
@@ -26,12 +29,34 @@ export function WorkspacesScreen({ active }: { active: boolean }) {
   const members = data.data?.members ?? [];
   const listRows = Math.max(3, Math.min(workspaces.length, height - 6 - Math.min(members.length, 8)));
   const list = useList(workspaces.length, listRows, true, Math.max(0, workspaces.findIndex((w) => w.id === session.workspace.id)));
+  const memberList = useList(Math.min(members.length, 10), Math.max(1, Math.min(members.length, 8)), membersFocus);
+  const isOwner = workspaces.find((workspace) => workspace.id === session.workspace.id)?.role === 'owner';
 
   const flows = useFlows();
 
   useKeys(
     Layer.screen,
     (input, key) => {
+      if (input === '\t') {
+        setMembersFocus((focused) => !focused);
+        return true;
+      }
+      if (membersFocus) {
+        if (memberList.handleKey(input, key)) return true;
+        if (key.escape) {
+          setMembersFocus(false);
+          return true;
+        }
+        const member = members[memberList.index];
+        if (input === 'd' && isOwner && member) {
+          void run(async () => {
+            await services.workspaces.setDesignated(session, member.id, !member.designated);
+            invalidateQueries([`workspaces:${session.workspace.id}`]);
+          }, `${member.designated ? 'Removed designate access from' : 'Designated'} @${member.username}`);
+          return true;
+        }
+        return false;
+      }
       if (list.handleKey(input, key)) return true;
       if (key.ctrl || key.meta) return false;
       const workspace = workspaces[list.index];
@@ -53,7 +78,9 @@ export function WorkspacesScreen({ active }: { active: boolean }) {
         ['↑↓', 'move'],
         ['enter', 'switch'],
         ['n', 'new workspace'],
-        ['a', 'add developer'],
+      ['a', 'add developer'],
+        ['tab', 'members'],
+        ...(isOwner ? ([['d', 'toggle designate']] as const) : []),
         ['esc', 'back'],
       ]}
     >
@@ -83,19 +110,20 @@ export function WorkspacesScreen({ active }: { active: boolean }) {
           })}
         </Panel>
         <Panel title={`Developers in ${session.workspace.name}`} aside={`${members.length}`} width={wide ? Math.floor(width * 0.45) : undefined} flexShrink={0}>
-          {members.slice(0, 10).map((member) => (
-            <Box key={member.id} gap={1}>
-              <Text backgroundColor={palette.neutralSoft} color={palette.accent} bold>{` ${initials(member.displayName)} `}</Text>
-              <Text color={palette.text}>{`@${member.username}`}</Text>
-              <Text color={palette.muted} wrap="truncate-end">
-                {member.displayName}
-              </Text>
-              {member.role === 'owner' ? <Badge tone="info">owner</Badge> : null}
-            </Box>
+          {members.slice(0, 10).map((member, index) => (
+            <Clickable key={member.id} active={active} onClick={() => { memberList.select(index); setMembersFocus(true); }}>
+              <Box gap={1} flexGrow={1} {...(membersFocus && index === memberList.index ? { backgroundColor: palette.selection } : {})}>
+                <Text backgroundColor={palette.neutralSoft} color={palette.accent} bold>{` ${initials(member.displayName)} `}</Text>
+                <Text color={palette.text}>{`@${member.username}`}</Text>
+                <Text color={palette.muted} wrap="truncate-end">{member.displayName}</Text>
+                {member.role === 'owner' ? <Badge tone="info">owner</Badge> : null}
+                {member.designated && member.role !== 'owner' ? <Badge tone="success">designate</Badge> : null}
+              </Box>
+            </Clickable>
           ))}
           {members.length > 10 ? <Text color={palette.faint}>{`${symbols.ellipsis} and ${members.length - 10} more`}</Text> : null}
           <Box marginTop={1}>
-            <Text color={palette.faint}>a adds a developer</Text>
+            <Text color={palette.faint}>{isOwner ? 'a add developer · tab focus members · d toggle designate' : 'a adds a developer'}</Text>
           </Box>
         </Panel>
       </Box>

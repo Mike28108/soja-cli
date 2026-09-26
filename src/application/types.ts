@@ -11,6 +11,7 @@ export interface Session {
 /** A developer in a workspace, as every data source can provide it. */
 export interface Member extends UserRef {
   role: WorkspaceRole;
+  designated?: boolean;
 }
 
 export interface TaskView extends Task {

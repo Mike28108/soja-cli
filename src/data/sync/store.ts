@@ -55,7 +55,7 @@ export interface Notice {
 /** Task fields as stored; server views carry extra presentation fields we drop. */
 const TASK_COLUMNS = [
   'id', 'number', 'workspaceId', 'projectId', 'title', 'description', 'type', 'priority', 'status', 'assigneeId',
-  'creatorId', 'requester', 'branch', 'baseBranch', 'branchStart', 'createdAt', 'updatedAt', 'startedAt', 'completedAt', 'archivedAt',
+  'creatorId', 'requester', 'remunerated', 'priceMinor', 'currencyCode', 'externalApprovalStatus', 'branch', 'baseBranch', 'branchStart', 'createdAt', 'updatedAt', 'startedAt', 'completedAt', 'archivedAt',
 ] as const satisfies readonly (keyof Task)[];
 
 const pickTask = (task: Task): Task =>
@@ -81,12 +81,12 @@ export class ReplicaStore {
     await this.db.insert(workspaces).values(row).onConflictDoUpdate({ target: workspaces.id, set: { name: row.name, slug: row.slug, description: row.description, updatedAt: row.updatedAt } });
   }
 
-  async upsertMember(workspaceId: string, member: UserRef & { role: WorkspaceRole }): Promise<void> {
+  async upsertMember(workspaceId: string, member: UserRef & { role: WorkspaceRole; designated?: boolean }): Promise<void> {
     await this.upsertUser(member);
     await this.db
       .insert(workspaceMembers)
-      .values({ workspaceId, userId: member.id, role: member.role })
-      .onConflictDoUpdate({ target: [workspaceMembers.workspaceId, workspaceMembers.userId], set: { role: member.role } });
+      .values({ workspaceId, userId: member.id, role: member.role, designated: member.designated ?? member.role === 'owner' })
+      .onConflictDoUpdate({ target: [workspaceMembers.workspaceId, workspaceMembers.userId], set: { role: member.role, designated: member.designated ?? member.role === 'owner' } });
   }
 
   /** Server projects have no local path; the one this machine linked is kept. */
