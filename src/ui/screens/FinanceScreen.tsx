@@ -57,7 +57,7 @@ export function FinanceScreen({ active }: { active: boolean }) {
 
   if (!finance) return <ScreenFrame title="Finance" hints={[[ 'esc', 'back' ]]}><EmptyState lines={['Finance is available in online workspaces.']} icon={symbols.dot} /></ScreenFrame>;
   if (query.error && !data) return <ScreenFrame title="Finance" hints={[[ 'esc', 'back' ]]}><EmptyState lines={[query.error.message, query.error.hint ?? '']} icon={symbols.cross} /></ScreenFrame>;
-  if (!data) return <ScreenFrame title="Finance" hints={[[ 'c', 'currency' ], [ 's', 'salary' ], [ 'esc', 'back' ]]}>Loading finance…</ScreenFrame>;
+  if (!data) return <ScreenFrame title="Finance" hints={[[ 'c', 'currency' ], [ 's', 'salary' ], [ 'esc', 'back' ]] }><Text color={palette.faint}>Loading finance…</Text></ScreenFrame>;
 
   const compact = height < 25 || width < 75;
   const rows = Math.max(1, Math.min(6, height - (compact ? 8 : 12)));
