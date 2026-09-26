@@ -42,4 +42,3 @@ CREATE UNIQUE INDEX `tasks_workspace_number` ON `tasks` (`workspace_id`,`number`
 CREATE INDEX `tasks_workspace_status` ON `tasks` (`workspace_id`,`status`);--> statement-breakpoint
 CREATE INDEX `tasks_assignee` ON `tasks` (`assignee_id`);--> statement-breakpoint
 CREATE INDEX `tasks_project` ON `tasks` (`project_id`);--> statement-breakpoint
-ALTER TABLE `workspace_members` ADD `designated` integer DEFAULT false NOT NULL;
