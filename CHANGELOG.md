@@ -14,6 +14,7 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 ### Fixed
 
 - Tests de interfaz que fallaban a veces con la máquina cargada (por ejemplo durante `npm publish`): ahora esperan a que la pantalla muestre el resultado en lugar de una pausa fija.
+- Los tests de interfaz dependían del tamaño de la terminal donde se ejecutaban (la de pruebas no declara filas y Ink tomaba las del terminal real): ahora usan siempre 100×24, como en CI.
 
 ## [1.4.0] - 2026-09-25
 

@@ -11,3 +11,11 @@ Object.assign(process.env, {
   GIT_CONFIG_GLOBAL: '/dev/null',
   GIT_CONFIG_NOSYSTEM: '1',
 });
+
+/**
+ * The ink-testing-library stdout reports 100 columns but no rows, so Ink falls
+ * back to the size of the terminal running the tests: layouts (and assertions)
+ * changed with the developer's window. A fixed size makes every run render the
+ * same frames as CI.
+ */
+Object.assign(process.env, { COLUMNS: '100', LINES: '24' });
