@@ -23,6 +23,7 @@ export const TASK_STATUSES = [
   'cancelled',
 ] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type ExternalApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export const TYPE_LABELS: Record<TaskType, string> = {
   bug: 'Bug',
@@ -66,6 +67,12 @@ export interface Task {
   assigneeId: string | null;
   creatorId: string;
   requester: string | null;
+  /** Payment status and exact price (minor units); false/null for ordinary tasks. */
+  remunerated: boolean;
+  priceMinor: number | null;
+  currencyCode: string | null;
+  /** External form submissions stay hidden from the team until owner approval. */
+  externalApprovalStatus: ExternalApprovalStatus | null;
   branch: string | null;
   /** Branch the task branch was created from; merges go back into it. */
   baseBranch: string | null;

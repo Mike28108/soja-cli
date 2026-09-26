@@ -128,6 +128,41 @@ export function useTaskActions() {
         onSubmit: (value) => update(task, { requester: value }, value.trim() ? `requested by ${value.trim()}` : 'has no requester'),
       });
     },
+    async price(task: TaskView) {
+      if (!services.finance) {
+        notify('Ticket pricing requires an online workspace with finance enabled.', 'info');
+        return;
+      }
+      const summary = await services.finance.summary(session);
+      const currencyCode = task.currencyCode ?? summary.currencyCode;
+      if (!currencyCode) {
+        notify('Set the workspace currency in Finance before pricing tickets.', 'info');
+        return;
+      }
+      const digits = new Intl.NumberFormat('en', { style: 'currency', currency: currencyCode }).resolvedOptions().maximumFractionDigits ?? 2;
+      const initial = task.priceMinor === null ? '' : (task.priceMinor / 10 ** digits).toFixed(digits);
+      openOverlay({
+        kind: 'prompt',
+        title: `Ticket price (${currencyCode})`,
+        context: task.ref,
+        initial,
+        placeholder: `e.g. ${digits ? `12.${'0'.repeat(digits)}` : '12'} · or “unpaid”`,
+        onSubmit: (value) => {
+          if (value.trim().toLowerCase() === 'unpaid') return update(task, { remunerated: false }, 'marked unpaid');
+          const pattern = digits ? new RegExp(`^\\d+(?:\\.\\d{1,${digits}})?$`) : /^\\d+$/;
+          if (!pattern.test(value.trim())) {
+            notify(`Enter a non-negative amount with up to ${digits} decimal places, or “unpaid”.`, 'error');
+            return false;
+          }
+          const amountMinor = Math.round(Number(value.trim()) * 10 ** digits);
+          if (!Number.isSafeInteger(amountMinor)) {
+            notify('That amount is too large.', 'error');
+            return false;
+          }
+          return update(task, { remunerated: true, priceMinor: amountMinor, currencyCode }, `priced at ${value.trim()} ${currencyCode}`);
+        },
+      });
+    },
     title(task: TaskView) {
       openOverlay({
         kind: 'prompt',

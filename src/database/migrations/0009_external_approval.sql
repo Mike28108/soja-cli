@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `external_approval_status` text;

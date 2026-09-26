@@ -30,6 +30,7 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       { id: 'new-project', label: 'New project', run: () => flows.newProject() },
       { id: 'switch-workspace', label: 'Switch workspace', run: () => flows.pickWorkspace() },
       { id: 'workspaces', label: 'Workspaces', key: 'w', run: () => go({ type: 'push', route: { name: 'workspaces' } }) },
+      ...(services.finance ? [{ id: 'finance', label: 'Finance & performance', key: 'f', run: () => go({ type: 'push', route: { name: 'finance' } }) }] : []),
       { id: 'new-workspace', label: 'New workspace', run: () => flows.newWorkspace() },
       { id: 'add-developer', label: 'Add developer', run: () => flows.addDeveloper() },
       { id: 'parent-folders', label: 'Parent folders', run: () => flows.manageParentFolders() },

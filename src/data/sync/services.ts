@@ -126,7 +126,7 @@ export class ReplicaWorkspaceService implements WorkspaceOperations {
 
   async members(session: Session): Promise<Member[]> {
     const members = await this.context.repos.workspaces.listMembers(session.workspace.id);
-    return members.map(({ id, username, displayName, role }) => ({ id, username, displayName, role }));
+    return members.map(({ id, username, displayName, role, designated }) => ({ id, username, displayName, role, designated: role === 'owner' || Boolean(designated) }));
   }
 
   async findMember(session: Session, username: string): Promise<Member> {
@@ -142,6 +142,14 @@ export class ReplicaWorkspaceService implements WorkspaceOperations {
     );
     await this.context.store.upsertMember(session.workspace.id, member);
     return member;
+  }
+
+  async setDesignated(session: Session, userId: string, designated: boolean): Promise<void> {
+    const members = await online('Updating workspace designates', () => this.context.api.request<Member[]>(
+      designated ? 'POST' : 'DELETE',
+      `/v1/workspaces/${session.workspace.id}/designates/${userId}`,
+    ));
+    for (const member of members) await this.context.store.upsertMember(session.workspace.id, member);
   }
 }
 
@@ -205,7 +213,7 @@ export class ReplicaProjectService implements ProjectOperations {
 }
 
 type Target = Parameters<TaskOperations['get']>[1];
-const CHANGE_FIELDS = ['title', 'description', 'projectId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'branch', 'baseBranch', 'branchStart'] as const;
+const CHANGE_FIELDS = ['title', 'description', 'projectId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'remunerated', 'priceMinor', 'currencyCode', 'branch', 'baseBranch', 'branchStart'] as const;
 
 /**
  * Tasks in remote mode: read and written in the local replica (instant, works

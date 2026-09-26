@@ -58,6 +58,7 @@ export function taskLine(task: TaskView, options: { showAssignee?: boolean } = {
     used += 11;
   }
   const room = Math.max(12, columns - used - 2);
-  parts.push(task.title.length > room ? `${task.title.slice(0, room - 1)}${symbols.ellipsis}` : task.title);
+  const title = `${task.remunerated ? '$ ' : ''}${task.title}`;
+  parts.push(title.length > room ? `${title.slice(0, room - 1)}${symbols.ellipsis}` : title);
   return `  ${parts.join('')}`;
 }

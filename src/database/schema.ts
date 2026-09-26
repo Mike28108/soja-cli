@@ -41,6 +41,7 @@ export const workspaceMembers = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: text('role', { enum: WORKSPACE_ROLES }).notNull(),
+    designated: integer('designated', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), check('workspace_members_role', oneOf('role', WORKSPACE_ROLES))],
 );
@@ -81,6 +82,10 @@ export const tasks = sqliteTable(
       .notNull()
       .references(() => users.id),
     requester: text('requester'),
+    remunerated: integer('remunerated', { mode: 'boolean' }).notNull().default(false),
+    priceMinor: integer('price_minor'),
+    currencyCode: text('currency_code'),
+    externalApprovalStatus: text('external_approval_status', { enum: ['pending', 'approved', 'rejected'] }),
     branch: text('branch'),
     baseBranch: text('base_branch'),
     branchStart: text('branch_start'),
@@ -97,6 +102,8 @@ export const tasks = sqliteTable(
     check('tasks_type', oneOf('type', TASK_TYPES)),
     check('tasks_priority', oneOf('priority', TASK_PRIORITIES)),
     check('tasks_status', oneOf('status', TASK_STATUSES)),
+    check('tasks_price_nonnegative', sql.raw('price_minor IS NULL OR price_minor >= 0')),
+    check('tasks_remuneration_fields', sql.raw('(remunerated = 0 AND price_minor IS NULL AND currency_code IS NULL) OR (remunerated = 1 AND price_minor IS NOT NULL AND currency_code IS NOT NULL)')),
   ],
 );
 

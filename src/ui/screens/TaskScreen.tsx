@@ -128,6 +128,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         t: () => actions.type(task),
         m: () => actions.project(task),
         r: () => actions.requester(task),
+        '$': () => actions.price(task),
         d: () => actions.description(task),
         c: () => actions.comment(task),
         e: () => actions.edit(task),
@@ -154,6 +155,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     ['s', 'status'],
     ['p', 'priority'],
     ['a', 'assign'],
+    ...(services.finance ? ([['$', 'ticket price']] as const) : []),
     ['c', 'comment'],
     ['e', 'edit'],
     ['g', 'git'],
@@ -208,6 +210,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
           <Field label="Project" value={task.project?.name} onClick={() => actions.project(task)} active={active} />
           <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} onClick={() => actions.assign(task)} active={active} />
           <Field label="Requested by" value={task.requester ?? undefined} onClick={() => actions.requester(task)} active={active} />
+          {services.finance ? <Field label="Pay" value={task.remunerated ? formatMoney(task.priceMinor, task.currencyCode) : 'unpaid'} onClick={() => void actions.price(task)} active={active} /> : null}
           <GitFields
             state={git.data}
             fallbackBranch={task.branch ?? task.suggestedBranch}
@@ -269,6 +272,12 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
       {showMascot && task ? <Mascot scene={syncStatus?.syncing ? 'syncing' : sceneForTask(task)} paused={!active} /> : null}
     </ScreenFrame>
   );
+}
+
+function formatMoney(amountMinor: number | null, currencyCode: string | null): string {
+  if (amountMinor === null || !currencyCode) return 'price needed';
+  const digits = new Intl.NumberFormat('en', { style: 'currency', currency: currencyCode }).resolvedOptions().maximumFractionDigits ?? 2;
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode }).format(amountMinor / 10 ** digits);
 }
 
 function PullRequestField({ state, loading, onClick, active }: { state: TaskPullRequestState | null | undefined; loading: boolean; onClick: () => void; active: boolean }) {

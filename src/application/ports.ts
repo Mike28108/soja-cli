@@ -6,6 +6,7 @@ import type { ProjectService } from './services/project-service.js';
 import type { SessionService } from './services/session-service.js';
 import type { TaskService } from './services/task-service.js';
 import type { WorkspaceService } from './services/workspace-service.js';
+import type { FinanceOperations } from './finance.js';
 
 /** The public methods of a class, as a contract other implementations can satisfy. */
 type PublicApi<T> = { [K in keyof T]: T[K] };
@@ -17,6 +18,8 @@ type PublicApi<T> = { [K in keyof T]: T[K] };
  */
 export type SessionOperations = PublicApi<SessionService>;
 export type WorkspaceOperations = PublicApi<WorkspaceService>;
+export type { FinanceOperations };
+export type { IntakeOperations } from './intake.js';
 export type ProjectOperations = PublicApi<ProjectService>;
 export type TaskOperations = PublicApi<TaskService>;
 export type GitOperations = PublicApi<GitWorkflowService>;

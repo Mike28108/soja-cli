@@ -27,6 +27,7 @@ export interface WorkspaceWithRole extends Workspace {
 
 export interface MemberWithUser extends User {
   role: WorkspaceRole;
+  designated?: boolean;
 }
 
 export interface WorkspaceRepository {
@@ -37,6 +38,7 @@ export interface WorkspaceRepository {
   addMember(member: WorkspaceMember): Promise<void>;
   findMember(workspaceId: string, userId: string): Promise<WorkspaceMember | null>;
   listMembers(workspaceId: string): Promise<MemberWithUser[]>;
+  setDesignated(workspaceId: string, userId: string, designated: boolean): Promise<void>;
 }
 
 export interface NewProject {
@@ -77,6 +79,9 @@ export type TaskPatch = Partial<
     | 'projectId'
     | 'assigneeId'
     | 'requester'
+    | 'remunerated'
+    | 'priceMinor'
+    | 'currencyCode'
     | 'branch'
     | 'baseBranch'
     | 'branchStart'

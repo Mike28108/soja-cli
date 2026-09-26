@@ -14,6 +14,8 @@ import type {
   ChatOperations,
   BackupOperations,
   FolderOperations,
+  FinanceOperations,
+  IntakeOperations,
   PreferenceOperations,
   ImportOperations,
   GitOperations,
@@ -41,6 +43,10 @@ export interface AppServices {
   sync?: SyncControl;
   /** Team chat; present only in remote mode (there is no team locally). */
   chat?: ChatOperations;
+  /** Workspace financial summaries; remote mode only. */
+  finance?: FinanceOperations;
+  /** Per-project external ticket intake management; remote owner only. */
+  intake?: IntakeOperations;
   /** Brings local-mode data to the server; remote mode only. */
   importer?: ImportOperations;
   /** Copies of the database in use (local, or the remote-mode replica). */

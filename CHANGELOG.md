@@ -7,6 +7,14 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Added
+
+- v1.6 en implementación: tickets remunerados con precios en unidades monetarias menores, designados por workspace, paso a Review cuando un miembro termina un ticket pago, ledger de devengos y reversión al reabrir, panel TUI de finanzas/rendimiento y salario base privado. El backend valida permisos también en operaciones de sync.
+- En Workspaces, owner puede alternar designados con `Tab` + `d` o `soja workspace designate <usuario>` (`--remove` revoca); `$` en el detalle configura el precio del ticket; `f` abre Finanzas, `c` configura moneda y `s` el salario personal.
+- Desde Projects, `i` configura/rota o revoca el intake por proyecto y exporta un `.env` privado bajo el directorio de configuración (llave RSA 3072 y secreto, directorio `0700`, archivos `0600`, sin sobrescritura) más el contrato OpenAPI; el backend valida issuer, origin, rol permitido, aserción RS256 e idempotencia. Plantilla de Supabase Edge Function en `soja-backend/docs/PROJECT_INTAKE_API.md`.
+- Las solicitudes externas quedan pendientes hasta que el owner las apruebe o rechace en Projects → `i` → Review pending tickets. Solo las aprobadas entran en las listas, búsquedas, contadores, finanzas y sync normal de SOJA; las rechazadas quedan Cancelled.
+- El contrato de integración expone `GET /v1/intake/{integrationId}/tickets` con paginación, decisión de aprobación, estado de trabajo, comentarios con autor y asignación para todos los tickets del proyecto. Solo usuarios autenticados con roles permitidos para esa integración pueden consultar la tabla completa.
+
 ## [1.5.1] - 2026-09-26
 
 ### Fixed

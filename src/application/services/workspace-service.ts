@@ -56,7 +56,7 @@ export class WorkspaceService {
 
   async members(session: Session): Promise<Member[]> {
     const members = await this.repos.workspaces.listMembers(session.workspace.id);
-    return members.map(({ id, username, displayName, role }) => ({ id, username, displayName, role }));
+    return members.map(({ id, username, displayName, role, designated }) => ({ id, username, displayName, role, designated: role === 'owner' || Boolean(designated) }));
   }
 
   async findMember(session: Session, username: string): Promise<Member> {
@@ -66,6 +66,10 @@ export class WorkspaceService {
       throw new NotFoundError(`@${normalized} is not a member of ${session.workspace.name}.`);
     }
     return member;
+  }
+
+  async setDesignated(session: Session, userId: string, designated: boolean): Promise<void> {
+    await this.repos.workspaces.setDesignated(session.workspace.id, userId, designated);
   }
 
   /**
@@ -82,7 +86,7 @@ export class WorkspaceService {
         throw new ConflictError(`@${username} is already in ${session.workspace.name}.`);
       }
       await this.repos.workspaces.addMember({ workspaceId: session.workspace.id, userId: user.id, role: 'member' });
-      return { id: user.id, username: user.username, displayName: user.displayName, role: 'member' as const };
+      return { id: user.id, username: user.username, displayName: user.displayName, role: 'member' as const, designated: false };
     });
   }
 }

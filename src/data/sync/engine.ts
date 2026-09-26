@@ -76,7 +76,7 @@ export interface SyncStatus {
 }
 
 const BATCH = 100;
-const TASK_FIELDS = new Set(['title', 'description', 'projectId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'branch', 'baseBranch', 'branchStart']);
+const TASK_FIELDS = new Set(['title', 'description', 'projectId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'remunerated', 'priceMinor', 'currencyCode', 'branch', 'baseBranch', 'branchStart']);
 
 /** Server task view → stored task row (presentation fields are dropped by the store). */
 const toTask = (view: TaskView): Task => view;

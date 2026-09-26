@@ -45,6 +45,7 @@ jobs:
         with:
           repository: Mike28108/soja-backend
           token: ${{ secrets.SOJA_REPOS_TOKEN }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           path: other
           persist-credentials: false
       - run: node scripts/check-domain.mjs other
@@ -79,6 +80,7 @@ jobs:
         with:
           repository: Mike28108/soja-backend
           token: ${{ secrets.SOJA_REPOS_TOKEN }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           path: backend
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
