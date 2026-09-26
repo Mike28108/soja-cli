@@ -56,6 +56,7 @@ Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde exi
 **Avance de implementación (2026-09-26):** finanzas, salario privado, designados, reglas de sync/ledger, panel de comparativas y asistente `i` de intake están implementados en cliente/backend. Las solicitudes externas esperan aprobación del owner y se ocultan de listas, búsqueda, detalle, contadores, finanzas y sync hasta aprobarse; el rechazo las marca Cancelled. `GET /v1/intake/{integrationId}/tickets` expone a los roles permitidos todos los tickets del proyecto con aprobación, estado, comentarios y asignación. El backend verifica identidad no anónima, issuer, aserción RS256, rol allowlisted, origin exacto, idempotencia y replay. Contrato y Edge Function: `soja-backend/docs/PROJECT_INTAKE_API.md`. Falta validar integración en despliegue y completar criterios de cierre.
 
 - **Corrección de validación de roles:** aceptar etiquetas de rol con espacios y caracteres Unicode tanto en el diálogo del cliente como en el backend (p. ej. `Super Administrador`).
+- **Secrets de Supabase:** nombres personalizados de Edge Function no pueden empezar con `SUPABASE_`; exportar issuer con prefijo `SOJA_`.
 
 ## v1.5 — Repositorio al día y modo teclado (en desarrollo)
 

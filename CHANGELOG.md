@@ -5,6 +5,12 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
+## [1.6.2] - 2026-09-26
+
+### Fixed
+
+- El archivo de integración usa `SOJA_SOURCE_AUTH_ISSUER` en lugar del prefijo reservado `SUPABASE_` para secretos personalizados de Edge Functions.
+
 ## [1.6.1] - 2026-09-26
 
 ### Fixed

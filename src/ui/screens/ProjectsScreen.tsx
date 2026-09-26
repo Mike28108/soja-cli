@@ -262,7 +262,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
             const contract = await intake.exportContract(session, project.id);
             const privateEnv = [
               `APP_ORIGINS='${allowedOrigins.join(',')}'`,
-              `SUPABASE_AUTH_ISSUER='${sourceIssuer}'`,
+              `SOJA_SOURCE_AUTH_ISSUER='${sourceIssuer}'`,
               `SOJA_API_URL='${services.environment.mode === 'remote' ? services.environment.server : ''}'`,
               `SOJA_INTEGRATION_ID='${credentials.id}'`,
               `SOJA_PROJECT_ID='${project.id}'`,
