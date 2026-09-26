@@ -5,7 +5,11 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
-## [Unreleased]
+## [1.6.1] - 2026-09-26
+
+### Fixed
+
+- La allowlist de roles de la integración de tickets ahora acepta nombres legibles con espacios, como `Super Administrador`, tanto en la configuración de SOJA como en la validación del backend.
 
 ## [1.6.0] - 2026-09-26
 
