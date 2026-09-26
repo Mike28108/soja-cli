@@ -44,6 +44,8 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+      # `npm stage` (staged publishing) needs npm 11.17 or newer.
+      - run: npm install --global npm@11.17.0
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: npm-package
@@ -61,6 +63,13 @@ jobs:
             echo "soja-cli@$version is already on npm; nothing to publish."
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-      # The source repository is public, so npm records where and how the package was built.
+      # The trusted publisher may only stage: the version waits on npm until the owner approves
+      # it with 2FA (`npm stage approve`). The repository is public, so it carries provenance.
       - if: steps.published.outputs.skip != 'true'
-        run: npm publish /tmp/soja-publish/*.tgz --access public --provenance
+        run: |
+          npm stage publish /tmp/soja-publish/*.tgz --access public --provenance
+          {
+            echo "### soja-cli ${GITHUB_REF_NAME#v} is staged, not published yet"
+            echo
+            echo 'Approve it with 2FA: `npm stage list soja-cli`, then `npm stage approve <stage-id>`.'
+          } >> "$GITHUB_STEP_SUMMARY"
