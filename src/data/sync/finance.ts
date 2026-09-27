@@ -16,4 +16,8 @@ export class ReplicaFinanceService implements FinanceOperations {
   async setMySalary(session: Session, input: Parameters<FinanceOperations['setMySalary']>[1]): Promise<void> {
     await this.context.api.request('PUT', `/v1/workspaces/${session.workspace.id}/finance/salary`, input);
   }
+
+  async configurePayroll(session: Session, input: Parameters<FinanceOperations['configurePayroll']>[1]): Promise<void> {
+    await this.context.api.request('PUT', `/v1/workspaces/${session.workspace.id}/finance/payroll`, input);
+  }
 }

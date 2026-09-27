@@ -70,6 +70,8 @@ const SECTIONS: readonly (readonly [title: string, keys: readonly (readonly [str
       ['p', 'Projects'],
       ['w', 'Workspaces'],
       ['f', 'Finance & performance (online)'],
+      [',', 'Settings and global keyboard shortcuts'],
+      ['u', 'My profile (online); username in the top bar is clickable'],
       ['A', 'Access approvals (CEO, remote mode)'],
       ['r', 'Link repo (in Projects)'],
     ],

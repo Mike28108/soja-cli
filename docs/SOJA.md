@@ -57,11 +57,13 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.5.1)
+### Estado actual (v1.7.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
 El chat requiere `soja-backend` ≥ 0.3.0. El acceso online requiere aprobación de cuenta en `soja-backend` ≥ 1.1.0; las cuentas nuevas quedan en modo local hasta su aprobación.
+
+La rama de desarrollo v1.7 añade el perfil remoto, ajustes de atajos globales y calendario de nómina. En Finanzas, `p` configura un pago mensual en el día elegido o uno semimensual el 15 y el último día; los tickets se contabilizan en el siguiente ciclo según la zona horaria configurada, y los cierres en el día de pago entran en ese mismo ciclo. El backend debe incluir la migración `0012_easy_thunderbolt.sql` y desplegarse junto con esta versión para persistir la nómina y devolver el historial.
 
 ---
 
@@ -84,7 +86,11 @@ soja
 
 **Actualizar:** `soja update` descarga e instala la última versión de npm (pide confirmación); `soja update --check` solo avisa. SOJA también avisa de versiones nuevas al abrir la interfaz y en `soja --version`, consultando npm como mucho una vez al día. Tus datos y tu configuración no se tocan.
 
+Al iniciar la interfaz, si npm tiene una versión más reciente, SOJA muestra una confirmación para instalarla inmediatamente o continuar con la versión actual. Si aceptas, SOJA instala la versión y se cierra; vuelve a ejecutar `soja` para abrir la nueva.
+
 **Cuenta y privacidad:** `soja account delete` revoca tus sesiones y anonimiza tu autoría en contenido compartido. Si eres la única persona propietaria de un workspace, transfiere primero la propiedad. Consulta [el aviso de privacidad](PRIVACY.md) y [la licencia propietaria](../LICENSE).
+
+**Perfil y atajos:** en modo remoto, abre tu perfil con `u` o selecciona `@usuario` en la barra superior; puedes editar nombre (`n`), fecha de nacimiento (`d`) y país (`c`). En cualquier modo, `,` abre Settings para cambiar los atajos de navegación global o restaurarlos con `r`. Los atajos de acciones dentro de tasks y chat no cambian. Las preferencias se guardan localmente en `config.json`.
 
 ### Desde el código fuente
 
