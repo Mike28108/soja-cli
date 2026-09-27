@@ -5,6 +5,12 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
+## [1.7.1] - 2026-09-27
+
+### Fixed
+
+- Profile updates now retain the selected country and other pending fields while prompting for required profile details, then submit the complete profile together.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added

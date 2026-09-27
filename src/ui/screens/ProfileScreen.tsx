@@ -26,6 +26,12 @@ interface Profile {
 
 interface Country { code: string; name: string; flag: string }
 
+function validBirthDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value && parsed <= new Date();
+}
+
 export function ProfileScreen({ active }: { active: boolean }) {
   const { services, session, openOverlay, run, invalidateQueries, notify } = useAppState();
   const client = useMemo(() => {
@@ -41,20 +47,39 @@ export function ProfileScreen({ active }: { active: boolean }) {
 
   const save = (changes: Partial<Pick<Profile, 'displayName' | 'dateOfBirth' | 'countryCode'>>) => {
     if (!client || !profile) return false;
-    if (!profile.dateOfBirth || !profile.countryCode) {
-      openOverlay({ kind: 'prompt', title: 'Complete profile · date of birth (YYYY-MM-DD)', initial: profile.dateOfBirth ?? '', onSubmit: (dateOfBirth) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return false;
-        return run(async () => {
-          await client.request('PUT', '/v1/profile', { displayName: profile.displayName, dateOfBirth, countryCode: profile.countryCode ?? '' });
-          invalidateQueries([topic]);
-        }, 'Profile updated');
-      } });
-      return false;
-    }
-    return run(async () => {
-      await client.request('PUT', '/v1/profile', { displayName: changes.displayName ?? profile.displayName, dateOfBirth: changes.dateOfBirth ?? profile.dateOfBirth, countryCode: changes.countryCode ?? profile.countryCode });
-      invalidateQueries([topic]);
-    }, 'Profile updated');
+    const draft = {
+      displayName: changes.displayName ?? profile.displayName,
+      dateOfBirth: changes.dateOfBirth ?? profile.dateOfBirth ?? '',
+      countryCode: changes.countryCode ?? profile.countryCode ?? '',
+    };
+    const saveCompleteProfile = (value: typeof draft) => {
+      const displayName = value.displayName.trim();
+      if (!displayName || displayName.length > 80) {
+        openOverlay({ kind: 'prompt', title: 'Display name', initial: displayName, placeholder: 'Your name', onSubmit: (nextName) => {
+          const cleaned = nextName.trim();
+          return cleaned && cleaned.length <= 80 ? saveCompleteProfile({ ...value, displayName: cleaned }) : false;
+        } });
+        return false;
+      }
+      if (!validBirthDate(value.dateOfBirth)) {
+        openOverlay({ kind: 'prompt', title: 'Date of birth (YYYY-MM-DD)', initial: value.dateOfBirth, placeholder: '1990-01-31', onSubmit: (dateOfBirth) =>
+          validBirthDate(dateOfBirth) ? saveCompleteProfile({ ...value, dateOfBirth }) : false });
+        return false;
+      }
+      if (!/^[A-Z]{2}$/.test(value.countryCode)) {
+        void client.get<{ countries: Country[] }>('/v1/auth/countries').then(({ countries }) => {
+          openOverlay({ kind: 'picker', title: 'Country', initial: null, filterable: true,
+            options: countries.map((country) => ({ value: country.code, label: `${country.flag} ${country.name} · ${country.code}` })),
+            onSelect: (countryCode) => saveCompleteProfile({ ...value, countryCode }) });
+        }).catch((error: unknown) => notify(toDisplayError(error).message, 'error'));
+        return false;
+      }
+      return run(async () => {
+        await client.request('PUT', '/v1/profile', { displayName, dateOfBirth: value.dateOfBirth, countryCode: value.countryCode });
+        invalidateQueries([topic]);
+      }, 'Profile updated');
+    };
+    return saveCompleteProfile(draft);
   };
 
   useKeys(Layer.screen, (input) => {
