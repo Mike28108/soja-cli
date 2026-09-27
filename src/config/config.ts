@@ -32,6 +32,8 @@ export const configSchema = z
     parentFolders: z.array(z.string().min(1)).default([]),
     /** Whether the interface reports the mouse (`soja mouse on|off`, `M` in the interface). On when unset. */
     mouse: z.boolean().optional(),
+    /** User-defined single-key global navigation shortcuts. */
+    keyboardShortcuts: z.record(z.string(), z.string()).optional(),
     remote: remoteSchema.optional(),
   })
   .refine((config) => config.mode !== 'remote' || config.remote !== undefined, {

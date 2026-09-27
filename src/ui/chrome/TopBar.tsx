@@ -1,5 +1,6 @@
 import { Box, Text } from 'ink';
 import { APP_NAME, APP_VERSION } from '../branding/brand.js';
+import { Clickable } from '../kit/Clickable.js';
 import { palette, symbols } from '../theme/theme.js';
 
 interface TopBarProps {
@@ -13,10 +14,12 @@ interface TopBarProps {
   server?: string | undefined;
   sync?: { text: string; tone: 'ok' | 'busy' | 'warn' } | undefined;
   chat?: { unread: number; mentions: number } | undefined;
+  onProfileClick?: (() => void) | undefined;
+  profileActive?: boolean | undefined;
 }
 
 /** The title bar: brand and place on the left, connection and you on the right. */
-export function TopBar({ columns, workspace, trail, username, isCeo, server, sync, chat }: TopBarProps) {
+export function TopBar({ columns, workspace, trail, username, isCeo, server, sync, chat, onProfileClick, profileActive = true }: TopBarProps) {
   const roomy = columns >= 90;
   const syncColor = sync?.tone === 'warn' ? palette.warning : sync?.tone === 'busy' ? palette.info : palette.muted;
   return (
@@ -42,7 +45,9 @@ export function TopBar({ columns, workspace, trail, username, isCeo, server, syn
             {`${symbols.link} ${roomy ? server : ''}${sync ? `${roomy ? ` ${symbols.dot} ` : ''}${sync.text}` : ''}`}
           </Text>
         ) : null}
-        <Text backgroundColor={palette.bar} color={palette.barText}>{`@${username}`}{isCeo ? <Text color={palette.warning} bold>{' ★ CEO'}</Text> : null}</Text>
+        <Clickable onClick={onProfileClick ? () => onProfileClick() : undefined} active={profileActive}>
+          <Text backgroundColor={palette.bar} color={palette.barText}>{`@${username}`}{isCeo ? <Text color={palette.warning} bold>{' ★ CEO'}</Text> : null}</Text>
+        </Clickable>
         {roomy ? <Text backgroundColor={palette.bar} color={palette.faint}>{`v${APP_VERSION}`}</Text> : null}
       </Box>
     </Box>

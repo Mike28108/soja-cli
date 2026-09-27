@@ -58,6 +58,18 @@ Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde exi
 - **Corrección de validación de roles:** aceptar etiquetas de rol con espacios y caracteres Unicode tanto en el diálogo del cliente como en el backend (p. ej. `Super Administrador`).
 - **Secrets de Supabase:** nombres personalizados de Edge Function no pueden empezar con `SUPABASE_`; exportar issuer con prefijo `SOJA_`.
 
+## v1.7 — Finanzas personales, perfil y atajos configurables (en desarrollo)
+
+Ampliación solicitada (2026-09-27). Requiere cambios coordinados en `soja-cli` y `soja-backend`; la configuración de nómina y el historial financiero siguen siendo privados para la persona autenticada y acotados al workspace activo.
+
+- **Calendario de nómina:** junto al salario y su periodo, permitir guardar una regla de cobro mensual: un día del mes (incluido último día del mes) o dos fechas, el día 15 y el último día calendario. Mostrar próxima fecha de pago y el total estimado del próximo ciclo. Si el calendario es semimensual, dividir el monto mensual configurado en dos importes iguales y sumar los devengos de tickets asignados a ese ciclo. Usar la zona horaria local guardada por la persona para evitar cortes de fecha del servidor. Las reglas describen el calendario esperado y no afirman que un pago se haya liquidado.
+- **Historial de ingresos por tickets:** consultar el ledger personal y listar tasks remuneradas cerradas con fecha, identificador/título, importe, moneda y nómina a la que se asignaron. Mostrar ajustes y reversiones como eventos separados, con ingresos positivos en verde y reversiones claramente distinguibles; no mezclar salario base con este historial. La asignación a nómina debe ser determinista e idempotente, sin duplicar ni mover ingresos ya liquidados.
+- **Configuración de teclado:** añadir una vista de ajustes que permita reasignar atajos de navegación global y guardarlos en la configuración local del usuario. Detectar y explicar conflictos, ofrecer restaurar valores predeterminados y respetar los campos de texto, diálogos y atajos reservados. Las acciones específicas de task, chat y otras pantallas conservan sus atajos actuales.
+- **Perfil propio:** dar acceso visible desde la interfaz al perfil remoto del usuario para consultar y editar los campos personales permitidos. En v1.6.3 el encabezado solo muestra `@usuario` y el badge CEO; esta versión añade el acceso al perfil. La API existente `GET/PUT /v1/profile` mantiene privada la fecha de nacimiento.
+- **Contrato y datos:** extender salario personal con la regla de fechas de nómina y devolver historial del ledger filtrado por beneficiario. Implementado en el backend con `member_payroll_settings`, `payroll_date` y `PUT /finance/payroll`; falta validar aislamiento por usuario/workspace, fechas de fin de mes y año bisiesto, pagos semimensuales, reversiones/ajustes y compatibilidad de clientes antiguos.
+
+**Decisiones confirmadas (2026-09-27):** la nómina del 15 y último día divide el salario mensual en dos pagos iguales; cada ingreso por ticket se suma a la siguiente nómina programada; una task cerrada en la misma fecha de pago entra en ese ciclo; la primera versión solo permite personalizar atajos globales.
+
 ## v1.5 — Repositorio al día y modo teclado (en desarrollo)
 
 Alcance solicitado (2026-09-26). Adelantado en v1.5.0: apagar y encender el mouse sin reiniciar (`M`, interruptor en la barra de estado, command palette y `soja mouse on|off`). El resto sigue pendiente y saldrá en versiones 1.5.x/1.6.

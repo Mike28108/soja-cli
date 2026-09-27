@@ -16,26 +16,30 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
   const mouse = useMouseToggle();
 
   return () => {
+    const shortcuts = services.preferences.keyboardShortcuts();
     const commands: { id: string; label: string; key?: string; run: () => unknown }[] = [
-      { id: 'new-task', label: 'New task', key: 'n', run: () => openOverlay({ kind: 'new-task', projectId: newTaskProjectId }) },
+      { id: 'new-task', label: 'New task', key: shortcuts.newTask, run: () => openOverlay({ kind: 'new-task', projectId: newTaskProjectId }) },
       ...TASK_FILTERS.map((filter) => ({
         id: `filter-${filter}`,
         label: FILTER_LABELS[filter],
         run: () => showView(filter),
       })),
       { id: 'filter-archived', label: 'Archived tasks', run: () => showView('archived') },
-      { id: 'search', label: 'Search', key: '/', run: () => openOverlay({ kind: 'search' }) },
-      { id: 'projects', label: 'Projects', key: 'p', run: () => go({ type: 'push', route: { name: 'projects' } }) },
+      { id: 'search', label: 'Search', key: shortcuts.search, run: () => openOverlay({ kind: 'search' }) },
+      { id: 'projects', label: 'Projects', key: shortcuts.projects, run: () => go({ type: 'push', route: { name: 'projects' } }) },
       { id: 'switch-project', label: 'Switch project', run: () => flows.pickProject() },
       { id: 'new-project', label: 'New project', run: () => flows.newProject() },
       { id: 'switch-workspace', label: 'Switch workspace', run: () => flows.pickWorkspace() },
-      { id: 'workspaces', label: 'Workspaces', key: 'w', run: () => go({ type: 'push', route: { name: 'workspaces' } }) },
-      ...(services.finance ? [{ id: 'finance', label: 'Finance & performance', key: 'f', run: () => go({ type: 'push', route: { name: 'finance' } }) }] : []),
+      { id: 'workspaces', label: 'Workspaces', key: shortcuts.workspaces, run: () => go({ type: 'push', route: { name: 'workspaces' } }) },
+      ...(services.finance ? [{ id: 'finance', label: 'Finance & performance', key: shortcuts.finance, run: () => go({ type: 'push', route: { name: 'finance' } }) }] : []),
+      { id: 'settings', label: 'Settings', key: shortcuts.settings, run: () => go({ type: 'push', route: { name: 'settings' } }) },
+      { id: 'profile', label: 'My profile', key: shortcuts.profile, run: () => go({ type: 'push', route: { name: 'profile' } }) },
+      { id: 'access', label: 'Access approvals', key: shortcuts.access, run: () => go({ type: 'push', route: { name: 'access' } }) },
       { id: 'new-workspace', label: 'New workspace', run: () => flows.newWorkspace() },
       { id: 'add-developer', label: 'Add developer', run: () => flows.addDeveloper() },
       { id: 'parent-folders', label: 'Parent folders', run: () => flows.manageParentFolders() },
       { id: 'git-log', label: 'Git log', run: () => openOverlay({ kind: 'git-log' }) },
-      ...(services.chat ? [{ id: 'chat', label: 'Chat', key: '#', run: () => go({ type: 'push', route: { name: 'chat' } }) }] : []),
+      ...(services.chat ? [{ id: 'chat', label: 'Chat', key: shortcuts.chat, run: () => go({ type: 'push', route: { name: 'chat' } }) }] : []),
       ...(services.sync
         ? [{
             id: 'sync',
@@ -46,9 +50,9 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
             },
           }]
         : []),
-      { id: 'mouse', label: mouse.enabled ? 'Mouse off' : 'Mouse on', key: 'M', run: mouse.toggle },
-      { id: 'help', label: 'Help', key: '?', run: () => go({ type: 'push', route: { name: 'help' } }) },
-      { id: 'quit', label: 'Quit', key: 'q', run: quit },
+      { id: 'mouse', label: mouse.enabled ? 'Mouse off' : 'Mouse on', key: shortcuts.mouse, run: mouse.toggle },
+      { id: 'help', label: 'Help', key: shortcuts.help, run: () => go({ type: 'push', route: { name: 'help' } }) },
+      { id: 'quit', label: 'Quit', key: shortcuts.quit, run: quit },
     ];
 
     const spec: PickerSpec = {

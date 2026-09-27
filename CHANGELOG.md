@@ -5,7 +5,14 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
-## [Unreleased]
+## [1.7.0] - 2026-09-27
+
+### Added
+
+- Finanzas: configurar nómina mensual (día 1–31, con ajuste al último día del mes) o semimensual (15 y fin de mes), ver el próximo pago estimado con salario y tickets devengados asignados a ese ciclo, y consultar el historial personal de ingresos. Un cierre en el propio día de pago se asigna a ese ciclo; el salario mensual semimensual se divide en dos, con el centavo residual en fin de mes.
+- Al iniciar SOJA, comprobar si hay una versión nueva en npm y ofrecer instalarla en ese momento. Al aceptar, instalar la versión y cerrar SOJA para iniciar la actualización desde la nueva versión.
+- Pantalla de ajustes, accesible con la tecla `,`, para personalizar los atajos de navegación global, resolver conflictos y restaurar los predeterminados. Se guardan en la configuración local; las acciones dentro de cada pantalla conservan sus atajos.
+- Perfil remoto accesible con `u` o haciendo clic en `@usuario` en la barra superior; permite editar nombre, fecha de nacimiento y país.
 
 ## [1.6.3] - 2026-09-26
 

@@ -68,7 +68,7 @@ interface ProviderProps {
   cwd: string;
   initialSession: Session;
   initialRoute?: Route;
-  updates?: () => Promise<UpdateCheck | null>;
+  updates?: { check: () => Promise<UpdateCheck | null>; install: (version: string) => Promise<void> };
   children: ReactNode;
 }
 
@@ -108,13 +108,31 @@ export function AppStateProvider({ services, cwd, initialSession, initialRoute, 
   useEffect(() => {
     if (!updates) return;
     let active = true;
-    void updates().then((update) => {
-      if (active && update?.available) notify(`SOJA v${update.latest} is available`, 'info', 'Run `soja update` to install it.');
+    void updates.check().then((update) => {
+      if (active && update?.available) {
+        setOverlay({
+          kind: 'confirm',
+          title: `SOJA v${update.latest} is available`,
+          context: `Current version: v${update.current}`,
+          message: 'Install the update from npm now? SOJA will close after installation so you can start the new version.',
+          confirmLabel: 'Update now',
+          onConfirm: async () => {
+            try {
+              await updates.install(update.latest);
+              exit();
+            } catch (error) {
+              const display = toDisplayError(error);
+              notify(display.message, 'error', display.hint);
+              return false;
+            }
+          },
+        });
+      }
     });
     return () => {
       active = false;
     };
-  }, [updates, notify]);
+  }, [updates, notify, exit]);
 
   const run = useCallback(
     async (action: () => Promise<unknown>, success?: string) => {

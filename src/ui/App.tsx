@@ -43,8 +43,8 @@ interface AppProps {
   cwd?: string;
   /** Screen to open on top of home, e.g. the chat for `soja chat`. */
   initialRoute?: Route;
-  /** Looks for a newer SOJA release (quietly; null when unknown). */
-  updates?: () => Promise<UpdateCheck | null>;
+  /** Checks npm for an update and can install a selected version. */
+  updates?: { check: () => Promise<UpdateCheck | null>; install: (version: string) => Promise<void> };
   /** Clicks and the wheel (the real terminal turns it on; tests opt in). */
   mouse?: boolean;
   /** Prompt for account choice when a saved remote credential is missing. */

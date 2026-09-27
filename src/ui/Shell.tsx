@@ -30,6 +30,9 @@ import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
 import { ChatScreen } from './screens/ChatScreen.js';
 import { AccessScreen } from './screens/AccessScreen.js';
 import { FinanceScreen } from './screens/FinanceScreen.js';
+import { SettingsScreen } from './screens/SettingsScreen.js';
+import { ProfileScreen } from './screens/ProfileScreen.js';
+import { matchesGlobalShortcut } from '../application/services/preference-service.js';
 import { ApiClient } from '../data/remote/api-client.js';
 import { CredentialStore } from '../config/credentials.js';
 import { resolvePaths } from '../config/paths.js';
@@ -91,19 +94,21 @@ function Frame() {
 
   const mouseToggle = useMouseToggle();
   useKeys(Layer.global, (input, key) => {
-    if (input === ':' || (key.ctrl && input === 'k')) openPalette();
-    else if (key.ctrl || key.meta) return false;
-    else if (input === '/') openOverlay({ kind: 'search' });
-    else if (input === 'n') openOverlay({ kind: 'new-task', projectId: newTaskProjectId });
-    else if (input === '?') go({ type: 'push', route: { name: 'help' } });
-    else if (input === 'p') go({ type: 'push', route: { name: 'projects' } });
-    else if (input === 'w') go({ type: 'push', route: { name: 'workspaces' } });
-    else if (input === 'f' && services.finance) go({ type: 'push', route: { name: 'finance' } });
-    else if (input === 'A') go({ type: 'push', route: { name: 'access' } });
-    else if (input === 'M') mouseToggle.toggle();
-    else if (input === '#' && chat) go({ type: 'push', route: { name: 'chat' } });
+    const shortcuts = services.preferences.keyboardShortcuts();
+    if (matchesGlobalShortcut(input, key, shortcuts.commands) || (key.ctrl && input === 'k')) openPalette();
+    else if (matchesGlobalShortcut(input, key, shortcuts.search)) openOverlay({ kind: 'search' });
+    else if (matchesGlobalShortcut(input, key, shortcuts.newTask)) openOverlay({ kind: 'new-task', projectId: newTaskProjectId });
+    else if (matchesGlobalShortcut(input, key, shortcuts.help)) go({ type: 'push', route: { name: 'help' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.projects)) go({ type: 'push', route: { name: 'projects' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.workspaces)) go({ type: 'push', route: { name: 'workspaces' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.finance) && services.finance) go({ type: 'push', route: { name: 'finance' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.access)) go({ type: 'push', route: { name: 'access' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.mouse)) mouseToggle.toggle();
+    else if (matchesGlobalShortcut(input, key, shortcuts.chat) && chat) go({ type: 'push', route: { name: 'chat' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.settings)) go({ type: 'push', route: { name: 'settings' } });
+    else if (matchesGlobalShortcut(input, key, shortcuts.profile)) go({ type: 'push', route: { name: 'profile' } });
     else if (key.escape && stack.length > 1) go({ type: 'pop' });
-    else if (input === 'q') {
+    else if (matchesGlobalShortcut(input, key, shortcuts.quit)) {
       if (stack.length > 1) go({ type: 'pop' });
       else quit();
     } else return false;
@@ -122,6 +127,8 @@ function Frame() {
         trail={trailFor(route, project.data)}
         username={session.user.username}
         isCeo={accountBadge.data === true}
+        onProfileClick={() => go({ type: 'push', route: { name: 'profile' } })}
+        profileActive={!overlay}
         server={server}
         sync={syncLabel}
         chat={route.name === 'chat' ? undefined : (chatTotals.data ?? undefined)}
@@ -175,6 +182,10 @@ function ScreenFor({ route, active }: { route: Route; active: boolean }) {
       return <WorkspacesScreen active={active} />;
     case 'finance':
       return <FinanceScreen active={active} />;
+    case 'settings':
+      return <SettingsScreen active={active} />;
+    case 'profile':
+      return <ProfileScreen active={active} />;
     case 'access':
       return <AccessScreen active={active} />;
     case 'help':
@@ -217,6 +228,10 @@ function trailFor(route: Route, projectName: string | null | undefined): string[
       return ['Workspaces'];
     case 'finance':
       return ['Finance'];
+    case 'settings':
+      return ['Settings'];
+    case 'profile':
+      return ['Profile'];
     case 'access':
       return ['Access approvals'];
     case 'help':
