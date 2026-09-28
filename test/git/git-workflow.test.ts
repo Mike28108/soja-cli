@@ -209,7 +209,7 @@ describe('inspect', () => {
     const plain = outside();
     try {
       const state = await app.services.git.inspect(app.session, 'SOJA-1', plain);
-      expect(state).toMatchObject({ status: 'unavailable' });
+      if (state.status !== 'unavailable') throw new Error('Expected repository inspection to be unavailable.');
       expect(state.reason).toContain('no local folder linked on this machine.');
     } finally {
       rmSync(plain, { recursive: true, force: true });
