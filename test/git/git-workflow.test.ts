@@ -209,7 +209,8 @@ describe('inspect', () => {
     const plain = outside();
     try {
       const state = await app.services.git.inspect(app.session, 'SOJA-1', plain);
-      expect(state).toMatchObject({ status: 'unavailable', reason: 'EnrollBridge has no repository linked.' });
+      expect(state).toMatchObject({ status: 'unavailable' });
+      expect(state.reason).toContain('no local folder linked on this machine.');
     } finally {
       rmSync(plain, { recursive: true, force: true });
     }
