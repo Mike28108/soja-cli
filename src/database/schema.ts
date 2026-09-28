@@ -63,6 +63,19 @@ export const projects = sqliteTable(
   (t) => [uniqueIndex('projects_workspace_key').on(t.workspaceId, t.key)],
 );
 
+export const projectRepositories = sqliteTable(
+  'project_repositories',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    repositoryUrl: text('repository_url'),
+    localPath: text('local_path'),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('project_repositories_project_name').on(t.projectId, t.name), index('project_repositories_project').on(t.projectId)],
+);
+
 export const tasks = sqliteTable(
   'tasks',
   {
@@ -72,6 +85,7 @@ export const tasks = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    repositoryId: text('repository_id').references(() => projectRepositories.id, { onDelete: 'set null' }),
     title: text('title').notNull(),
     description: text('description'),
     type: text('type', { enum: TASK_TYPES }).notNull(),

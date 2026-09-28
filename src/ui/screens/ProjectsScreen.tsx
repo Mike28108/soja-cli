@@ -38,6 +38,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
       if (key.return && project) go({ type: 'push', route: { name: 'project', projectId: project.id } });
       else if (input === 'n') flows.newProject();
       else if (input === 'r' && project) void flows.pickRepository(project);
+      else if (input === 'v' && project) void flows.manageRepositories(project);
       else if (input === 'e' && project) flows.editProject(project);
       else if (input === 'i' && project && services.intake) configureIntake(project);
       else return false;
@@ -58,6 +59,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
         ['enter', 'open'],
         ['n', 'new project'],
         ['r', 'link repo'],
+        ['v', 'repositories'],
         ['e', 'edit'],
         ...(services.intake ? [['i', 'ticket API'] as const] : []),
         ['esc', 'back'],
@@ -130,7 +132,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
                       </Box>
                       <Box width={16} paddingLeft={2}>
                         <Text color={project.repositoryPath ? palette.muted : palette.faint} wrap="truncate-end">
-                          {project.repositoryPath ? basename(project.repositoryPath) : 'not linked · r'}
+                          {project.repositories.length ? `${project.repositories.length} repos` : project.repositoryPath ? basename(project.repositoryPath) : 'not linked · r'}
                         </Text>
                       </Box>
                     </>

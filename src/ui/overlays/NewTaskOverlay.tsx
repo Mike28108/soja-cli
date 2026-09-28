@@ -14,11 +14,12 @@ import { OverlayFrame } from './OverlayFrame.js';
 import { completeFrom } from './PromptOverlay.js';
 import type { Overlay, PickerOption } from './types.js';
 
-type Field = 'title' | 'project' | 'type' | 'priority' | 'assignee' | 'requester';
-const FIELDS: Field[] = ['title', 'project', 'type', 'priority', 'assignee', 'requester'];
+type Field = 'title' | 'project' | 'repository' | 'type' | 'priority' | 'assignee' | 'requester';
+const FIELDS: Field[] = ['title', 'project', 'repository', 'type', 'priority', 'assignee', 'requester'];
 const LABELS: Record<Field, string> = {
   title: 'Title',
   project: 'Project',
+  repository: 'Repository',
   type: 'Type',
   priority: 'Priority',
   assignee: 'Assignee',
@@ -37,13 +38,14 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
       services.workspaces.members(session),
       services.tasks.knownRequesters(session),
     ]);
-    return { projects: projectOptions(projects), members: memberOptions(members, session.user.id), requesters };
+    return { projectRows: projects, projects: projectOptions(projects), members: memberOptions(members, session.user.id), requesters };
   }, `new-task:${session.workspace.id}`);
 
   const [focus, setFocus] = useState<Field>('title');
   const [title, setTitle] = useState('');
   const [requester, setRequester] = useState('');
   const [projectId, setProjectId] = useState(spec.projectId ?? NONE);
+  const [repositoryId, setRepositoryId] = useState(NONE);
   const [type, setType] = useState<TaskType>('feature');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [assigneeId, setAssigneeId] = useState(session.user.id);
@@ -52,6 +54,8 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
   const projects = context.data?.projects ?? [];
   const members = context.data?.members ?? [];
   const requesters = context.data?.requesters ?? [];
+  const repositories = context.data?.projectRows.find((project) => project.id === projectId)?.repositories ?? [];
+  const repositoryOptions: PickerOption[] = [{ value: NONE, label: 'Any repository', dim: true }, ...repositories.map((repository) => ({ value: repository.id, label: repository.name, hint: repository.localPath ?? repository.repositoryUrl ?? undefined }))];
   const completion = focus === 'requester' ? completeFrom(requester, requesters) : null;
 
   const create = async () => {
@@ -62,6 +66,7 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
         services.tasks.create(session, {
           title,
           projectId: fromOption(projectId),
+          repositoryId: fromOption(repositoryId),
           type,
           priority,
           assigneeId: fromOption(assigneeId),
@@ -84,7 +89,8 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
 
   const moveFocus = (direction: number) => setFocus(cycle(FIELDS, focus, direction));
   const step = (field: Field, direction: number) => {
-    if (field === 'project') setProjectId(cycleOption(projects, projectId, direction));
+    if (field === 'project') { setProjectId(cycleOption(projects, projectId, direction)); setRepositoryId(NONE); }
+    if (field === 'repository') setRepositoryId(cycleOption(repositoryOptions, repositoryId, direction));
     if (field === 'type') setType(cycle(TASK_TYPES, type, direction));
     if (field === 'priority') setPriority(cycle([...TASK_PRIORITIES].reverse(), priority, direction));
     if (field === 'assignee') setAssigneeId(cycleOption(members, assigneeId, direction));
@@ -125,6 +131,7 @@ export function NewTaskOverlay({ spec }: { spec: Extract<Overlay, { kind: 'new-t
   const rows: Record<Field, ReactNode> = {
     title: <TextField value={title} onChange={setTitle} active={focus === 'title'} placeholder="What needs to happen?" width={46} />,
     project: choice('project', option(projects, projectId)),
+    repository: choice('repository', option(repositoryOptions, repositoryId)),
     type: choice('type', option(typeOptions, type)),
     priority: choice('priority', option(priorityOptions, priority)),
     assignee: choice('assignee', option(members, assigneeId)),

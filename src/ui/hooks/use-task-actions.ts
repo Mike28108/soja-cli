@@ -115,6 +115,26 @@ export function useTaskActions() {
         },
       });
     },
+    async repository(task: TaskView) {
+      if (!task.projectId) {
+        notify('Assign this task to a project before choosing a repository.', 'info');
+        return;
+      }
+      const project = (await services.projects.list(session)).find((candidate) => candidate.id === task.projectId);
+      if (!project) return;
+      openOverlay({
+        kind: 'picker',
+        title: 'Repository',
+        context: `${task.ref} · ${project.name}`,
+        options: [{ value: NONE, label: 'Any repository', dim: true }, ...project.repositories.map((repository) => ({ value: repository.id, label: repository.name, hint: repository.localPath ?? repository.repositoryUrl ?? undefined }))],
+        initial: task.repositoryId ?? NONE,
+        filterable: true,
+        onSelect: (value) => {
+          const selected = project.repositories.find((repository) => repository.id === value);
+          return update(task, { repositoryId: fromOption(value) }, selected ? `routed to ${selected.name}` : 'repository routing cleared');
+        },
+      });
+    },
     async requester(task: TaskView) {
       const suggestions = await tasks.knownRequesters(session);
       openOverlay({

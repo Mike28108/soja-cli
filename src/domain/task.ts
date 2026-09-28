@@ -59,6 +59,8 @@ export interface Task {
   number: number;
   workspaceId: string;
   projectId: string | null;
+  /** Repository selected within the task's project. */
+  repositoryId: string | null;
   title: string;
   description: string | null;
   type: TaskType;

@@ -20,6 +20,7 @@ interface ServerResult {
   activity: number;
   renumbered: Record<string, number>;
   projectIds: Record<string, string>;
+  repositoryIds: Record<string, string>;
   unmatchedUsers: string[];
 }
 
@@ -60,11 +61,12 @@ export class LocalImporter implements ImportOperations {
         result = await this.api.post<ServerResult>(`/v1/workspaces/${session.workspace.id}/import`, {
           importId: importId(data.workspace.id, session.workspace.id),
           users: data.users.map((user) => ({ localId: user.id, username: user.username })),
-          projects: data.projects.map(({ id, name, key, description, repositoryUrl, createdAt, updatedAt }) => ({
+          projects: data.projects.map(({ id, name, key, description, repositoryUrl, createdAt, updatedAt, repositories }) => ({
             localId: id, name, key, description, repositoryUrl, createdAt, updatedAt,
+            repositories: repositories.map(({ id: localId, name, repositoryUrl }) => ({ localId, name, repositoryUrl })),
           })),
           tasks: data.tasks.map((task) => ({
-            localId: task.id, number: task.number, projectLocalId: task.projectId, title: task.title, description: task.description,
+            localId: task.id, number: task.number, projectLocalId: task.projectId, repositoryLocalId: task.repositoryId, title: task.title, description: task.description,
             type: task.type, priority: task.priority, status: task.status, assigneeLocalId: task.assigneeId, creatorLocalId: task.creatorId,
             requester: task.requester, branch: task.branch, baseBranch: task.baseBranch, branchStart: task.branchStart,
             createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt, completedAt: task.completedAt, archivedAt: task.archivedAt,
@@ -97,6 +99,14 @@ export class LocalImporter implements ImportOperations {
         await this.store.setRepositoryPath(serverId, project.repositoryPath);
         linkedFolders += 1;
       }
+      for (const project of data.projects) {
+        for (const repository of project.repositories) {
+          const repositoryId = result.repositoryIds?.[repository.id];
+          if (!repositoryId || !repository.localPath) continue;
+          await this.store.setProjectRepositoryPath(repositoryId, repository.localPath);
+          linkedFolders += 1;
+        }
+      }
       return {
         projects: result.projects,
         tasks: result.tasks,
@@ -116,6 +126,7 @@ export class LocalImporter implements ImportOperations {
       repos.projects.listByWorkspace(workspace.id),
       repos.tasks.list({ workspaceId: workspace.id, archived: 'include' }),
     ]);
+    const projectsWithRepositories = await Promise.all(projects.map(async (project) => ({ ...project, repositories: await repos.projectRepositories.list(project.id) })));
     const comments = (await Promise.all(tasks.map((task) => repos.comments.listByTask(task.id)))).flat();
     const activity = (await Promise.all(tasks.map((task) => repos.activity.listByTask(task.id)))).flat();
     // Creators or commenters who left the workspace still need a username to be matched.
@@ -124,7 +135,7 @@ export class LocalImporter implements ImportOperations {
     for (const task of tasks) for (const id of [task.creatorId, task.assigneeId]) if (id && !known.has(id)) others.add(id);
     for (const comment of comments) if (!known.has(comment.userId)) others.add(comment.userId);
     const users = [...members, ...(await repos.users.findByIds([...others]))];
-    return { workspace, users, projects, tasks: tasks.filter((task) => task.number > 0), comments, activity };
+    return { workspace, users, projects: projectsWithRepositories, tasks: tasks.filter((task) => task.number > 0), comments, activity };
   }
 
   private async localWorkspace(repos: Repositories, from: string | undefined): Promise<Workspace> {

@@ -4,6 +4,17 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
+## v1.8 — Proyectos con múltiples repositorios (publicado en v1.8.0)
+
+Una sola unidad de producto puede abarcar repositorios independientes de frontend, backend y uno o más servicios. Cada task puede identificar el repositorio donde se realizará el trabajo y SOJA debe enviar Git a la copia local correspondiente.
+
+- [x] Definir varios repositorios por proyecto con nombre/rol y URL compartidos, manteniendo las rutas locales fuera del backend.
+- [x] Elegir el repositorio al crear una task, o cambiarlo en su detalle; habilitar creación por CLI.
+- [x] Resolver las operaciones Git contra la ruta enlazada al repositorio asignado y permitir registrar rutas por máquina.
+- [x] Sincronizar identidad de repositorios y asignación de task, validando en servidor la relación proyecto/workspace.
+- [x] Desplegar la migración de backend antes de usar el enrutamiento de repositorio en workspaces online.
+- [x] Añadir guía de migración del flujo de proyectos existentes y validar el ciclo completo en local y remoto.
+
 ## v1.6 — Finanzas, rendimiento e ingreso externo de tickets (en implementación)
 
 Alcance solicitado (2026-09-26). Se implementa primero en modo remoto, donde existen workspaces con varios usuarios; el modo local conserva finanzas y métricas personales sin comparativas entre miembros. Base del flujo financiero, designados y API remota añadida. Pendiente cerrar auditoría de rechazos, validación de despliegue y criterios de cierre. La pantalla de finanzas ya contempla la carga y workspaces sin tickets remunerados.

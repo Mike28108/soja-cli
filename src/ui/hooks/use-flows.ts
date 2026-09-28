@@ -121,6 +121,43 @@ export function useFlows() {
     });
   };
 
+  const manageRepositories = async (project: Project): Promise<void> => {
+    const current = (await services.projects.list(session)).find((item) => item.id === project.id);
+    if (!current) return;
+    const options: PickerOption[] = [
+      ...current.repositories.flatMap((repository) => [
+        ...(repository.name === 'default' ? [{ value: `default:${repository.id}`, label: `default · ${repository.localPath ? tildify(repository.localPath) : 'not linked here'}`, hint: 'primary repository · link with r', dim: true }] : [{ value: `remove:${repository.id}`, label: `${repository.name} · ${repository.localPath ? tildify(repository.localPath) : 'not linked here'}`, hint: repository.repositoryUrl ?? undefined }]),
+        ...(!repository.localPath && repository.name !== 'default' ? [{ value: `link:${repository.id}`, label: `Link ${repository.name} on this machine…`, hint: 'choose a local Git folder' }] : []),
+      ]),
+      { value: '__add__', label: '+ Add repository…', hint: 'name and local path' },
+    ];
+    openOverlay({
+      kind: 'picker', title: `Repositories · ${project.key}`, context: 'Each task can target one of these repositories.', options, filterable: true,
+      onSelect: (value) => {
+        if (value === '__add__') {
+          openOverlay({
+            kind: 'prompt', title: 'Repository name', context: 'Examples: frontend, backend, worker-queue', placeholder: 'backend',
+            onSubmit: (name) => openOverlay({
+              kind: 'prompt', title: `Folder for ${name.trim()}`, context: 'local path for this machine', initial: cwd,
+              onSubmit: (path) => run(() => services.projects.addRepository(session, project, { name, path }), `${name.trim()} repository added to ${project.key}`),
+            }),
+          });
+          return;
+        }
+        if (value.startsWith('default:')) return notify('The default repository is managed with the project link action (`r`).', 'info');
+        if (value.startsWith('link:')) {
+          const repository = current.repositories.find((candidate) => candidate.id === value.slice('link:'.length));
+          if (!repository) return;
+          return openOverlay({ kind: 'prompt', title: `Local folder · ${repository.name}`, context: 'this path stays on this machine', initial: cwd, onSubmit: (path) => run(() => services.projects.linkProjectRepository(session, project, repository.id, path), `${repository.name} linked to ${tildify(path.trim())}`) });
+        }
+        const id = value.slice('remove:'.length);
+        const repository = current.repositories.find((candidate) => candidate.id === id);
+        if (!repository) return;
+        openOverlay({ kind: 'confirm', title: `Remove ${repository.name}?`, context: 'Tasks routed here will return to automatic selection.', confirmLabel: 'Remove repository', tone: 'danger', onConfirm: () => run(() => services.projects.removeRepository(session, project, id), `${repository.name} removed from ${project.key}`) });
+      },
+    });
+  };
+
   const prompt = (project: Project, field: 'name' | 'description' | 'repositoryUrl', title: string, placeholder: string) =>
     openOverlay({
       kind: 'prompt',
@@ -135,6 +172,7 @@ export function useFlows() {
   return {
     switchWorkspace,
     pickRepository,
+    manageRepositories,
     addParentFolder,
 
     /** Name, description and repository URL. The key stays (people and scripts use it). */

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { TaskView } from '../../application/types.js';
 import type { TaskActivity } from '../../domain/activity.js';
 import type { Channel, ChatMessage } from '../../domain/chat.js';
-import type { Project, TaskComment, User, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
+import type { Project, ProjectRepository, TaskComment, User, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
 import { formatTaskRef, isProvisional, TASK_REF_PREFIX, type Task } from '../../domain/task.js';
 import { OfflineError, type ApiClient } from '../remote/api-client.js';
 import type { WorkspaceWithRole } from '../repositories.js';
@@ -25,7 +25,7 @@ interface ChangeBatch {
   tasks: TaskView[];
   comments: TaskComment[];
   activity: TaskActivity[];
-  projects: Omit<Project, 'repositoryPath'>[];
+  projects: (Omit<Project, 'repositoryPath'> & { repositories?: ProjectRepository[] })[];
   members: (UserRef & { role: WorkspaceRole })[];
   /** Chat (servers ≥ 0.3). */
   channels?: Channel[];

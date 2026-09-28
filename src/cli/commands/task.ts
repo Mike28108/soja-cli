@@ -84,6 +84,7 @@ async function list(args: string[]): Promise<void> {
 async function create(args: string[]): Promise<void> {
   const { values, positionals } = parseCommand(args, {
     project: { type: 'string', short: 'p' },
+    repository: { type: 'string', short: 'R' },
     type: { type: 'string', short: 't' },
     priority: { type: 'string', short: 'P' },
     status: { type: 'string', short: 's' },
@@ -102,10 +103,16 @@ async function create(args: string[]): Promise<void> {
       ? await services.projects.resolve(session, values.project)
       : await services.projects.findByRepository(session, process.cwd());
     const projectId = project?.id ?? null;
+    const projectRepositories = project ? (await services.projects.list(session)).find((item) => item.id === project.id)?.repositories ?? [] : [];
+    const repositoryId = values.repository
+      ? projectRepositories.find((repository) => repository.id === values.repository || repository.name === values.repository)?.id
+      : undefined;
+    if (values.repository && !repositoryId) throw new ValidationError(`Repository “${values.repository}” was not found in ${project?.key ?? 'a project'}.`);
     const assigneeId = await resolveAssignee(services, session, values.assignee);
     const created = await services.tasks.create(session, {
       title,
       projectId,
+      ...(repositoryId ? { repositoryId } : {}),
       ...(type ? { type } : {}),
       ...(priority ? { priority } : {}),
       ...(status ? { status } : {}),

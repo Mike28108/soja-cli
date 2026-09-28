@@ -5,7 +5,7 @@ import type { TaskService } from '../../application/services/task-service.js';
 import type { TaskFilter } from '../../application/filters.js';
 import type { Member, ProjectSummary, Session, TaskDetails, TaskView } from '../../application/types.js';
 import type { ConfigStore, RemoteSettings } from '../../config/config.js';
-import type { Project, User, Workspace } from '../../domain/entities.js';
+import type { Project, ProjectRepository, User, Workspace } from '../../domain/entities.js';
 import { NotFoundError, SojaError, ValidationError } from '../../domain/errors.js';
 import { isClosed, formatTaskRef, type Task } from '../../domain/task.js';
 import { OfflineError, type ApiClient } from '../remote/api-client.js';
@@ -175,10 +175,25 @@ export class ReplicaProjectService implements ProjectOperations {
     return this.local.findByRepository(session, path);
   }
 
+  async addRepository(session: Session, project: Project, input: { id?: string; name: string; path: string }) {
+    const name = input.name.trim().toLowerCase().replace(/\s+/g, '-');
+    const shared = await online('Adding a project repository', () => this.context.api.post<ProjectRepository>(`/v1/workspaces/${session.workspace.id}/projects/${project.id}/repositories`, { name }));
+    return this.local.addRepository(session, project, { ...input, id: shared.id, name: shared.name });
+  }
+
+  async removeRepository(session: Session, project: Project, repositoryId: string): Promise<void> {
+    await online('Removing a project repository', () => this.context.api.delete(`/v1/workspaces/${session.workspace.id}/projects/${project.id}/repositories/${repositoryId}`));
+    await this.local.removeRepository(session, project, repositoryId);
+  }
+
+  linkProjectRepository(session: Session, project: Project, repositoryId: string, path: string) {
+    return this.local.linkProjectRepository(session, project, repositoryId, path);
+  }
+
   async create(session: Session, input: Parameters<ProjectOperations['create']>[1]): Promise<Project> {
     const { repositoryPath, ...shared } = input;
     const project = await online('Creating a project', () =>
-      this.context.api.post<Omit<Project, 'repositoryPath'>>(`/v1/workspaces/${session.workspace.id}/projects`, shared),
+      this.context.api.post<Omit<Project, 'repositoryPath'> & { repositories?: ProjectRepository[] }>(`/v1/workspaces/${session.workspace.id}/projects`, shared),
     );
     await this.context.store.upsertProject(project);
     const stored = await this.local.get(session, project.id);
@@ -213,7 +228,7 @@ export class ReplicaProjectService implements ProjectOperations {
 }
 
 type Target = Parameters<TaskOperations['get']>[1];
-const CHANGE_FIELDS = ['title', 'description', 'projectId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'remunerated', 'priceMinor', 'currencyCode', 'branch', 'baseBranch', 'branchStart'] as const;
+const CHANGE_FIELDS = ['title', 'description', 'projectId', 'repositoryId', 'type', 'priority', 'status', 'assigneeId', 'requester', 'remunerated', 'priceMinor', 'currencyCode', 'branch', 'baseBranch', 'branchStart'] as const;
 
 /**
  * Tasks in remote mode: read and written in the local replica (instant, works

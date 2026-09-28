@@ -13,7 +13,47 @@ export async function projectCommand(args: string[]): Promise<void> {
   if (sub === 'link') return link(rest);
   if (sub === 'unlink') return unlink(rest);
   if (sub === 'edit') return edit(rest);
-  throw new ValidationError(`Unknown project command “${sub}”.`, { hint: 'Try: list, create, edit, link, unlink.' });
+  if (sub === 'repo') return repository(rest);
+  throw new ValidationError(`Unknown project command “${sub}”.`, { hint: 'Try: list, create, edit, link, unlink, repo.' });
+}
+
+async function repository(args: string[]): Promise<void> {
+  const [action, key, name, ...pathParts] = args;
+  const projectKey = requireArg(key, 'project', 'soja project repo list PROJECT');
+  await withSession(async (services, session) => {
+    const project = await services.projects.resolve(session, projectKey);
+    if (!action || action === 'list' || action === 'ls') {
+      const current = (await services.projects.list(session)).find((item) => item.id === project.id);
+      print(`${bold('REPOSITORIES')}  ${dim(project.key)}`);
+      for (const repository of current?.repositories ?? []) print(`  ${bold(repository.name)}  ${dim(repository.localPath ? tildify(repository.localPath) : 'not linked here')}${repository.repositoryUrl ? dim(`  ${repository.repositoryUrl}`) : ''}`);
+      if (!current?.repositories.length) print(dim('  No repositories. Add one with `soja project repo add KEY NAME PATH`.'));
+      return;
+    }
+    if (action === 'add') {
+      const repoName = requireArg(name, 'repository name', 'soja project repo add ENROLL backend ../backend');
+      const path = requireArg(pathParts.join(' '), 'repository path', 'soja project repo add ENROLL backend ../backend');
+      const repo = await services.projects.addRepository(session, project, { name: repoName, path });
+      success(`Added ${bold(repo.name)} to ${project.key} · ${tildify(repo.localPath ?? path)}`);
+      return;
+    }
+    if (action === 'link') {
+      const repositoryName = requireArg(name, 'repository name', 'soja project repo link ENROLL backend ../backend');
+      const path = requireArg(pathParts.join(' '), 'repository path', 'soja project repo link ENROLL backend ../backend');
+      const repository = (await services.projects.list(session)).find((item) => item.id === project.id)?.repositories.find((item) => item.name === repositoryName);
+      if (!repository) throw new ValidationError(`Repository “${repositoryName}” was not found in ${project.key}.`);
+      const linked = await services.projects.linkProjectRepository(session, project, repository.id, path);
+      success(`Linked ${bold(repositoryName)} to ${tildify(linked.localPath ?? path)}`);
+      return;
+    }
+    if (action === 'remove') {
+      const repo = (await services.projects.list(session)).find((item) => item.id === project.id)?.repositories.find((item) => item.name === name);
+      if (!repo) throw new ValidationError(`Repository “${name ?? ''}” was not found in ${project.key}.`);
+      await services.projects.removeRepository(session, project, repo.id);
+      success(`Removed ${bold(repo.name)} from ${project.key}`);
+      return;
+    }
+    throw new ValidationError(`Unknown repository action “${action}”.`, { hint: 'Try: repo list, repo add, repo remove.' });
+  });
 }
 
 async function list(): Promise<void> {

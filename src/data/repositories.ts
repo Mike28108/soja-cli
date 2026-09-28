@@ -1,5 +1,5 @@
 import type { ActivityEvent, TaskActivity } from '../domain/activity.js';
-import type { Project, TaskComment, User, Workspace, WorkspaceMember, WorkspaceRole } from '../domain/entities.js';
+import type { Project, ProjectRepository as ProjectRepositoryEntity, TaskComment, User, Workspace, WorkspaceMember, WorkspaceRole } from '../domain/entities.js';
 import type { Task, TaskStatus } from '../domain/task.js';
 
 /**
@@ -60,6 +60,14 @@ export interface ProjectRepository {
   update(id: string, patch: ProjectPatch): Promise<Project>;
 }
 
+export interface ProjectRepositoryStore {
+  list(projectId: string): Promise<ProjectRepositoryEntity[]>;
+  findById(id: string): Promise<ProjectRepositoryEntity | null>;
+  create(input: { id?: string; projectId: string; name: string; repositoryUrl?: string | null; localPath?: string | null }): Promise<ProjectRepositoryEntity>;
+  update(id: string, patch: Partial<Pick<ProjectRepositoryEntity, 'name' | 'repositoryUrl' | 'localPath'>>): Promise<ProjectRepositoryEntity>;
+  delete(id: string): Promise<void>;
+}
+
 export type NewTask = Omit<Task, 'id' | 'number' | 'createdAt' | 'updatedAt' | 'startedAt' | 'completedAt' | 'archivedAt'> &
   Partial<Pick<Task, 'startedAt' | 'completedAt' | 'archivedAt'>> & {
     /** Chosen by the caller (offline replica); random otherwise. */
@@ -77,6 +85,7 @@ export type TaskPatch = Partial<
     | 'priority'
     | 'status'
     | 'projectId'
+    | 'repositoryId'
     | 'assigneeId'
     | 'requester'
     | 'remunerated'
@@ -136,6 +145,7 @@ export interface Repositories {
   users: UserRepository;
   workspaces: WorkspaceRepository;
   projects: ProjectRepository;
+  projectRepositories: ProjectRepositoryStore;
   tasks: TaskRepository;
   comments: CommentRepository;
   activity: ActivityRepository;
