@@ -5,6 +5,7 @@ import {
   chatMessages,
   chatReads,
   projects,
+  projectRepositories,
   syncNotices,
   syncOutbox,
   syncPendingActivity,
@@ -18,7 +19,7 @@ import {
 } from '../../database/schema.js';
 import type { TaskActivity } from '../../domain/activity.js';
 import type { Channel, ChatMessage } from '../../domain/chat.js';
-import type { Project, TaskComment, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
+import type { Project, ProjectRepository, TaskComment, UserRef, Workspace, WorkspaceRole } from '../../domain/entities.js';
 import type { Task } from '../../domain/task.js';
 
 export type TaskOpType = 'task.create' | 'task.change' | 'task.comment' | 'task.git_event' | 'task.delete';
@@ -90,17 +91,43 @@ export class ReplicaStore {
   }
 
   /** Server projects have no local path; the one this machine linked is kept. */
-  async upsertProject(project: Omit<Project, 'repositoryPath'>): Promise<void> {
+  async upsertProject(project: Omit<Project, 'repositoryPath'> & { repositories?: ProjectRepository[] }): Promise<void> {
     const shared = {
       workspaceId: project.workspaceId, name: project.name, key: project.key, description: project.description,
       repositoryUrl: project.repositoryUrl, createdAt: project.createdAt, updatedAt: project.updatedAt,
     };
     await this.db.insert(projects).values({ id: project.id, ...shared, repositoryPath: null }).onConflictDoUpdate({ target: projects.id, set: shared });
+    if (project.repositories) {
+      const ids: string[] = [];
+      for (const repository of project.repositories) {
+        ids.push(repository.id);
+        const existingName = await this.db.select().from(projectRepositories).where(and(eq(projectRepositories.projectId, project.id), eq(projectRepositories.name, repository.name))).get();
+        const path = existingName?.localPath ?? null;
+        if (existingName && existingName.id !== repository.id) {
+          await this.db.update(projectRepositories).set({ name: `legacy-${existingName.id}` }).where(eq(projectRepositories.id, existingName.id));
+          await this.db.insert(projectRepositories).values({ ...repository, localPath: path }).onConflictDoNothing();
+          await this.db.update(tasks).set({ repositoryId: repository.id }).where(eq(tasks.repositoryId, existingName.id));
+          for (const operation of await this.pending(project.workspaceId)) {
+            if (!['task.create', 'task.change'].includes(operation.type) || operation.payload.repositoryId !== existingName.id) continue;
+            await this.updateQueuedPayload(operation.opId, { ...operation.payload, repositoryId: repository.id });
+          }
+          await this.db.delete(projectRepositories).where(eq(projectRepositories.id, existingName.id));
+        }
+        await this.db.insert(projectRepositories).values({ ...repository, localPath: path }).onConflictDoUpdate({ target: projectRepositories.id, set: { name: repository.name, repositoryUrl: repository.repositoryUrl, updatedAt: repository.updatedAt } });
+      }
+      for (const stale of await this.db.select({ id: projectRepositories.id }).from(projectRepositories).where(eq(projectRepositories.projectId, project.id))) {
+        if (!ids.includes(stale.id)) await this.db.delete(projectRepositories).where(eq(projectRepositories.id, stale.id));
+      }
+    }
   }
 
   /** This machine's folder for a project (never sent to the server). */
   async setRepositoryPath(projectId: string, path: string): Promise<void> {
     await this.db.update(projects).set({ repositoryPath: path }).where(eq(projects.id, projectId));
+  }
+
+  async setProjectRepositoryPath(repositoryId: string, path: string): Promise<void> {
+    await this.db.update(projectRepositories).set({ localPath: path }).where(eq(projectRepositories.id, repositoryId));
   }
 
   async upsertTask(task: Task): Promise<void> {

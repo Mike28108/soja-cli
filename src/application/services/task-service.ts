@@ -30,6 +30,7 @@ const createTaskSchema = z.object({
   title: titleSchema,
   description: optionalText(10_000),
   projectId: z.string().nullable().optional(),
+  repositoryId: z.string().nullable().optional(),
   type: z.enum(TASK_TYPES).default('feature'),
   priority: z.enum(TASK_PRIORITIES).default('medium'),
   status: z.enum(TASK_STATUSES).default('todo'),
@@ -42,6 +43,7 @@ const changesSchema = z.object({
   title: titleSchema.optional(),
   description: optionalText(10_000),
   projectId: z.string().nullable().optional(),
+  repositoryId: z.string().nullable().optional(),
   type: z.enum(TASK_TYPES).optional(),
   priority: z.enum(TASK_PRIORITIES).optional(),
   status: z.enum(TASK_STATUSES).optional(),
@@ -136,6 +138,8 @@ export class TaskService {
     const assigneeId = data.assigneeId === undefined ? session.user.id : data.assigneeId;
     const projectId = data.projectId ?? null;
     await this.assertProject(session, projectId);
+    const repositoryId = data.repositoryId ?? null;
+    await this.assertRepository(session, projectId, repositoryId);
     await this.assertMember(session, assigneeId);
 
     const now = this.clock();
@@ -145,6 +149,7 @@ export class TaskService {
         ...(options.number !== undefined ? { number: options.number } : {}),
         workspaceId: session.workspace.id,
         projectId,
+        repositoryId,
         title: data.title,
         description: data.description ?? null,
         type: data.type,
@@ -177,6 +182,9 @@ export class TaskService {
     const data = parseInput(changesSchema, changes);
     const task = await this.resolve(session, target);
     if (data.projectId !== undefined) await this.assertProject(session, data.projectId);
+    const nextProjectId = data.projectId === undefined ? task.projectId : data.projectId;
+    const nextRepositoryId = data.repositoryId === undefined ? (data.projectId !== undefined ? null : task.repositoryId) : data.repositoryId;
+    if (data.repositoryId !== undefined || data.projectId !== undefined) await this.assertRepository(session, nextProjectId, nextRepositoryId);
     if (data.assigneeId !== undefined) await this.assertMember(session, data.assigneeId);
 
     const patch: TaskPatch = {};
@@ -197,6 +205,7 @@ export class TaskService {
       patch.requester = data.requester;
       events.push({ type: 'task_updated', metadata: { field: 'requester', from: task.requester, to: data.requester } });
     }
+    if (data.repositoryId !== undefined && changed(data.repositoryId, task.repositoryId)) patch.repositoryId = data.repositoryId;
     const nextRemunerated = data.remunerated ?? task.remunerated;
     const nextPrice = data.remunerated === false && data.priceMinor === undefined ? null : data.priceMinor === undefined ? task.priceMinor : data.priceMinor;
     const nextCurrency = data.remunerated === false && data.currencyCode === undefined ? null : data.currencyCode === undefined ? task.currencyCode : data.currencyCode;
@@ -228,6 +237,7 @@ export class TaskService {
     }
     if (changed(data.projectId, task.projectId)) {
       patch.projectId = data.projectId;
+      if (data.repositoryId === undefined) patch.repositoryId = null;
       events.push({ type: 'project_changed', metadata: { from: task.projectId, to: data.projectId } });
     }
     if (changed(data.assigneeId, task.assigneeId)) {
@@ -366,6 +376,15 @@ export class TaskService {
     const project = await this.repos.projects.findById(projectId);
     if (!project || project.workspaceId !== session.workspace.id) {
       throw new NotFoundError('That project does not exist in this workspace.');
+    }
+  }
+
+  private async assertRepository(session: Session, projectId: string | null, repositoryId: string | null): Promise<void> {
+    if (!repositoryId) return;
+    const repository = await this.repos.projectRepositories.findById(repositoryId);
+    const project = projectId ? await this.repos.projects.findById(projectId) : null;
+    if (!repository || !project || project.workspaceId !== session.workspace.id || repository.projectId !== project.id) {
+      throw new NotFoundError('Choose a repository that belongs to this task project.');
     }
   }
 

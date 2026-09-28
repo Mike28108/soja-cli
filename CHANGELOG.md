@@ -5,6 +5,17 @@ Todos los cambios relevantes de SOJA se documentan en este archivo.
 El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y el proyecto usa [Versionado Semántico](https://semver.org/lang/es/).
 La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA.md).
 
+## [Unreleased]
+
+## [1.8.0] - 2026-09-28
+
+### Added
+
+- Un proyecto puede agrupar varios repositorios (`frontend`, `backend`, workers, etc.). Projects → `v` los gestiona; `soja project repo list|add|remove` ofrece el mismo flujo desde la terminal. Los nombres y URLs se comparten en modo remoto; las rutas permanecen locales por usuario.
+- Las tasks pueden apuntar a un repositorio del proyecto al crearlas, editarlas desde su detalle (`R`) o usar `soja task create --repository <nombre>`. Las operaciones Git utilizan la ruta local asociada a esa selección.
+- La sincronización remota propaga repositorios de proyecto y el repositorio asignado a cada task. El backend valida que el repositorio pertenezca al proyecto y workspace de la task.
+- La migración local conserva el enlace existente como repositorio `default`.
+
 ## [1.7.1] - 2026-09-27
 
 ### Fixed

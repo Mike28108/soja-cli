@@ -686,8 +686,17 @@ export class GitWorkflowService {
     const ref = formatTaskRef(task.number);
     const project = task.projectId ? await this.projects.get(session, task.projectId).catch(() => null) : null;
 
-    if (project?.repositoryPath) {
-      const path = project.repositoryPath;
+    const summary = project ? (await this.projects.list(session)).find((item) => item.id === project.id) : null;
+    const cwdRoot = await this.git.repositoryRoot(cwd);
+    const currentRepository = summary?.repositories.find((item) => item.localPath && cwdRoot === item.localPath);
+    const selectedRepository = task.repositoryId
+      ? summary?.repositories.find((item) => item.id === task.repositoryId)
+      : currentRepository ?? summary?.repositories.find((item) => item.name === 'default');
+    if (task.repositoryId && !selectedRepository) throw new GitError('The task repository is unavailable in this workspace.', { hint: 'Refresh the workspace data or select another repository on the task.' });
+    const selectedPath = selectedRepository?.localPath ?? (task.repositoryId ? null : project?.repositoryPath);
+    if (selectedPath) {
+      const path = selectedPath;
+      if (!project) throw new GitError(`${ref} refers to a missing project.`);
       const relink = { hint: `Relink it: soja project link ${project.key} <path>` };
       if (!existsSync(path)) throw new GitError(`${project.name}'s repository is gone: ${path}`, relink);
       const root = await this.git.repositoryRoot(path);
@@ -695,7 +704,14 @@ export class GitWorkflowService {
       return { root, linkProject: null };
     }
 
-    const cwdRoot = await this.git.repositoryRoot(cwd);
+    if (selectedRepository && !selectedRepository.localPath) {
+      throw new GitError(`Repository “${selectedRepository.name}” has no local folder linked on this machine.`, {
+        hint: selectedRepository.name === 'default'
+          ? `Run \`soja project link ${project?.key} <path>\` first.`
+          : `Run \`soja project repo link ${project?.key} ${selectedRepository.name} <path>\` first.`,
+      });
+    }
+
     if (project) {
       if (!cwdRoot) {
         throw new GitError(`${project.name} has no repository linked.`, {

@@ -1,5 +1,5 @@
 import type { ActivityEvent } from '../domain/activity.js';
-import type { Project, ProjectRef, User, UserRef, Workspace, WorkspaceRole } from '../domain/entities.js';
+import type { Project, ProjectRef, ProjectRepository, User, UserRef, Workspace, WorkspaceRole } from '../domain/entities.js';
 import type { StatusCounts, Task } from '../domain/task.js';
 
 /** Who is acting and where. Every workspace-scoped service call takes one. */
@@ -34,4 +34,5 @@ export interface TaskDetails extends TaskView {
 export interface ProjectSummary extends Project {
   counts: StatusCounts;
   active: number;
+  repositories: ProjectRepository[];
 }

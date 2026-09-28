@@ -5,6 +5,7 @@ import { LocalActivityRepository } from './activity.js';
 import { type Clock, systemClock } from './clock.js';
 import { LocalCommentRepository } from './comments.js';
 import { LocalProjectRepository } from './projects.js';
+import { LocalProjectRepositoryStore } from './project-repositories.js';
 import { LocalTaskRepository } from './tasks.js';
 import { LocalUserRepository } from './users.js';
 import { LocalWorkspaceRepository } from './workspaces.js';
@@ -15,6 +16,7 @@ export function createLocalRepositories(handle: DatabaseHandle, clock: Clock = s
     users: new LocalUserRepository(db, clock),
     workspaces: new LocalWorkspaceRepository(db, clock),
     projects: new LocalProjectRepository(db, clock),
+    projectRepositories: new LocalProjectRepositoryStore(db, clock),
     tasks: new LocalTaskRepository(db, clock),
     comments: new LocalCommentRepository(db, clock),
     activity: new LocalActivityRepository(db, clock),

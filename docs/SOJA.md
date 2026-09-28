@@ -164,7 +164,7 @@ Una plataforma o sistema mantenido por el equipo: EnrollBridge, SPRING, Taskfeed
 - Si no se indica, se deriva del nombre: la primera palabra si tiene hasta 6 letras, o si no sus primeras 4.
 - Tiene entre 2 y 10 caracteres, empieza por letra y es único dentro del workspace.
 
-Un proyecto puede **vincularse a un repositorio Git local** (`repository_path`); al vincularlo, SOJA toma `repository_url` del remoto `origin` si el proyecto no tenía uno. Ver [§8](#8-flujo-de-trabajo-con-git).
+Un proyecto puede contener varios repositorios con nombres como `frontend`, `backend` o `worker`. Cada task puede asignarse a uno y sus acciones Git usan la ruta que cada usuario enlaza en su máquina. Los nombres e identidades se sincronizan con el workspace; las rutas absolutas y los datos privados del filesystem se quedan locales. Los proyectos existentes conservan su enlace como `default`. Ver [§8](#8-flujo-de-trabajo-con-git).
 
 ### Task
 
@@ -553,6 +553,7 @@ Opciones de `task create`:
 | Opción | Corta | Valores |
 | --- | --- | --- |
 | `--project` | `-p` | key o nombre del proyecto |
+| `--repository` | `-R` | nombre o ID de un repositorio de ese proyecto |
 | `--type` | `-t` | bug, feature, improvement, maintenance, infra, refactor, research, chore |
 | `--priority` | `-P` | none, low, medium (o med), high, urgent |
 | `--status` | `-s` | backlog, todo, in_progress (o in-progress), review, blocked, done, cancelled |
@@ -576,7 +577,13 @@ soja project create <nombre…> [--key <KEY>] [--description <texto>] [--repo-pa
 soja project link <key|nombre> [ruta|carpeta]   # por defecto, el directorio actual
 soja project unlink <key|nombre>
 soja project edit <key> [--name <n>] [--description <d>] [--url <u>]   # "" borra descripción o URL
+soja project repo list <key>
+soja project repo add <key> <nombre> <ruta>
+soja project repo link <key> <nombre> <ruta>
+soja project repo remove <key> <nombre>
 ```
+
+En Projects, selecciona un proyecto y pulsa `v` para gestionar sus repositorios. `+ Add repository…` registra uno nuevo y lo enlaza en esta máquina; para un repositorio que ya registró otro miembro, elige `Link <nombre> on this machine…`. Las asignaciones de task se comparten, las rutas locales no. En el detalle de una task, `R` selecciona o limpia su repositorio. Si no se asigna uno, SOJA usa el repositorio del directorio actual o el `default`.
 
 En `project link`, un nombre sin `/` que no existe como carpeta en el directorio actual se busca entre las subcarpetas de tus carpetas padre: `soja project link ENROLL enrollbridge`. Si el nombre existe en más de una carpeta padre, SOJA pide la ruta completa.
 
@@ -699,16 +706,15 @@ Registras solo las **carpetas padre** (`products`, `services`) y SOJA lista sus 
 - Una carpeta padre que ya no existe aparece como *not found* en lugar de romper la lista.
 - **Gestión:** `soja folders add|remove`, el comando **Parent folders** del palette, o **+ Add parent folder…** dentro del selector.
 
-### Vincular un proyecto a su repositorio
+### Vincular repositorios a un proyecto
 
 **En la interfaz** (recomendado):
 
-1. Pantalla **Projects** (`p`), selecciona el proyecto con `j`/`k` y pulsa `r`.
-2. Si todavía no tienes carpetas padre, SOJA te pide la primera (por ejemplo `~/workspace/products`).
-3. Aparece el selector con todas las subcarpetas, como `products/enrollbridge`. A la derecha se ve `git`, `git · linked to <Proyecto>` o `not a Git repository` (atenuado, no se puede elegir).
-4. Escribe para filtrar (por ejemplo `spr`), elige con `↑`/`↓` y pulsa `enter`.
+1. Pantalla **Projects** (`p`), selecciona el proyecto con `j`/`k` y pulsa `v`.
+2. Elige **+ Add repository…**, escribe su nombre (por ejemplo `backend`) y la ruta del clon local.
+3. SOJA valida que la ruta pertenezca a un repositorio Git y guarda esa ruta solo en esta máquina.
 
-Al final del selector hay tres acciones: **+ Add parent folder…**, **Type a path…** (escribir una ruta a mano, se acepta `~`) y **Unlink repository** (si el proyecto ya tenía uno).
+Para el repositorio principal heredado, `r` conserva el selector visual de carpetas padre; `v` administra los otros repositorios del proyecto.
 
 **En la terminal:**
 
@@ -716,6 +722,8 @@ Al final del selector hay tres acciones: **+ Add parent folder…**, **Type a pa
 soja project link ENROLL enrollbridge          # por nombre, dentro de las carpetas padre
 soja project link ENROLL ~/Development/x       # por ruta
 cd ~/workspace/products/enrollbridge && soja project link ENROLL   # la carpeta actual
+soja project repo add ENROLL backend ~/workspace/services/api
+soja task create --project ENROLL --repository backend "Add health checks"
 ```
 
 Reglas comunes:
@@ -728,7 +736,7 @@ Reglas comunes:
 
 Es `soja task start` (asignarte la task y pasarla a In Progress) **más** su branch:
 
-1. **Elige el repositorio.** Usa el del proyecto de la task. Si la task no tiene proyecto, usa el repositorio del directorio actual. Si el proyecto no tiene repositorio vinculado y estás dentro de uno, pide `--link` para vincularlo; nunca lo vincula por su cuenta.
+1. **Elige el repositorio.** Usa el que tenga asignado la task; si no tiene uno, detecta si el directorio actual corresponde a un repositorio del proyecto y luego recurre al `default`. Si la task no tiene proyecto, usa el repositorio del directorio actual. Un repo sin path local requiere que cada miembro lo enlace antes de usar Git.
 2. **Elige la branch.** La registrada en la task, o la sugerida si todavía no tiene. Valida el nombre con `git check-ref-format`.
 3. **Ejecuta Git:**
 
@@ -1104,6 +1112,19 @@ Clave primaria: (`workspace_id`, `user_id`).
 | repository_path | text | nullable. Raíz del repositorio Git local vinculado |
 | created_at, updated_at | integer | |
 
+### `project_repositories`
+
+Un proyecto puede tener repositorios `default`, `frontend`, `backend` u otros nombres. El backend comparte su identidad y URL con el workspace; `local_path` existe solo en la base SQLite de cada usuario. En el modo remoto no se envía al servidor.
+
+| Columna | Tipo | Notas |
+| --- | --- | --- |
+| id | text PK | UUID compartido entre clientes online |
+| project_id | text FK → projects | se borra en cascada con el proyecto |
+| name | text | único dentro del proyecto |
+| repository_url | text | nullable; URL del remoto Git |
+| local_path | text | nullable; solo local, raíz del clon en esta máquina |
+| created_at, updated_at | integer | |
+
 ### `tasks`
 
 | Columna | Tipo | Notas |
@@ -1112,6 +1133,7 @@ Clave primaria: (`workspace_id`, `user_id`).
 | number | integer | UNIQUE junto con `workspace_id`. Se asigna dentro del propio `INSERT` |
 | workspace_id | text FK → workspaces | se borra en cascada con el workspace |
 | project_id | text FK → projects | nullable; queda en NULL si se borra el proyecto |
+| repository_id | text FK → project_repositories | nullable; destino Git de esta task, se limpia al borrar el repositorio |
 | title | text | |
 | description | text | nullable |
 | type | text | CHECK con los 8 tipos |

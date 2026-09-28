@@ -42,6 +42,17 @@ export interface Project {
   updatedAt: Date;
 }
 
+/** Shared repository identity; `localPath` is stored only on this machine. */
+export interface ProjectRepository {
+  id: string;
+  projectId: string;
+  name: string;
+  repositoryUrl: string | null;
+  localPath: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type ProjectRef = Pick<Project, 'id' | 'name' | 'key'>;
 
 export interface TaskComment {

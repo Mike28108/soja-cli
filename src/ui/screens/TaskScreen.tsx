@@ -92,6 +92,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   );
   // Git state loads on its own so the task shows instantly even in big repositories.
   const git = useQuery(() => services.git.inspect(session, taskRef, cwd), `git:${session.workspace.id}:${taskRef}`);
+  const taskProject = useQuery(async () => task?.projectId ? (await services.projects.list(session)).find((project) => project.id === task.projectId) ?? null : null, `task-project:${task?.projectId ?? ''}`, [`projects:${session.workspace.id}`]);
 
   // Layout: header, title, chips and notices; then Details + Description; the Activity panel gets the rest.
   // Details and Description side by side only when both keep a useful width.
@@ -100,7 +101,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
   const mascotRows = showMascot ? 15 : 0;
   const titleLines = task ? clampLines(wrapText(task.title, width), 2) : [''];
   const noticeLines = Math.min(2, notices.data?.length ?? 0);
-  const detailsHeight = 8;
+  const detailsHeight = 9;
   // Title, chips (with a gap) and notices; then the details panel (with a gap).
   const headRows = titleLines.length + 2 + noticeLines + 1 + detailsHeight;
   // Stacked (narrow) layouts give the description what is left above the activity's minimum (2 rows + borders);
@@ -127,6 +128,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
         a: () => actions.assign(task),
         t: () => actions.type(task),
         m: () => actions.project(task),
+        R: () => actions.repository(task),
         r: () => actions.requester(task),
         '$': () => actions.price(task),
         d: () => actions.description(task),
@@ -155,6 +157,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
     ['s', 'status'],
     ['p', 'priority'],
     ['a', 'assign'],
+    ['R', 'repository'],
     ...(services.finance ? ([['$', 'ticket price']] as const) : []),
     ['c', 'comment'],
     ['e', 'edit'],
@@ -208,6 +211,7 @@ export function TaskScreen({ active, taskRef }: { active: boolean; taskRef: stri
       <Box marginTop={1} flexDirection={wide ? 'row' : 'column'} gap={wide ? 1 : 0}>
         <Panel title="Details" width={detailsWidth} height={detailsHeight}>
           <Field label="Project" value={task.project?.name} onClick={() => actions.project(task)} active={active} />
+          <Field label="Repository" value={taskProject.data?.repositories.find((repository) => repository.id === task.repositoryId)?.name ?? (task.repositoryId ? 'unavailable' : undefined)} onClick={() => actions.repository(task)} active={active} />
           <Field label="Assignee" value={task.assignee ? `@${task.assignee.username}` : undefined} hint={task.assignee?.displayName} onClick={() => actions.assign(task)} active={active} />
           <Field label="Requested by" value={task.requester ?? undefined} onClick={() => actions.requester(task)} active={active} />
           {services.finance ? <Field label="Pay" value={task.remunerated ? formatMoney(task.priceMinor, task.currencyCode) : 'unpaid'} onClick={() => void actions.price(task)} active={active} /> : null}
