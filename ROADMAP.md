@@ -4,6 +4,21 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
+## v1.9 — Variables de entorno cifradas (en desarrollo)
+
+Decidido (2026-09-28): compartir variables de entorno de un proyecto con los devs del workspace, incluidas las de producción, sin que el servidor pueda leerlas y sin archivos `.env`. Solo en modo remoto.
+
+- **Cifrado de extremo a extremo.** Cada dispositivo genera sus claves (X25519 para cifrar, Ed25519 para firmar); la privada nunca sale de la máquina. Cada bóveda (proyecto + entorno: `development`, `staging`, `production`) tiene una clave AES-256-GCM que se envuelve para cada dispositivo con acceso. El servidor guarda solo texto cifrado, sobres y claves públicas.
+- **Firmas.** Cada valor y cada sobre van firmados por un dispositivo de un owner; el cliente rechaza lo que no esté firmado por un dispositivo confiable. Un servidor comprometido no puede leer ni inyectar variables. Las huellas de los dispositivos se fijan la primera vez (TOFU) y un cambio bloquea hasta confirmarlo.
+- **Sin `.env`, en ningún entorno.** Mientras SOJA está abierto, un agente local descifra las variables en memoria. En la carpeta de un repositorio vinculado al proyecto, `soja run [-e staging] -- <comando>` arranca el proceso con las variables, pidiéndolas al agente por un socket local (0600). Al cerrar SOJA, o al vencer o revocarse el acceso, el agente borra las variables y **detiene los procesos** que arrancó.
+- **Acceso con caducidad.** Los owners leen y escriben todo; un dev recibe acceso por entorno durante 3, 7 o 30 días. La caducidad la aplica el servidor. Solo los owners dan acceso a `production`; un miembro con acceso puede darlo a `development` y `staging`. Los devs no escriben variables.
+- **Revocar y rotar.** Quitar o vencer un acceso marca la bóveda para rotación: el cliente de un owner genera una clave nueva y vuelve a cifrar todo, y SOJA lista las credenciales que esa persona pudo ver para rotarlas en su proveedor.
+- **Historial** de quién escribió, compartió, revocó, rotó y descargó cada bóveda.
+- **Nombres peligrosos bloqueados** (`LD_PRELOAD`, `NODE_OPTIONS`, `PATH`, `DYLD_*`…), porque permiten ejecutar código.
+- **Límites documentados.** Quien tiene acceso puede ver los valores desde su propio proceso mientras dura; el diseño evita copias en disco, uso fuera de SOJA y uso tras la fecha límite, pero no que una persona decidida los copie. Los nombres de las variables no se cifran.
+
+Criterios de cierre: pruebas de ataque (servidor que cambia claves o sobres, valores manipulados o sin firma, dispositivo nuevo sin confirmar, acceso vencido o revocado, miembro de otro workspace), RLS en todas las tablas nuevas, revisión de seguridad independiente antes de publicar, y documentación y changelog en ambos repositorios.
+
 ## v1.8 — Proyectos con múltiples repositorios (publicado en v1.8.0)
 
 Una sola unidad de producto puede abarcar repositorios independientes de frontend, backend y uno o más servicios. Cada task puede identificar el repositorio donde se realizará el trabajo y SOJA debe enviar Git a la copia local correspondiente.
