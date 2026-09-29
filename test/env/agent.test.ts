@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, statSync } from 'node:fs';
+import { chmodSync, mkdirSync, statSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AppServices } from '../../src/application/services/index.js';
@@ -62,8 +63,8 @@ async function team() {
   await angel.env.setup('angel-laptop');
   const production = await michael.env.createVault(michael.session, project.id, 'production');
   await michael.env.createVault(michael.session, project.id, 'staging');
-  await michael.env.setVariable(michael.session, production.id, 'DATABASE_URL', 'postgres://prod');
-  await michael.env.grant(michael.session, production.id, angel.id, 3);
+  await michael.env.setVariable(michael.session, production, 'DATABASE_URL', 'postgres://prod');
+  await michael.env.grant(michael.session, production, angel.id, 3);
   return { michael, angel, production };
 }
 
@@ -168,7 +169,7 @@ describe('soja run', () => {
 
   it('refuses to hand over a name that loads code, even if an owner signed it', async () => {
     const { michael, angel, production } = await team();
-    await michael.env.setVariable(michael.session, production.id, 'NODE_OPTIONS', '--require /tmp/evil.js');
+    await michael.env.setVariable(michael.session, production, 'NODE_OPTIONS', '--require /tmp/evil.js');
     await openSoja(angel.services);
     const run = sojaRun(['--', process.execPath, '-e', 'console.log("started")']);
     expect((await run.done).code).not.toBe(0);
@@ -185,5 +186,28 @@ describe('soja run', () => {
     // A second SOJA leaves the first one serving.
     const second = new EnvAgent(angel.services, socket);
     expect(await second.start()).toBe('already-running');
+  }, 60_000);
+
+  it('refuses a socket in a folder others could have prepared, and filters names even from an impostor', async () => {
+    const socketPath = agentSocketPath({ XDG_RUNTIME_DIR: runtime });
+    mkdirSync(dirname(socketPath), { recursive: true, mode: 0o755 });
+    chmodSync(dirname(socketPath), 0o755);
+    // Someone listening where SOJA would, answering with a code-loading variable.
+    const impostor = createServer((socket) => socket.end(`${JSON.stringify({ type: 'env', project: { name: 'X', key: 'X' }, environment: 'production', variables: { NODE_OPTIONS: '--require /tmp/evil.js' }, expiresAt: null })}\n`));
+    await new Promise<void>((resolve) => impostor.listen(socketPath, resolve));
+    try {
+      const open = sojaRun(['--', process.execPath, '-e', 'console.log("started")']);
+      expect((await open.done).code).not.toBe(0);
+      expect(open.err()).toContain("is not SOJA's");
+      expect(open.out()).not.toContain('started');
+
+      chmodSync(dirname(socketPath), 0o700);
+      const filtered = sojaRun(['--', process.execPath, '-e', 'console.log("started")']);
+      expect((await filtered.done).code).not.toBe(0);
+      expect(filtered.err()).toContain('NODE_OPTIONS is not allowed');
+      expect(filtered.out()).not.toContain('started');
+    } finally {
+      impostor.close();
+    }
   }, 60_000);
 });

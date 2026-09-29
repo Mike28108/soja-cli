@@ -1054,7 +1054,8 @@ SOJA arranca el comando con las variables en su entorno. No se escribe nada en d
 **Firmas y confianza.** Cada valor lo firma un dispositivo de un owner y cada sobre, quien lo selló. SOJA rechaza lo que no verifique, así que un servidor comprometido no puede leer ni **inyectar** variables. Los dispositivos de otras personas se fijan la primera vez que se ven (*trust on first use*), con su huella (`3F2A 91C0 …`):
 
 - Si cambian las claves de un dispositivo conocido, o aparece uno nuevo de alguien conocido, SOJA se detiene hasta que alguien compare la huella con su dueño y la confirme (`soja env trust <id>`, o `t` en la pantalla).
-- Un owner solo se acepta por primer uso en el **primer** contacto de un miembro con el workspace. Los owners nuevos, y los de otro owner, siempre se confirman.
+- El primer uso solo vale en dos casos: un owner, en el **primer** contacto de esta máquina con el workspace (lo recuerda SOJA, no el servidor), y la persona a la que tú das acceso. Cualquier otro dispositivo nuevo se confirma antes de usarlo o de compartirle nada.
+- Para escribir o rotar, SOJA solo usa una clave que le selló un owner ya confiable; rotar y compartir solo sellan para dispositivos ya confiables. Lo que el servidor devuelve debe ser exactamente el proyecto y entorno que pediste.
 
 **Permisos.**
 
@@ -1075,6 +1076,7 @@ SOJA arranca el comando con las variables en su entorno. No se escribe nada en d
 
 - Quien tiene acceso puede ver los valores desde su propio proceso mientras dura. Se evitan las copias en disco, el uso fuera de SOJA y el uso tras la fecha límite, no que una persona decidida los copie.
 - Cualquier programa de tu usuario puede pedirle variables al agente mientras SOJA está abierto, igual que con `ssh-agent`.
+- `soja run` solo usa un socket tuyo en una carpeta que solo tú puedes abrir; si no, se niega. En Windows, `soja run` aún no está disponible (en WSL sí).
 
 ---
 

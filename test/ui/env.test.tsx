@@ -66,6 +66,8 @@ describe('environment variables in the interface', () => {
     const stored = JSON.stringify([...server.vaults.values()].map((vault) => [...vault.variables.values()]));
     expect(stored).toContain('API_KEY');
     expect(stored).not.toContain('sk_live_secret');
-    expect((await env.load(setUp.session, [...server.vaults.keys()][0] ?? '')).variables).toEqual({ API_KEY: 'sk_live_secret' });
+    const [created] = await env.vaults(setUp.session, project.id);
+    if (!created) throw new Error('vault missing');
+    expect((await env.load(setUp.session, created)).variables).toEqual({ API_KEY: 'sk_live_secret' });
   }, 30_000);
 });

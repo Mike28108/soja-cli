@@ -7,6 +7,7 @@ import type { AppServices } from '../application/services/index.js';
 import type { Session } from '../application/types.js';
 import { SojaError } from '../domain/errors.js';
 import { agentSocketPath, prepareSocketFolder } from './agent-socket.js';
+import { isAllowedVariable } from './names.js';
 
 /*
  * The agent lives inside the open SOJA. `soja run` asks it for the variables of
@@ -39,9 +40,6 @@ export interface AgentRun {
   startedAt: Date;
 }
 
-/** Names a program must never receive from a shared vault (see soja-backend docs/ENV.md). */
-const BLOCKED = /^(PATH|LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT|NODE_OPTIONS|NODE_PATH|BASH_ENV|ENV|PROMPT_COMMAND|PYTHONSTARTUP|PYTHONPATH|PERL5OPT|PERL5LIB|RUBYOPT|RUBYLIB|JAVA_TOOL_OPTIONS|_JAVA_OPTIONS|GIT_SSH_COMMAND|GIT_EXEC_PATH|SHELL|HOME|IFS|DYLD_.*|SOJA_.*)$/;
-const NAME = /^[A-Z_][A-Z0-9_]{0,127}$/;
 const MAX_TIMER = 2 ** 31 - 1;
 
 interface Connection {
@@ -132,7 +130,7 @@ export class EnvAgent {
     try {
       const { session, vaultId, loaded, project } = await this.resolve(request);
       for (const name of Object.keys(loaded.variables)) {
-        if (!NAME.test(name) || BLOCKED.test(name)) throw new SojaError(`${name} is not allowed as a shared variable. SOJA did not start anything.`);
+        if (!isAllowedVariable(name)) throw new SojaError(`${name} is not allowed as a shared variable. SOJA did not start anything.`);
       }
       const id = (this.counter += 1);
       const run: AgentRun = { id, project: project.name, environment: loaded.environment, command: request.command.join(' '), expiresAt: loaded.expiresAt, startedAt: this.clock() };
@@ -164,7 +162,9 @@ export class EnvAgent {
         hint: readable.length ? `Choose one: \`soja run -e <${available.replaceAll(', ', '|')}> -- …\`.` : 'Ask a workspace owner to share them with you.',
       });
     }
-    return { session, vaultId: vault.id, loaded: await env.load(session, vault.id), project };
+    // What this machine asked for, not what the list claims: the loaded material must match it.
+    const ref = { id: vault.id, projectId: project.id, environment: request.environment ?? vault.environment };
+    return { session, vaultId: vault.id, loaded: await env.load(session, ref), project };
   }
 
   /** Stops the run when its access ends, even if nobody asks the server. */

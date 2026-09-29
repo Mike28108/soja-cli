@@ -12,23 +12,34 @@ export interface ServerDevice {
   signingKey: string;
 }
 
+/**
+ * What a device may be taken on trust for, the first time it is seen:
+ * - `pinned-only`: nothing — only this machine and devices already pinned;
+ * - `bootstrap`: an owner, at this machine's very first contact with the workspace;
+ * - `chosen-member`: a member you just picked yourself (giving them access).
+ */
+export type FirstUse = 'pinned-only' | 'bootstrap' | 'chosen-member';
+
 export type TrustDecision =
   | { kind: 'trusted'; role: 'owner' | 'member'; pinned: TrustedDevice | null }
-  /** Never seen anyone of this person before: pinned now, trusted from here on (TOFU). */
+  /** Pinned now (trust on first use), within what `FirstUse` allowed. */
   | { kind: 'first-use'; role: 'owner' | 'member'; pin: TrustedDevice }
-  | { kind: 'blocked'; reason: 'key-changed' | 'new-device' | 'new-owner' | 'unknown-role'; device: ServerDevice; fingerprint: string };
+  | { kind: 'blocked'; reason: 'key-changed' | 'new-device' | 'not-confirmed'; device: ServerDevice; fingerprint: string };
+
+export interface Self {
+  device: ThisDevice;
+  userId: string;
+  role: 'owner' | 'member';
+  /** This machine already worked with the workspace: no more trust on first use of owners. */
+  introduced: boolean;
+}
 
 /**
- * Whether to believe a device the server presents:
- * - this machine: yes, with your own role;
- * - a pinned device: only with exactly the pinned keys, and with the pinned role;
- * - an unpinned device of a person you already know (you included): blocked
- *   until someone compares fingerprints — the server could have added it;
- * - an owner never seen before: trusted on first use only at a member's very
- *   first contact with the workspace; otherwise blocked until confirmed;
- * - the first device you ever see of a member: pinned now (trust on first use).
+ * Whether to believe a device the server presents. The server decides nothing
+ * here: roles and first sight only count where `firstUse` allows, and a pinned
+ * device keeps the keys and role it was pinned with.
  */
-export function decideTrust(device: ServerDevice, pins: Record<string, TrustedDevice>, self: { device: ThisDevice; userId: string; role: 'owner' | 'member' }, now: Date): TrustDecision {
+export function decideTrust(device: ServerDevice, pins: Record<string, TrustedDevice>, self: Self, now: Date, firstUse: FirstUse): TrustDecision {
   const printed = fingerprint(device);
   if (device.id === self.device.id) {
     const same = device.encryptionKey === self.device.secrets.encryptionKey && device.signingKey === self.device.secrets.signingKey;
@@ -39,28 +50,17 @@ export function decideTrust(device: ServerDevice, pins: Record<string, TrustedDe
     const same = pinned.encryptionKey === device.encryptionKey && pinned.signingKey === device.signingKey && pinned.userId === device.userId;
     return same ? { kind: 'trusted', role: pinned.role, pinned } : { kind: 'blocked', reason: 'key-changed', device, fingerprint: printed };
   }
+  // A new device of someone already known (you included) could be the server's own.
   const knownPerson = device.userId === self.userId || Object.values(pins).some((pin) => pin.userId === device.userId);
   if (knownPerson) return { kind: 'blocked', reason: 'new-device', device, fingerprint: printed };
-  if (!device.role) return { kind: 'blocked', reason: 'unknown-role', device, fingerprint: printed };
-  // Owners sign values, so an owner is only taken on trust at a member's very first contact
-  // with the workspace. Later, a server (with a colluding member) could otherwise invent one.
-  const firstContact = self.role === 'member' && Object.keys(pins).length === 0;
-  if (device.role === 'owner' && !firstContact) return { kind: 'blocked', reason: 'new-owner', device, fingerprint: printed };
-  return {
+  const pin = (role: 'owner' | 'member'): TrustDecision => ({
     kind: 'first-use',
-    role: device.role,
-    pin: {
-      userId: device.userId,
-      username: device.username ?? device.userId,
-      role: device.role,
-      label: device.label,
-      encryptionKey: device.encryptionKey,
-      signingKey: device.signingKey,
-      fingerprint: printed,
-      trustedAt: now.toISOString(),
-      how: 'first-use',
-    },
-  };
+    role,
+    pin: { userId: device.userId, username: device.username ?? device.userId, role, label: device.label, encryptionKey: device.encryptionKey, signingKey: device.signingKey, fingerprint: printed, trustedAt: now.toISOString(), how: 'first-use' },
+  });
+  if (firstUse === 'bootstrap' && !self.introduced && Object.keys(pins).length === 0 && device.role === 'owner') return pin('owner');
+  if (firstUse === 'chosen-member' && device.role === 'member') return pin('member');
+  return { kind: 'blocked', reason: 'not-confirmed', device, fingerprint: printed };
 }
 
 /** The pin a person writes after comparing fingerprints (`soja env trust`). */

@@ -38,8 +38,8 @@ async function ownerWithProduction() {
   const michael = person('michael', 'owner');
   await michael.env.setup('michael-laptop');
   const vault = await michael.env.createVault(michael.session, project, 'production');
-  await michael.env.setVariable(michael.session, vault.id, 'DATABASE_URL', 'postgres://prod');
-  await michael.env.setVariable(michael.session, vault.id, 'STRIPE_KEY', 'sk_live_123');
+  await michael.env.setVariable(michael.session, vault, 'DATABASE_URL', 'postgres://prod');
+  await michael.env.setVariable(michael.session, vault, 'STRIPE_KEY', 'sk_live_123');
   return { michael, vault };
 }
 
@@ -49,12 +49,12 @@ describe('the happy path', () => {
     const angel = person('angel', 'member');
     await angel.env.setup('angel-laptop');
 
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow('No access');
-    const granted = await michael.env.grant(michael.session, vault.id, angel.id, 7);
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('No access');
+    const granted = await michael.env.grant(michael.session, vault, angel.id, 7);
     expect(granted).toMatchObject({ sealedFor: 1, waitingFor: [] });
     expect(granted.expiresAt.getTime() - server.now.getTime()).toBe(7 * 86_400_000);
 
-    const loaded = await angel.env.load(angel.session, vault.id);
+    const loaded = await angel.env.load(angel.session, vault);
     expect(loaded.variables).toEqual({ DATABASE_URL: 'postgres://prod', STRIPE_KEY: 'sk_live_123' });
     expect(loaded.environment).toBe('production');
 
@@ -76,14 +76,14 @@ describe('the happy path', () => {
     const { michael, vault } = await ownerWithProduction();
     const angel = person('angel', 'member');
     await angel.env.setup('angel-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 3);
+    await michael.env.grant(michael.session, vault, angel.id, 3);
     await michael.env.revoke(michael.session, vault.id, angel.id);
     expect((await michael.env.vaults(michael.session))[0]?.rotationRequired).toBe(true);
 
-    const rotated = await michael.env.rotate(michael.session, vault.id);
+    const rotated = await michael.env.rotate(michael.session, vault);
     expect(rotated).toMatchObject({ keyVersion: 2, sealedFor: 1, blocked: [] });
-    expect((await michael.env.load(michael.session, vault.id)).variables).toEqual({ DATABASE_URL: 'postgres://prod', STRIPE_KEY: 'sk_live_123' });
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow();
+    expect((await michael.env.load(michael.session, vault)).variables).toEqual({ DATABASE_URL: 'postgres://prod', STRIPE_KEY: 'sk_live_123' });
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow();
   });
 });
 
@@ -97,7 +97,7 @@ describe('a compromised server', () => {
 
     // Garbage signature.
     stored.variables.set('DATABASE_URL', { ...original, signature: original.signature.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) });
-    await expect(michael.env.load(michael.session, vault.id)).rejects.toThrow('signature on DATABASE_URL does not match');
+    await expect(michael.env.load(michael.session, vault)).rejects.toThrow('signature on DATABASE_URL does not match');
 
     // A device the server planted, claiming to belong to an owner it invents.
     const intruderUser = server.addUser('intruder', 'owner');
@@ -107,7 +107,7 @@ describe('a compromised server', () => {
     const context = { workspaceId: server.workspaceId, vaultId: vault.id, environment: 'production' as const, keyVersion: 1 };
     const ciphertext = encryptValue(newVaultKey(), 'DATABASE_URL', 'postgres://attacker', context);
     stored.variables.set('DATABASE_URL', { ...original, ciphertext, signerDeviceKeyId: planted.id, signature: signStatement(valueStatement(context, 'DATABASE_URL', ciphertext), intruderKeys) });
-    await expect(michael.env.load(michael.session, vault.id)).rejects.toThrow();
+    await expect(michael.env.load(michael.session, vault)).rejects.toThrow();
   });
 
   it('cannot move a value to another name, nor a production value into staging', async () => {
@@ -116,20 +116,23 @@ describe('a compromised server', () => {
     const stripe = stored?.variables.get('STRIPE_KEY');
     if (!stored || !stripe) throw new Error('setup');
     stored.variables.set('DATABASE_URL', { ...stripe, name: 'DATABASE_URL' });
-    await expect(michael.env.load(michael.session, vault.id)).rejects.toThrow('DATABASE_URL');
+    await expect(michael.env.load(michael.session, vault)).rejects.toThrow('DATABASE_URL');
 
     stored.variables.set('DATABASE_URL', { ...stripe, name: 'DATABASE_URL' });
     stored.variables.delete('DATABASE_URL');
     stored.environment = 'staging';
-    await expect(michael.env.load(michael.session, vault.id)).rejects.toThrow('signature');
+    // Asked for production, answered with "staging": refused before anything is opened.
+    await expect(michael.env.load(michael.session, vault)).rejects.toThrow('other variables than production');
+    // And even if the listing lied too, the signatures bind the environment.
+    await expect(michael.env.load(michael.session, { ...vault, environment: 'staging' })).rejects.toThrow('signature');
   });
 
   it('cannot make a member accept a key it sealed and signed itself', async () => {
     const { michael, vault } = await ownerWithProduction();
     const angel = person('angel', 'member');
     await angel.env.setup('angel-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 7);
-    await angel.env.load(angel.session, vault.id); // Angel has now seen (and pinned) Michael's laptop.
+    await michael.env.grant(michael.session, vault, angel.id, 7);
+    await angel.env.load(angel.session, vault); // Angel has now seen (and pinned) Michael's laptop.
 
     // The server plants a second "Michael" device and re-seals a key of its choosing to Angel.
     const fake = generateDevice();
@@ -143,7 +146,7 @@ describe('a compromised server', () => {
     const sealed = sealVaultKey(newVaultKey(), { id: angelDevice.id, encryptionKey: angelPublic.encryptionKey }, context);
     stored.envelopes.set(angelDevice.id, { deviceKeyId: angelDevice.id, sealed, signerDeviceKeyId: planted.id, signature: signStatement(envelopeStatement(context, angelDevice.id, sealed), fake), keyVersion: 1 });
 
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow('has not seen before');
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('has not seen before');
     // After a person compares fingerprints and confirms, it would be accepted — that is the only way in.
     const listed = await angel.env.devices(angel.session);
     expect(listed.find((device) => device.id === planted.id)?.trust).toBe('blocked');
@@ -153,17 +156,17 @@ describe('a compromised server', () => {
     const { michael, vault } = await ownerWithProduction();
     const angel = person('angel', 'member');
     await angel.env.setup('angel-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 7);
+    await michael.env.grant(michael.session, vault, angel.id, 7);
 
     const planted = server.plantDevice(angel.id, generateDevice(), 'angel-desktop');
-    const shared = await michael.env.sharePending(michael.session, vault.id);
+    const shared = await michael.env.sharePending(michael.session, vault);
     expect(shared.sealed).toBe(0);
     expect(shared.blocked).toEqual([expect.stringContaining('@angel · angel-desktop')]);
     expect(server.vaults.get(vault.id)?.envelopes.has(planted.id)).toBe(false);
 
     // Once Michael confirms the fingerprint with Angel, it goes through.
     await michael.env.trust(michael.session, planted.id);
-    expect((await michael.env.sharePending(michael.session, vault.id)).sealed).toBe(1);
+    expect((await michael.env.sharePending(michael.session, vault)).sealed).toBe(1);
   });
 
   it('cannot hand a member a production key signed by another member', async () => {
@@ -172,8 +175,8 @@ describe('a compromised server', () => {
     const bruno = person('bruno', 'member');
     await angel.env.setup('angel-laptop');
     await bruno.env.setup('bruno-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 7);
-    await michael.env.grant(michael.session, vault.id, bruno.id, 7);
+    await michael.env.grant(michael.session, vault, angel.id, 7);
+    await michael.env.grant(michael.session, vault, bruno.id, 7);
     const brunoKeys = new EnvKeyStore(bruno.file).device(SERVER);
     const angelDevice = angel.env.thisDevice();
     const stored = server.vaults.get(vault.id);
@@ -183,7 +186,11 @@ describe('a compromised server', () => {
     const context = { workspaceId: server.workspaceId, vaultId: vault.id, environment: 'production' as const, keyVersion: 1 };
     const sealed = sealVaultKey(newVaultKey(), { id: angelDevice.id, encryptionKey: angelPublic.encryptionKey }, context);
     stored.envelopes.set(angelDevice.id, { deviceKeyId: angelDevice.id, sealed, signerDeviceKeyId: brunoKeys.id, signature: signStatement(envelopeStatement(context, angelDevice.id, sealed), brunoKeys.secrets), keyVersion: 1 });
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow('Production keys must be shared by an owner');
+    // Bruno's device was never confirmed by Angel, so its seal counts for nothing…
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('has not seen before');
+    // …and even once Angel confirms it, a member cannot seal production.
+    await angel.env.trust(angel.session, brunoKeys.id);
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('Production keys must be shared by an owner');
   });
 
   it('with a colluding member holding the key, cannot slip in a value signed by an owner it invented', async () => {
@@ -192,9 +199,9 @@ describe('a compromised server', () => {
     const bruno = person('bruno', 'member');
     await angel.env.setup('angel-laptop');
     await bruno.env.setup('bruno-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 7);
-    await michael.env.grant(michael.session, vault.id, bruno.id, 7);
-    await angel.env.load(angel.session, vault.id); // First contact: Angel pins Michael's laptop.
+    await michael.env.grant(michael.session, vault, angel.id, 7);
+    await michael.env.grant(michael.session, vault, bruno.id, 7);
+    await angel.env.load(angel.session, vault); // First contact: Angel pins Michael's laptop.
 
     // Bruno leaks the vault key; the server invents an owner "laura" whose device the attackers control.
     const brunoKeys = new EnvKeyStore(bruno.file).device(SERVER);
@@ -212,23 +219,23 @@ describe('a compromised server', () => {
     if (!original) throw new Error('setup');
     stored.variables.set('DATABASE_URL', { ...original, ciphertext, signerDeviceKeyId: lauraDevice.id, signature: signStatement(valueStatement(context, 'DATABASE_URL', ciphertext), lauraKeys) });
 
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow('has not seen before');
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('has not seen before');
     // Owners never take another owner on trust either.
-    await expect(michael.env.load(michael.session, vault.id)).rejects.toThrow('has not seen before');
+    await expect(michael.env.load(michael.session, vault)).rejects.toThrow('has not seen before');
   });
 
   it('a changed key for a pinned device blocks until confirmed', async () => {
     const { michael, vault } = await ownerWithProduction();
     const angel = person('angel', 'member');
     await angel.env.setup('angel-laptop');
-    await michael.env.grant(michael.session, vault.id, angel.id, 7);
-    await angel.env.load(angel.session, vault.id);
+    await michael.env.grant(michael.session, vault, angel.id, 7);
+    await angel.env.load(angel.session, vault);
     const michaelDevice = michael.env.thisDevice();
     if (!michaelDevice) throw new Error('setup');
     const record = server.devices.get(michaelDevice.id);
     if (!record) throw new Error('setup');
     record.signingKey = generateDevice().signingKey;
-    await expect(angel.env.load(angel.session, vault.id)).rejects.toThrow('changed');
+    await expect(angel.env.load(angel.session, vault)).rejects.toThrow('changed');
   });
 });
 
@@ -253,5 +260,76 @@ describe('the key file', () => {
     const file = join(dir.path, 'broken.json');
     writeFileSync(file, '{ not json', { mode: 0o600 });
     expect(() => new EnvKeyStore(file).device(SERVER)).toThrow('not valid JSON');
+  });
+});
+
+describe('security review regressions', () => {
+  const context = (vaultId: string, environment: 'development' | 'staging' | 'production' = 'staging', keyVersion = 1) => ({ workspaceId: server.workspaceId, vaultId, environment, keyVersion });
+
+  it('an owner never writes with a key sealed by a device it has not pinned (the server would read the value)', async () => {
+    const michael = person('michael', 'owner');
+    await michael.env.setup('michael-laptop');
+    const vault = await michael.env.createVault(michael.session, project, 'staging');
+    const michaelDevice = michael.env.thisDevice();
+    const stored = server.vaults.get(vault.id);
+    const michaelPublic = michaelDevice ? server.devices.get(michaelDevice.id) : undefined;
+    if (!michaelDevice || !stored || !michaelPublic) throw new Error('setup');
+    // The server invents a "member", seals a key it knows to Michael's laptop and signs it.
+    const invented = server.addUser('ghost', 'member');
+    const ghostKeys = generateDevice();
+    const ghost = server.plantDevice(invented.id, ghostKeys, 'ghost');
+    const sealed = sealVaultKey(newVaultKey(), { id: michaelDevice.id, encryptionKey: michaelPublic.encryptionKey }, context(vault.id));
+    stored.envelopes.set(michaelDevice.id, { deviceKeyId: michaelDevice.id, sealed, signerDeviceKeyId: ghost.id, signature: signStatement(envelopeStatement(context(vault.id), michaelDevice.id, sealed), ghostKeys), keyVersion: 1 });
+
+    await expect(michael.env.setVariable(michael.session, vault, 'STRIPE_KEY', 'sk_live_123')).rejects.toThrow('has not seen before');
+    expect(stored.variables.size).toBe(0);
+  });
+
+  it('rotating and sharing never seal to people the server made up', async () => {
+    const { michael, vault } = await ownerWithProduction();
+    const invented = server.addUser('ghost', 'member');
+    const ghost = server.plantDevice(invented.id, generateDevice(), 'ghost');
+    const stored = server.vaults.get(vault.id);
+    if (!stored) throw new Error('setup');
+    // A grant Michael never gave, and a device "waiting" for the key.
+    stored.grants.set(invented.id, { expiresAt: new Date(server.now.getTime() + 86_400_000), revoked: false });
+
+    const shared = await michael.env.sharePending(michael.session, vault);
+    expect(shared.sealed).toBe(0);
+    expect(shared.blocked).toEqual([expect.stringContaining('@ghost')]);
+    const rotated = await michael.env.rotate(michael.session, vault);
+    expect(rotated.blocked).toEqual([expect.stringContaining('@ghost')]);
+    expect(server.vaults.get(vault.id)?.envelopes.has(ghost.id)).toBe(false);
+  });
+
+  it('a server claiming you are a member cannot get an owner of its own trusted', async () => {
+    const { michael, vault } = await ownerWithProduction();
+    // Michael already worked with this workspace; now the server says he is a member…
+    const lying: typeof fetch = async (input, init) =>
+      new URL(String(input)).pathname === `/v1/workspaces/${server.workspaceId}` ? new Response(JSON.stringify({ role: 'member' }), { status: 200 }) : server.fetch(input, init);
+    const told = new RemoteEnvService(new ApiClient(SERVER, 'token-michael', lying), michael.keys, () => server.now);
+    // …and presents an "owner" whose key it knows.
+    const invented = server.addUser('boss', 'owner');
+    const bossKeys = generateDevice();
+    const boss = server.plantDevice(invented.id, bossKeys, 'boss');
+    const michaelDevice = michael.env.thisDevice();
+    const stored = server.vaults.get(vault.id);
+    const michaelPublic = michaelDevice ? server.devices.get(michaelDevice.id) : undefined;
+    if (!michaelDevice || !stored || !michaelPublic) throw new Error('setup');
+    const ctx = context(vault.id, 'production');
+    const sealed = sealVaultKey(newVaultKey(), { id: michaelDevice.id, encryptionKey: michaelPublic.encryptionKey }, ctx);
+    stored.envelopes.set(michaelDevice.id, { deviceKeyId: michaelDevice.id, sealed, signerDeviceKeyId: boss.id, signature: signStatement(envelopeStatement(ctx, michaelDevice.id, sealed), bossKeys), keyVersion: 1 });
+    await expect(told.load(michael.session, vault)).rejects.toThrow('has not seen before');
+  });
+
+  it('refuses material for another vault than the one asked for', async () => {
+    const { michael, vault } = await ownerWithProduction();
+    const staging = await michael.env.createVault(michael.session, project, 'staging');
+    await michael.env.setVariable(michael.session, staging, 'DATABASE_URL', 'postgres://staging');
+    // Asking for staging, the server answers with production (which Michael can read too).
+    const original = server.fetch;
+    const swapped: typeof fetch = (input, init) => original(String(input).replace(`/vaults/${staging.id}/material`, `/vaults/${vault.id}/material`), init);
+    const swappedEnv = new RemoteEnvService(new ApiClient(SERVER, 'token-michael', swapped), michael.keys, () => server.now);
+    await expect(swappedEnv.load(michael.session, staging)).rejects.toThrow('other variables than staging');
   });
 });

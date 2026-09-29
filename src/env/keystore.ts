@@ -27,6 +27,8 @@ const serverSchema = z.object({
   }).optional(),
   /** Devices of other people (and your other machines) this one trusts, by device id, per workspace. */
   trusted: z.record(z.string(), z.record(z.string(), trustedSchema)).default({}),
+  /** Workspaces this machine already worked with: owners are no longer taken on first use there. */
+  introduced: z.record(z.string(), z.boolean()).default({}),
 });
 
 const fileSchema = z.object({ servers: z.record(z.string(), serverSchema).default({}) });
@@ -50,7 +52,16 @@ export class EnvKeyStore {
   }
 
   forgetDevice(apiUrl: string): void {
-    this.update(apiUrl, (server) => ({ trusted: server.trusted }));
+    this.update(apiUrl, (server) => ({ trusted: server.trusted, introduced: server.introduced }));
+  }
+
+  introduced(apiUrl: string, workspaceId: string): boolean {
+    return this.read().servers[normalize(apiUrl)]?.introduced[workspaceId] === true;
+  }
+
+  markIntroduced(apiUrl: string, workspaceId: string): void {
+    if (this.introduced(apiUrl, workspaceId)) return;
+    this.update(apiUrl, (server) => ({ ...server, introduced: { ...server.introduced, [workspaceId]: true } }));
   }
 
   trusted(apiUrl: string, workspaceId: string): Record<string, TrustedDevice> {
@@ -71,7 +82,7 @@ export class EnvKeyStore {
   private update(apiUrl: string, change: (server: z.infer<typeof serverSchema>) => z.infer<typeof serverSchema>): void {
     const data = this.read();
     const name = normalize(apiUrl);
-    data.servers[name] = change(data.servers[name] ?? { trusted: {} });
+    data.servers[name] = change(data.servers[name] ?? { trusted: {}, introduced: {} });
     this.write(data);
   }
 

@@ -77,7 +77,7 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
           context: 'The value is encrypted on this machine before it is sent.',
           secret: true,
           allowEmpty: true,
-          onSubmit: (value) => run(() => env.setVariable(session, target.id, name, value), `${name} saved`),
+          onSubmit: (value) => run(() => env.setVariable(session, target, name, value), `${name} saved`),
         });
       },
     });
@@ -119,7 +119,7 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
           initial: '7',
           onSelect: (days) =>
             run(async () => {
-              const result = await env.grant(session, target.id, userId, Number(days) as (typeof GRANT_DAYS)[number]);
+              const result = await env.grant(session, target, userId, Number(days) as (typeof GRANT_DAYS)[number]);
               const waiting = result.waitingFor.length ? ` · ${result.waitingFor.length} device(s) need confirming (t)` : '';
               notify(`Access until ${result.expiresAt.toLocaleString()}${waiting}`, 'success');
             }),
@@ -145,7 +145,7 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
             run(async () => {
               const seen = target.names.map((entry) => entry.name);
               await env.revoke(session, target.id, userId);
-              const rotated = await env.rotate(session, target.id);
+              const rotated = await env.rotate(session, target);
               notify(`@${who} revoked · key v${rotated.keyVersion}`, 'success', seen.length ? `Change at the provider: ${seen.join(', ')}` : undefined);
             }),
         });
@@ -206,10 +206,10 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
       else if (input === 'g' && vault?.canShare) void grant(vault).catch(() => undefined);
       else if (input === 'u' && owner && vault) revoke(vault);
       else if (input === 's' && vault?.canShare) void run(async () => {
-        const shared = await env.sharePending(session, vault.id);
+        const shared = await env.sharePending(session, vault);
         notify(shared.sealed ? `Shared with ${shared.sealed} device(s)` : 'No device was waiting', 'success', shared.blocked.length ? `Needs confirming: ${shared.blocked.join('; ')}` : undefined);
       });
-      else if (input === 'R' && owner && vault) openOverlay({ kind: 'confirm', title: `Rotate the ${environment} key?`, message: 'Every value is re-encrypted with a new key, shared only with who has access now.', confirmLabel: 'Rotate', onConfirm: () => run(() => env.rotate(session, vault.id), 'Key rotated') });
+      else if (input === 'R' && owner && vault) openOverlay({ kind: 'confirm', title: `Rotate the ${environment} key?`, message: 'Every value is re-encrypted with a new key, shared only with who has access now.', confirmLabel: 'Rotate', onConfirm: () => run(() => env.rotate(session, vault), 'Key rotated') });
       else if (input === 't') void devices().catch(() => undefined);
       else if (input === 'h' && owner && vault) void history(vault).catch(() => undefined);
       else return false;

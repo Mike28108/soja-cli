@@ -18,10 +18,18 @@ export interface EnvDeviceView {
   trust: 'this' | 'pinned' | 'confirmed' | 'new' | 'blocked';
 }
 
-export interface EnvVaultView {
+/**
+ * The vault you mean: its id, and the project and environment you chose. What
+ * the server sends back must match all three (it cannot hand you production
+ * when you asked for development).
+ */
+export interface VaultRef {
   id: string;
   projectId: string;
   environment: EnvEnvironment;
+}
+
+export interface EnvVaultView extends VaultRef {
   keyVersion: number;
   variables: number;
   /** Variable names (never values), for people who can read the vault. */
@@ -67,15 +75,15 @@ export interface EnvOperations {
   createVault(session: Session, projectId: string, environment: EnvEnvironment): Promise<EnvVaultView>;
   /** Names only: values are never listed. */
   names(session: Session, vaultId: string): Promise<{ name: string; updatedAt: Date }[]>;
-  setVariable(session: Session, vaultId: string, name: string, value: string): Promise<void>;
+  setVariable(session: Session, vault: VaultRef, name: string, value: string): Promise<void>;
   removeVariable(session: Session, vaultId: string, name: string): Promise<void>;
-  grant(session: Session, vaultId: string, userId: string, days: GrantDays): Promise<{ expiresAt: Date; sealedFor: number; waitingFor: string[] }>;
+  grant(session: Session, vault: VaultRef, userId: string, days: GrantDays): Promise<{ expiresAt: Date; sealedFor: number; waitingFor: string[] }>;
   revoke(session: Session, vaultId: string, userId: string): Promise<void>;
   /** Seals the key for devices that have access but no copy yet. Returns how many, and who still needs confirming. */
-  sharePending(session: Session, vaultId: string): Promise<{ sealed: number; blocked: string[] }>;
-  rotate(session: Session, vaultId: string): Promise<{ keyVersion: number; sealedFor: number; blocked: string[] }>;
+  sharePending(session: Session, vault: VaultRef): Promise<{ sealed: number; blocked: string[] }>;
+  rotate(session: Session, vault: VaultRef): Promise<{ keyVersion: number; sealedFor: number; blocked: string[] }>;
   history(session: Session, vaultId: string): Promise<EnvHistoryEntry[]>;
 
   /** Decrypts a vault in memory after verifying every signature. Only the agent calls this. */
-  load(session: Session, vaultId: string): Promise<LoadedVault>;
+  load(session: Session, vault: VaultRef): Promise<LoadedVault>;
 }

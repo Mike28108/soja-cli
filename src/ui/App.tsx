@@ -49,19 +49,21 @@ interface AppProps {
   mouse?: boolean;
   /** Prompt for account choice when a saved remote credential is missing. */
   welcomeOnLocal?: boolean;
+  /** Something the user must know once SOJA is open (e.g. `soja run` will not work). */
+  notice?: { text: string; hint?: string };
 }
 
-export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates, mouse = false, welcomeOnLocal = false }: AppProps) {
+export function App({ services, splashMs = 700, cwd = process.cwd(), initialRoute, updates, mouse = false, welcomeOnLocal = false, notice }: AppProps) {
   return (
     <KeyProvider mouse={mouse}>
       <TerminalSizeProvider>
-        <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} welcomeOnLocal={welcomeOnLocal} />
+        <Boot services={services} splashMs={splashMs} cwd={cwd} initialRoute={initialRoute} updates={updates} welcomeOnLocal={welcomeOnLocal} notice={notice} />
       </TerminalSizeProvider>
     </KeyProvider>
   );
 }
 
-function Boot({ services, splashMs, cwd, initialRoute, updates, welcomeOnLocal }: Required<Omit<AppProps, 'initialRoute' | 'updates' | 'mouse'>> & Pick<AppProps, 'initialRoute' | 'updates' | 'welcomeOnLocal'>) {
+function Boot({ services, splashMs, cwd, initialRoute, updates, welcomeOnLocal, notice }: Required<Omit<AppProps, 'initialRoute' | 'updates' | 'mouse' | 'notice'>> & Pick<AppProps, 'initialRoute' | 'updates' | 'welcomeOnLocal' | 'notice'>) {
   const { exit } = useApp();
   // undefined while loading, null when setup is needed.
   const [stored, setStored] = useState<Session | null | undefined>(undefined);
@@ -114,7 +116,7 @@ function Boot({ services, splashMs, cwd, initialRoute, updates, welcomeOnLocal }
     case 'ready':
       if (services.environment.mode === 'local' && welcomeOnLocal && !localChoiceDone) return <WelcomeScreen onLocal={() => setLocalChoiceDone(true)} />;
       return (
-        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})} {...(updates ? { updates } : {})}>
+        <AppStateProvider services={services} cwd={cwd} initialSession={phase.session} {...(initialRoute ? { initialRoute } : {})} {...(updates ? { updates } : {})} {...(notice ? { notice } : {})}>
           <Shell />
         </AppStateProvider>
       );

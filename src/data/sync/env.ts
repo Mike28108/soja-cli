@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
-import type { EnvDeviceView, EnvEnvironment, EnvHistoryEntry, EnvOperations, EnvVaultView, GrantDays, LoadedVault } from '../../application/env.js';
+import type { EnvDeviceView, EnvEnvironment, EnvHistoryEntry, EnvOperations, EnvVaultView, GrantDays, LoadedVault, VaultRef } from '../../application/env.js';
 import type { Session } from '../../application/types.js';
 import { SojaError, ValidationError } from '../../domain/errors.js';
 import {
@@ -18,11 +18,10 @@ import {
   type VaultContext,
 } from '../../env/crypto.js';
 import type { EnvKeyStore, ThisDevice, TrustedDevice } from '../../env/keystore.js';
-import { confirmedPin, decideTrust, type ServerDevice, type TrustDecision } from '../../env/trust.js';
+import { VARIABLE_NAME } from '../../env/names.js';
+import { confirmedPin, decideTrust, type FirstUse, type Self, type ServerDevice, type TrustDecision } from '../../env/trust.js';
 import { terminalSafe } from '../../utils/text.js';
 import type { ApiClient } from '../remote/api-client.js';
-
-const NAME = /^[A-Z_][A-Z0-9_]{0,127}$/;
 
 /** Names and labels come from the server and end up in a terminal: no control sequences. */
 function safeDevice<T extends { username: string | null; label: string }>(device: T): T {
@@ -58,16 +57,22 @@ interface Envelope {
 }
 
 /** Who you are here and whom you trust: everything a decision needs. */
-interface TrustContext {
-  device: ThisDevice;
-  userId: string;
-  role: 'owner' | 'member';
+interface TrustContext extends Self {
   pins: Record<string, TrustedDevice>;
 }
 
 /**
+ * What the vault key will be used for:
+ * - `read`: decrypting for `soja run`; an owner may be taken on first use at first contact;
+ * - `seal`: sharing the key with others; its sealer must already be pinned;
+ * - `write`: encrypting new values; its sealer must be a pinned owner (or this machine).
+ */
+type Purpose = 'read' | 'seal' | 'write';
+
+/**
  * Environment variables over the SOJA API. The server only ever sees public
- * keys, sealed keys, ciphertext and signatures (soja-backend docs/ENV.md).
+ * keys, sealed keys, ciphertext and signatures (soja-backend docs/ENV.md), and
+ * nothing it sends is used before it is checked against what this machine pinned.
  */
 export class RemoteEnvService implements EnvOperations {
   constructor(
@@ -116,7 +121,8 @@ export class RemoteEnvService implements EnvOperations {
   async vaults(session: Session, projectId?: string): Promise<EnvVaultView[]> {
     const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
     const { vaults } = await this.api.get<{ vaults: VaultRow[] }>(`${this.base(session)}/vaults${query}`);
-    return vaults.map(toView);
+    const views = vaults.map(toView);
+    return projectId ? views.filter((vault) => vault.projectId === projectId) : views;
   }
 
   async createVault(session: Session, projectId: string, environment: EnvEnvironment): Promise<EnvVaultView> {
@@ -125,9 +131,10 @@ export class RemoteEnvService implements EnvOperations {
     // The id is chosen here: every envelope is bound to it before the server sees anything.
     const vault: VaultContext = { workspaceId: session.workspace.id, vaultId: randomUUID(), environment, keyVersion: 1 };
     const owners = (await this.serverDevices(session)).filter((device) => device.role === 'owner');
-    const { envelopes, newPins } = this.sealForAll(newVaultKey(), owners, vault, context);
+    // This machine and owners already pinned; the others are shared with once confirmed.
+    const { envelopes } = this.sealForAll(newVaultKey(), owners, vault, context, 'pinned-only');
     await this.api.post(`${this.base(session)}/vaults`, { id: vault.vaultId, projectId, environment, envelopes });
-    this.savePins(session, newPins);
+    this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
     const created = (await this.vaults(session, projectId)).find((row) => row.id === vault.vaultId);
     if (!created) throw new SojaError('The server did not keep the new environment.');
     return created;
@@ -140,29 +147,31 @@ export class RemoteEnvService implements EnvOperations {
     return vault.names;
   }
 
-  async setVariable(session: Session, vaultId: string, name: string, value: string): Promise<void> {
+  async setVariable(session: Session, ref: VaultRef, name: string, value: string): Promise<void> {
     const context = await this.trustContext(session);
     requireOwner(context, 'write environment variables');
-    const material = await this.material(session, vaultId);
-    const { key, vault, pins } = this.openKey(session, material, context);
+    const material = await this.material(session, ref);
+    const { key, vault } = this.openKey(session, material, context, ref, 'write');
     const ciphertext = encryptValue(key, name, value, vault);
     const signature = signStatement(valueStatement(vault, name, ciphertext), context.device.secrets);
-    await this.api.request('PUT', `${this.base(session)}/vaults/${vaultId}/variables/${encodeURIComponent(name)}`, { keyVersion: vault.keyVersion, ciphertext, signerDeviceKeyId: context.device.id, signature });
-    this.savePins(session, pins);
+    await this.api.request('PUT', `${this.base(session)}/vaults/${ref.id}/variables/${encodeURIComponent(name)}`, { keyVersion: vault.keyVersion, ciphertext, signerDeviceKeyId: context.device.id, signature });
+    this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
   }
 
   async removeVariable(session: Session, vaultId: string, name: string): Promise<void> {
     await this.api.delete(`${this.base(session)}/vaults/${vaultId}/variables/${encodeURIComponent(name)}`);
   }
 
-  async grant(session: Session, vaultId: string, userId: string, days: GrantDays) {
+  /** Access for someone you chose: their devices may be taken on first use if you have never seen them. */
+  async grant(session: Session, ref: VaultRef, userId: string, days: GrantDays) {
     const context = await this.trustContext(session);
-    const material = await this.material(session, vaultId);
-    const { key, vault, pins } = this.openKey(session, material, context);
+    const material = await this.material(session, ref);
+    const { key, vault } = this.openKey(session, material, context, ref, 'seal');
     const theirs = (await this.serverDevices(session)).filter((device) => device.userId === userId);
-    const { envelopes, blocked, newPins } = this.sealForAll(key, theirs, vault, { ...context, pins: { ...context.pins, ...pins } });
-    const { grant } = await this.api.post<{ grant: { expiresAt: string } }>(`${this.base(session)}/vaults/${vaultId}/grants`, { userId, days, keyVersion: vault.keyVersion, envelopes });
-    this.savePins(session, { ...pins, ...newPins });
+    const { envelopes, blocked, newPins } = this.sealForAll(key, theirs, vault, context, 'chosen-member');
+    const { grant } = await this.api.post<{ grant: { expiresAt: string } }>(`${this.base(session)}/vaults/${ref.id}/grants`, { userId, days, keyVersion: vault.keyVersion, envelopes });
+    this.savePins(session, newPins);
+    this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
     return { expiresAt: new Date(grant.expiresAt), sealedFor: envelopes.length, waitingFor: blocked };
   }
 
@@ -170,39 +179,39 @@ export class RemoteEnvService implements EnvOperations {
     await this.api.delete(`${this.base(session)}/vaults/${vaultId}/grants/${encodeURIComponent(userId)}`);
   }
 
-  async sharePending(session: Session, vaultId: string) {
+  /** Only devices already pinned: the server's list of who is waiting is a claim, not a choice. */
+  async sharePending(session: Session, ref: VaultRef) {
     const context = await this.trustContext(session);
-    const row = (await this.api.get<{ vaults: VaultRow[] }>(`${this.base(session)}/vaults`)).vaults.find((vault) => vault.id === vaultId);
+    const row = (await this.vaults(session, ref.projectId)).find((vault) => vault.id === ref.id);
     if (!row) throw new ValidationError('No such environment in this workspace.');
-    const pending = new Set((row.pendingDevices ?? []).map((device) => device.id));
+    const pending = new Set(row.pendingDevices.map((device) => device.id));
     if (!pending.size) return { sealed: 0, blocked: [] };
-    const material = await this.material(session, vaultId);
-    const { key, vault, pins } = this.openKey(session, material, context);
+    const material = await this.material(session, ref);
+    const { key, vault } = this.openKey(session, material, context, ref, 'seal');
     const targets = (await this.serverDevices(session)).filter((device) => pending.has(device.id));
-    const { envelopes, blocked, newPins } = this.sealForAll(key, targets, vault, { ...context, pins: { ...context.pins, ...pins } });
-    if (envelopes.length) await this.api.post(`${this.base(session)}/vaults/${vaultId}/envelopes`, { keyVersion: vault.keyVersion, envelopes });
-    this.savePins(session, { ...pins, ...newPins });
+    const { envelopes, blocked } = this.sealForAll(key, targets, vault, context, 'pinned-only');
+    if (envelopes.length) await this.api.post(`${this.base(session)}/vaults/${ref.id}/envelopes`, { keyVersion: vault.keyVersion, envelopes });
     return { sealed: envelopes.length, blocked };
   }
 
-  async rotate(session: Session, vaultId: string) {
+  /** A new key for the devices still with access that this machine already trusts; the rest wait for confirmation. */
+  async rotate(session: Session, ref: VaultRef) {
     const context = await this.trustContext(session);
     requireOwner(context, 'rotate environment keys');
-    const material = await this.material(session, vaultId);
-    const { key: oldKey, vault, pins } = this.openKey(session, material, context);
-    const values = this.decryptAll(material, oldKey, vault, { ...context, pins: { ...context.pins, ...pins } });
-    const row = (await this.api.get<{ vaults: VaultRow[] }>(`${this.base(session)}/vaults`)).vaults.find((candidate) => candidate.id === vaultId);
+    const material = await this.material(session, ref);
+    const { key: oldKey, vault } = this.openKey(session, material, context, ref, 'write');
+    const values = this.decryptAll(material, oldKey, vault, context, 'pinned-only');
+    const row = (await this.vaults(session, ref.projectId)).find((candidate) => candidate.id === ref.id);
     const grantees = new Set((row?.grants ?? []).map((grant) => grant.userId));
     const holders = (await this.serverDevices(session)).filter((device) => device.role === 'owner' || grantees.has(device.userId));
     const next: VaultContext = { ...vault, keyVersion: vault.keyVersion + 1 };
     const key = newVaultKey();
-    const { envelopes, blocked, newPins } = this.sealForAll(key, holders, next, { ...context, pins: { ...context.pins, ...pins } });
+    const { envelopes, blocked } = this.sealForAll(key, holders, next, context, 'pinned-only');
     const variables = Object.entries(values).map(([name, value]) => {
       const ciphertext = encryptValue(key, name, value, next);
       return { name, keyVersion: next.keyVersion, ciphertext, signerDeviceKeyId: context.device.id, signature: signStatement(valueStatement(next, name, ciphertext), context.device.secrets) };
     });
-    const result = await this.api.post<{ keyVersion: number; sealedFor: number }>(`${this.base(session)}/vaults/${vaultId}/rotate`, { keyVersion: next.keyVersion, envelopes, variables });
-    this.savePins(session, { ...pins, ...newPins });
+    const result = await this.api.post<{ keyVersion: number; sealedFor: number }>(`${this.base(session)}/vaults/${ref.id}/rotate`, { keyVersion: next.keyVersion, envelopes, variables });
     return { keyVersion: result.keyVersion, sealedFor: result.sealedFor, blocked };
   }
 
@@ -217,27 +226,35 @@ export class RemoteEnvService implements EnvOperations {
     }));
   }
 
-  async load(session: Session, vaultId: string): Promise<LoadedVault> {
+  async load(session: Session, ref: VaultRef): Promise<LoadedVault> {
     const context = await this.trustContext(session);
-    const material = await this.material(session, vaultId);
-    const { key, vault, pins } = this.openKey(session, material, context);
-    const variables = this.decryptAll(material, key, vault, { ...context, pins: { ...context.pins, ...pins } });
+    const material = await this.material(session, ref);
+    const { key, vault, pins } = this.openKey(session, material, context, ref, 'read');
+    const withPins = { ...context, pins: { ...context.pins, ...pins } };
+    const variables = this.decryptAll(material, key, vault, withPins, 'bootstrap');
     // Only now, with every signature checked, remember devices seen for the first time.
-    this.savePins(session, { ...pins, ...this.valueSignerPins(material, { ...context, pins: { ...context.pins, ...pins } }) });
-    return { vaultId, projectId: material.vault.projectId, environment: material.vault.environment, variables, expiresAt: material.access.expiresAt ? new Date(material.access.expiresAt) : null };
+    this.savePins(session, { ...pins, ...this.valueSignerPins(material, withPins) });
+    this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
+    return { vaultId: ref.id, projectId: ref.projectId, environment: ref.environment, variables, expiresAt: material.access.expiresAt ? new Date(material.access.expiresAt) : null };
   }
 
   // ── Verification ─────────────────────────────────────────────────────
 
-  /** Checks who sealed the key for this device and opens it. Throws on anything unexpected. */
-  private openKey(session: Session, material: Material, context: TrustContext): { key: Buffer; vault: VaultContext; pins: Record<string, TrustedDevice> } {
-    const vault: VaultContext = { workspaceId: session.workspace.id, vaultId: material.vault.id, environment: material.vault.environment, keyVersion: material.vault.keyVersion };
+  /**
+   * Opens the vault key for this device after checking that it is the vault you
+   * asked for and who sealed it, according to what it will be used for.
+   */
+  private openKey(session: Session, material: Material, context: TrustContext, ref: VaultRef, purpose: Purpose): { key: Buffer; vault: VaultContext; pins: Record<string, TrustedDevice> } {
+    if (material.vault.id !== ref.id || material.vault.environment !== ref.environment || material.vault.projectId !== ref.projectId) {
+      throw tampered(`The server answered with other variables than ${ref.environment}.`);
+    }
+    const vault: VaultContext = { workspaceId: session.workspace.id, vaultId: ref.id, environment: ref.environment, keyVersion: material.vault.keyVersion };
     if (material.envelope.keyVersion !== vault.keyVersion) throw tampered('The key you received is not the current one.');
     const signer = material.signers.find((device) => device.id === material.envelope.signerDeviceKeyId);
     if (!signer) throw tampered('The key you received has no known signer.');
-    const decision = this.decide(signer, context);
+    const decision = this.decide(signer, context, purpose === 'read' ? 'bootstrap' : 'pinned-only');
     const role = acceptedRole(decision);
-    if (vault.environment === 'production' && role !== 'owner') throw tampered('Production keys must be shared by an owner.');
+    if ((vault.environment === 'production' || purpose === 'write') && role !== 'owner') throw tampered(vault.environment === 'production' ? 'Production keys must be shared by an owner.' : 'Only a key shared by an owner can be used to write.');
     const signingKey = decision.kind === 'trusted' && decision.pinned ? decision.pinned.signingKey : signer.signingKey;
     if (!verifyStatement(envelopeStatement(vault, context.device.id, material.envelope.sealed), material.envelope.signature, signingKey)) {
       throw tampered('The signature on your key does not match.');
@@ -247,13 +264,14 @@ export class RemoteEnvService implements EnvOperations {
   }
 
   /** Every value must be signed by a trusted owner device, for this exact vault, name and key version. */
-  private decryptAll(material: Material, key: Buffer, vault: VaultContext, context: TrustContext): Record<string, string> {
+  private decryptAll(material: Material, key: Buffer, vault: VaultContext, context: TrustContext, firstUse: FirstUse): Record<string, string> {
     const values: Record<string, string> = {};
     for (const variable of material.variables) {
+      if (!VARIABLE_NAME.test(variable.name)) throw tampered('A variable has a malformed name.');
       if (variable.keyVersion !== vault.keyVersion) throw tampered(`${variable.name} was not encrypted with the current key.`);
       const signer = material.signers.find((device) => device.id === variable.signerDeviceKeyId);
       if (!signer) throw tampered(`${variable.name} has no known signer.`);
-      const decision = this.decide(signer, context);
+      const decision = this.decide(signer, context, firstUse);
       if (acceptedRole(decision) !== 'owner') throw tampered(`${variable.name} was not written by a workspace owner.`);
       const signingKey = decision.kind === 'trusted' && decision.pinned ? decision.pinned.signingKey : signer.signingKey;
       if (!verifyStatement(valueStatement(vault, variable.name, variable.ciphertext), variable.signature, signingKey)) throw tampered(`The signature on ${variable.name} does not match.`);
@@ -265,14 +283,14 @@ export class RemoteEnvService implements EnvOperations {
   private valueSignerPins(material: Material, context: TrustContext): Record<string, TrustedDevice> {
     const pins: Record<string, TrustedDevice> = {};
     for (const signer of material.signers) {
-      const decision = this.decide(signer, context);
+      const decision = this.decide(signer, context, 'bootstrap');
       if (decision.kind === 'first-use') pins[signer.id] = decision.pin;
     }
     return pins;
   }
 
-  private decide(device: ServerDevice, context: TrustContext): TrustDecision {
-    return decideTrust(device, context.pins, { device: context.device, userId: context.userId, role: context.role }, this.clock());
+  private decide(device: ServerDevice, context: TrustContext, firstUse: FirstUse): TrustDecision {
+    return decideTrust(device, context.pins, context, this.clock(), firstUse);
   }
 
   // ── Sealing ──────────────────────────────────────────────────────────
@@ -282,15 +300,15 @@ export class RemoteEnvService implements EnvOperations {
     return { deviceKeyId: recipient.id, sealed, signerDeviceKeyId: context.device.id, signature: signStatement(envelopeStatement(vault, recipient.id, sealed), context.device.secrets) };
   }
 
-  /** Seals to every device you can trust; the others are reported by name so someone can compare fingerprints. */
-  private sealForAll(key: Buffer, devices: ServerDevice[], vault: VaultContext, context: TrustContext) {
+  /** Seals to every device you can trust for this purpose; the others are reported so someone can compare fingerprints. */
+  private sealForAll(key: Buffer, devices: ServerDevice[], vault: VaultContext, context: TrustContext, firstUse: FirstUse) {
     const envelopes: Envelope[] = [];
     const blocked: string[] = [];
     const newPins: Record<string, TrustedDevice> = {};
     for (const device of devices) {
-      const decision = this.decide(device, { ...context, pins: { ...context.pins, ...newPins } });
+      const decision = this.decide(device, { ...context, pins: { ...context.pins, ...newPins } }, firstUse);
       if (decision.kind === 'blocked') {
-        blocked.push(`@${device.username ?? device.userId} · ${device.label} · ${decision.fingerprint}`);
+        blocked.push(`@${device.username ?? device.userId} · ${device.label} · ${decision.fingerprint} · id ${device.id}`);
         continue;
       }
       if (decision.kind === 'first-use') newPins[device.id] = decision.pin;
@@ -306,9 +324,9 @@ export class RemoteEnvService implements EnvOperations {
     return `/v1/workspaces/${session.workspace.id}/env`;
   }
 
-  private async material(session: Session, vaultId: string): Promise<Material> {
+  private async material(session: Session, ref: VaultRef): Promise<Material> {
     const device = this.requireDevice();
-    const material = await this.api.get<Material>(`${this.base(session)}/vaults/${encodeURIComponent(vaultId)}/material?device=${device.id}`);
+    const material = await this.api.get<Material>(`${this.base(session)}/vaults/${encodeURIComponent(ref.id)}/material?device=${device.id}`);
     return { ...material, signers: material.signers.map(safeDevice) };
   }
 
@@ -319,7 +337,13 @@ export class RemoteEnvService implements EnvOperations {
   private async trustContext(session: Session): Promise<TrustContext> {
     const device = this.requireDevice();
     const { role } = await this.api.get<{ role: 'owner' | 'member' }>(`/v1/workspaces/${session.workspace.id}`);
-    return { device, userId: session.user.id, role, pins: this.keys.trusted(this.api.baseUrl, session.workspace.id) };
+    return {
+      device,
+      userId: session.user.id,
+      role,
+      introduced: this.keys.introduced(this.api.baseUrl, session.workspace.id),
+      pins: this.keys.trusted(this.api.baseUrl, session.workspace.id),
+    };
   }
 
   private requireDevice(): ThisDevice {
@@ -333,7 +357,7 @@ export class RemoteEnvService implements EnvOperations {
   }
 
   private view(device: ServerDevice, context: TrustContext): EnvDeviceView {
-    const decision = this.decide(device, context);
+    const decision = this.decide(device, context, 'bootstrap');
     const trust: EnvDeviceView['trust'] =
       device.id === context.device.id ? 'this'
         : decision.kind === 'blocked' ? 'blocked'
@@ -369,7 +393,7 @@ function toView(row: VaultRow): EnvVaultView {
     environment: row.environment,
     keyVersion: row.keyVersion,
     variables: row.variables,
-    names: (row.names ?? []).filter((entry) => NAME.test(entry.name)).map((entry) => ({ name: entry.name, updatedAt: new Date(entry.updatedAt) })),
+    names: (row.names ?? []).filter((entry) => VARIABLE_NAME.test(entry.name)).map((entry) => ({ name: entry.name, updatedAt: new Date(entry.updatedAt) })),
     canRead: row.access.canRead,
     canShare: row.access.canShare,
     canWrite: row.access.canWrite,

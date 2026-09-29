@@ -113,7 +113,7 @@ async function set(services: AppServices, env: EnvOperations, session: Session, 
   if (positionals.length > 1) throw new ValidationError('Values are never taken as arguments: they would stay in your shell history.', { hint: `Run \`soja env set ${name} …\` and type it, or pipe it: \`printf %s "$VALUE" | soja env set ${name} …\`.` });
   const { vault, project } = await resolveVault(services, env, session, values);
   const value = await readSecret(`${name} (${project.name} · ${vault.environment}): `);
-  await env.setVariable(session, vault.id, name, value);
+  await env.setVariable(session, vault, name, value);
   success(`${name} saved, encrypted, in ${project.name} ${vault.environment}.`);
 }
 
@@ -132,7 +132,7 @@ async function grant(services: AppServices, env: EnvOperations, session: Session
   if (!GRANT_DAYS.includes(days as GrantDays)) throw new ValidationError('Access lasts 3, 7 or 30 days.', { hint: 'Use --days 3, --days 7 or --days 30.' });
   const member = await memberNamed(services, session, username);
   const { vault, project } = await resolveVault(services, env, session, values);
-  const result = await env.grant(session, vault.id, member.id, days as GrantDays);
+  const result = await env.grant(session, vault, member.id, days as GrantDays);
   success(`@${member.username} can use ${project.name} ${vault.environment} until ${result.expiresAt.toLocaleString()}.`);
   if (!result.sealedFor && !result.waitingFor.length) print(dim(`  @${member.username} has not set up a device yet (\`soja env setup\`); run \`soja env share\` afterwards.`));
   for (const waiting of result.waitingFor) print(dim(`  Waiting for confirmation: ${waiting}. Compare it with them, then \`soja env trust <id>\` and \`soja env share\`.`));
@@ -145,7 +145,7 @@ async function revoke(services: AppServices, env: EnvOperations, session: Sessio
   const { vault, project } = await resolveVault(services, env, session, values);
   const names = (await env.names(session, vault.id)).map((variable) => variable.name);
   await env.revoke(session, vault.id, member.id);
-  const rotated = await env.rotate(session, vault.id);
+  const rotated = await env.rotate(session, vault);
   success(`@${member.username} can no longer use ${project.name} ${vault.environment}; the key was rotated (v${rotated.keyVersion}).`);
   if (names.length) {
     print(`  They saw these values while they had access. Change them at their source (the provider), then \`soja env set\` the new ones:`);
@@ -156,7 +156,7 @@ async function revoke(services: AppServices, env: EnvOperations, session: Sessio
 async function share(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values } = parseCommand(args, target);
   const { vault, project } = await resolveVault(services, env, session, values);
-  const result = await env.sharePending(session, vault.id);
+  const result = await env.sharePending(session, vault);
   success(result.sealed ? `Shared ${project.name} ${vault.environment} with ${result.sealed} device(s).` : 'No device was waiting.');
   for (const waiting of result.blocked) print(dim(`  Needs confirming first: ${waiting}.`));
 }
@@ -164,7 +164,7 @@ async function share(services: AppServices, env: EnvOperations, session: Session
 async function rotate(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values } = parseCommand(args, target);
   const { vault, project } = await resolveVault(services, env, session, values);
-  const result = await env.rotate(session, vault.id);
+  const result = await env.rotate(session, vault);
   success(`${project.name} ${vault.environment} now uses key v${result.keyVersion}, shared with ${result.sealedFor} device(s).`);
   for (const waiting of result.blocked) print(dim(`  Not shared (needs confirming): ${waiting}.`));
 }

@@ -9,6 +9,7 @@ import { CredentialStore } from '../../config/credentials.js';
 import { resolvePaths } from '../../config/paths.js';
 import type { Route } from '../../ui/navigation/routes.js';
 import { EnvAgent } from '../../env/agent.js';
+import { toDisplayError } from '../../utils/errors.js';
 
 export async function runInterface(options: { route?: Route } = {}): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
@@ -24,7 +25,14 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
   let reopenInCurrentMode = false;
   // Shared environment variables are served to `soja run` only while this interface is open.
   const agent = runtime.services.env?.thisDevice() ? new EnvAgent(runtime.services) : null;
-  const agentState = agent ? await agent.start().catch(() => 'unavailable' as const) : null;
+  let agentNotice: { text: string; hint?: string } | undefined;
+  const agentState = agent
+    ? await agent.start().catch((error: unknown) => {
+        const display = toDisplayError(error);
+        agentNotice = { text: `soja run is unavailable: ${display.message}`, ...(display.hint ? { hint: display.hint } : {}) };
+        return 'unavailable' as const;
+      })
+    : null;
   // A daily copy of the database in use, kept for a week. Never blocks opening SOJA.
   try {
     runtime.services.backups.auto();
@@ -36,7 +44,7 @@ export async function runInterface(options: { route?: Route } = {}): Promise<voi
     // Light or dark palette, from the terminal's own background (SOJA_THEME overrides).
     setThemeMode(await detectThemeMode());
     const instance = render(
-      <App services={runtime.services} welcomeOnLocal={savedConfig?.mode === 'remote' && !hasRemoteToken} updates={{ check: () => updates.cachedCheck(), install: (version) => updates.install(version) }} mouse={process.env.SOJA_MOUSE !== '0' && runtime.services.preferences.mouse()} {...(options.route ? { initialRoute: options.route } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
+      <App services={runtime.services} welcomeOnLocal={savedConfig?.mode === 'remote' && !hasRemoteToken} updates={{ check: () => updates.cachedCheck(), install: (version) => updates.install(version) }} mouse={process.env.SOJA_MOUSE !== '0' && runtime.services.preferences.mouse()} {...(options.route ? { initialRoute: options.route } : {})} {...(agentNotice ? { notice: agentNotice } : {})} />, { alternateScreen: true, exitOnCtrlC: true });
     await instance.waitUntilExit();
     reopenInCurrentMode = new FileConfigStore(runtime.paths.configFile).load()?.mode !== runtime.services.environment.mode;
   } finally {
