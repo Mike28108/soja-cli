@@ -23,7 +23,7 @@ async function client(userId: string, replicaFile = ':memory:', config?: MemoryC
   const credentials = new CredentialStore(join(dir.path, `credentials-${userId}.json`));
   credentials.save(SERVER, server.tokenFor(userId), 'x');
   const runtime = await bootstrap({
-    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: ':memory:' },
     config: store,
     credentials,
     fetch: server.fetch,

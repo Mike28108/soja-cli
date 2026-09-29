@@ -59,7 +59,7 @@ describe('remote text', () => {
     const credentials = new CredentialStore(join(dir.path, 'credentials.json'));
     credentials.save('https://soja.test', server.tokenFor(me), 'michael');
     runtime = await bootstrap({
-      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: ':memory:' },
       config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: 'https://soja.test', userId: me } }),
       credentials,
       fetch: server.fetch,

@@ -7,6 +7,8 @@ export interface SojaPaths {
   databaseFile: string;
   configFile: string;
   credentialsFile: string;
+  /** This device's keys for shared environment variables (0600). */
+  envKeysFile: string;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -25,5 +27,6 @@ export function resolvePaths(env: Env = process.env, home: string = homedir()): 
     databaseFile: join(dataDir, 'soja.db'),
     configFile: join(configDir, 'config.json'),
     credentialsFile: join(configDir, 'credentials.json'),
+    envKeysFile: join(configDir, 'env-keys.json'),
   };
 }

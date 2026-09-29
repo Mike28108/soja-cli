@@ -27,7 +27,7 @@ async function client(userId: string, options: { WebSocket?: typeof WebSocket } 
   const credentials = new CredentialStore(join(dir.path, `credentials-${userId}-${runtimes.length}.json`));
   credentials.save(SERVER, server.tokenFor(userId), 'x');
   const runtime = await bootstrap({
-    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: ':memory:' },
     config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: SERVER, userId } }),
     credentials,
     fetch: server.fetch,
