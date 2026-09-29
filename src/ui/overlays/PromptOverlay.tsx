@@ -19,7 +19,7 @@ export function PromptOverlay({ spec }: { spec: PromptSpec }) {
   const { closeOverlay, notify } = useAppState();
   const [value, setValue] = useState(spec.initial ?? '');
   const [busy, setBusy] = useState(false);
-  const suggestions = spec.suggestions ?? [];
+  const suggestions = spec.secret ? [] : (spec.suggestions ?? []);
   const completion = completeFrom(value, suggestions);
 
   const submit = async () => {
@@ -52,7 +52,7 @@ export function PromptOverlay({ spec }: { spec: PromptSpec }) {
         ['esc', 'cancel'],
       ]}
     >
-      <TextField value={value} onChange={setValue} placeholder={spec.placeholder} />
+      <TextField value={value} onChange={setValue} placeholder={spec.placeholder} mask={spec.secret ?? false} />
       {completion ? (
         <Text color={palette.muted}>{`tab → ${completion}`}</Text>
       ) : others.length ? (

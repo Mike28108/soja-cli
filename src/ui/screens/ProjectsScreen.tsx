@@ -41,6 +41,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
       else if (input === 'v' && project) void flows.manageRepositories(project);
       else if (input === 'e' && project) flows.editProject(project);
       else if (input === 'i' && project && services.intake) configureIntake(project);
+      else if (input === 'V' && project && services.env) go({ type: 'push', route: { name: 'env', projectId: project.id } });
       else return false;
       return true;
     },
@@ -62,6 +63,7 @@ export function ProjectsScreen({ active }: { active: boolean }) {
         ['v', 'repositories'],
         ['e', 'edit'],
         ...(services.intake ? [['i', 'ticket API'] as const] : []),
+        ...(services.env ? [['V', 'env variables'] as const] : []),
         ['esc', 'back'],
       ]}
     >

@@ -27,6 +27,7 @@ interface VaultRow {
   environment: EnvEnvironment;
   keyVersion: number;
   variables: number;
+  names?: { name: string; updatedAt: string }[];
   access: { canRead: boolean; canShare: boolean; canWrite: boolean; expiresAt: string | null };
   rotationRequired?: boolean;
   pendingDevices?: (ServerDevice & { username: string | null })[];
@@ -124,9 +125,11 @@ export class RemoteEnvService implements EnvOperations {
     return created;
   }
 
+  /** From the vault list: names are not secret material, and reading them is not a fetch. */
   async names(session: Session, vaultId: string) {
-    const material = await this.material(session, vaultId);
-    return material.variables.map((variable) => ({ name: variable.name, updatedAt: new Date(variable.updatedAt) }));
+    const vault = (await this.vaults(session)).find((candidate) => candidate.id === vaultId);
+    if (!vault) throw new ValidationError('No such environment in this workspace.');
+    return vault.names;
   }
 
   async setVariable(session: Session, vaultId: string, name: string, value: string): Promise<void> {
@@ -351,6 +354,7 @@ function toView(row: VaultRow): EnvVaultView {
     environment: row.environment,
     keyVersion: row.keyVersion,
     variables: row.variables,
+    names: (row.names ?? []).map((entry) => ({ name: entry.name, updatedAt: new Date(entry.updatedAt) })),
     canRead: row.access.canRead,
     canShare: row.access.canShare,
     canWrite: row.access.canWrite,

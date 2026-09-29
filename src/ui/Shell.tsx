@@ -29,6 +29,7 @@ import { TaskScreen } from './screens/TaskScreen.js';
 import { WorkspacesScreen } from './screens/WorkspacesScreen.js';
 import { ChatScreen } from './screens/ChatScreen.js';
 import { AccessScreen } from './screens/AccessScreen.js';
+import { EnvScreen } from './screens/EnvScreen.js';
 import { FinanceScreen } from './screens/FinanceScreen.js';
 import { SettingsScreen } from './screens/SettingsScreen.js';
 import { ProfileScreen } from './screens/ProfileScreen.js';
@@ -178,6 +179,8 @@ function ScreenFor({ route, active }: { route: Route; active: boolean }) {
       return <ProjectsScreen active={active} />;
     case 'project':
       return <TaskListScreen active={active} projectId={route.projectId} />;
+    case 'env':
+      return <EnvScreen active={active} projectId={route.projectId} />;
     case 'workspaces':
       return <WorkspacesScreen active={active} />;
     case 'finance':
@@ -220,6 +223,8 @@ function trailFor(route: Route, projectName: string | null | undefined): string[
   switch (route.name) {
     case 'project':
       return projectName ? ['Projects', projectName] : ['Projects'];
+    case 'env':
+      return ['Projects', 'Environment variables'];
     case 'task':
       return [route.ref];
     case 'projects':

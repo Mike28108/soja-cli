@@ -23,15 +23,14 @@ interface Vault {
 }
 
 export class FakeEnvServer {
-  readonly workspaceId = randomUUID();
+  constructor(readonly workspaceId: string = randomUUID()) {}
   readonly users = new Map<string, User>();
   readonly devices = new Map<string, Device>();
   readonly vaults = new Map<string, Vault>();
   private tokens = new Map<string, string>();
   now = new Date('2026-10-01T12:00:00Z');
 
-  addUser(username: string, role: 'owner' | 'member'): { id: string; token: string } {
-    const id = randomUUID();
+  addUser(username: string, role: 'owner' | 'member', id: string = randomUUID()): { id: string; token: string } {
     this.users.set(id, { id, username, role });
     const token = `token-${username}`;
     this.tokens.set(token, id);
@@ -173,6 +172,7 @@ export class FakeEnvServer {
       environment: vault.environment,
       keyVersion: vault.keyVersion,
       variables: vault.variables.size,
+      ...(canRead ? { names: [...vault.variables.values()].map((variable) => ({ name: variable.name, updatedAt: variable.updatedAt })) } : {}),
       access: { canRead, canShare, canWrite: user.role === 'owner', expiresAt: user.role === 'owner' ? null : (vault.grants.get(user.id)?.expiresAt.toISOString() ?? null) },
       ...(user.role === 'owner' ? { rotationRequired: vault.rotationRequired, grants: [...vault.grants.entries()].filter(([id]) => this.hasGrant(vault, id)).map(([id, grant]) => ({ userId: id, username: this.users.get(id)?.username, expiresAt: grant.expiresAt.toISOString() })) } : {}),
       ...(canShare ? { pendingDevices: pending.map((device) => this.describe(device)) } : {}),

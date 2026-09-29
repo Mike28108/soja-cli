@@ -24,6 +24,8 @@ export interface EnvVaultView {
   environment: EnvEnvironment;
   keyVersion: number;
   variables: number;
+  /** Variable names (never values), for people who can read the vault. */
+  names: { name: string; updatedAt: Date }[];
   canRead: boolean;
   canShare: boolean;
   canWrite: boolean;
