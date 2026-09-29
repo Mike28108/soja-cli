@@ -6,9 +6,9 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.6.0** |
-| Versión del documento | **1.6.0** (revisión 1) |
-| Última actualización | 2026-09-26 |
+| Versión de la app | **1.9.0** |
+| Versión del documento | **1.9.0** (revisión 1) |
+| Última actualización | 2026-09-28 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
@@ -57,7 +57,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.7.1)
+### Estado actual (v1.9.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
@@ -1595,6 +1595,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.9.0 r1 | 1.9.0 | 2026-09-28 | Variables de entorno compartidas cifradas de extremo a extremo: `soja run`, `soja env`, pantalla por proyecto (§5, §6, §7, §9, §10, §12, §15, §16). Cabecera al día (la documentación seguía en 1.6.0). |
 | 1.6.0 r1 | 1.6.0 | 2026-09-26 | Finanzas por workspace, permisos de designados y tickets externos con aprobación del owner y consulta del estado/comentarios/asignación por API. |
 | 1.5.1 r1 | 1.5.1 | 2026-09-26 | Corrección: la consulta de actualizaciones a npm pedía un formato que `/latest` rechaza (406). |
 | 1.5.0 r1 | 1.5.0 | 2026-09-26 | Publicación de v1.5.0: interruptor del mouse (`M`, barra de estado, palette, `soja mouse`) y publicación en npm por etapas con aprobación 2FA. |
