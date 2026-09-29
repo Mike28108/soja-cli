@@ -30,14 +30,21 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: SOJA_REPOS_TOKEN is set
+      # A branch with the same name in soja-backend is tested together with this one
+      # (coordinated changes); otherwise soja-backend main.
+      - name: soja-backend branch
+        id: backend
         env:
-          TOKEN: ${{ secrets.SOJA_REPOS_TOKEN }}
+          GH_TOKEN: ${{ secrets.SOJA_REPOS_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
-          if [ -z "$TOKEN" ]; then
+          if [ -z "$GH_TOKEN" ]; then
             echo "::error::Add the repository secret SOJA_REPOS_TOKEN (read access to Mike28108/soja-backend)."
             exit 1
           fi
+          if gh api "repos/Mike28108/soja-backend/branches/$BRANCH" --silent 2>/dev/null; then ref="$BRANCH"; else ref=main; fi
+          echo "Testing against soja-backend $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -45,7 +52,7 @@ jobs:
         with:
           repository: Mike28108/soja-backend
           token: ${{ secrets.SOJA_REPOS_TOKEN }}
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          ref: ${{ steps.backend.outputs.ref }}
           path: other
           persist-credentials: false
       - run: node scripts/check-domain.mjs other
@@ -65,14 +72,21 @@ jobs:
         ports: ['5432:5432']
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - name: SOJA_REPOS_TOKEN is set
+      # A branch with the same name in soja-backend is tested together with this one
+      # (coordinated changes); otherwise soja-backend main.
+      - name: soja-backend branch
+        id: backend
         env:
-          TOKEN: ${{ secrets.SOJA_REPOS_TOKEN }}
+          GH_TOKEN: ${{ secrets.SOJA_REPOS_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
-          if [ -z "$TOKEN" ]; then
+          if [ -z "$GH_TOKEN" ]; then
             echo "::error::Add the repository secret SOJA_REPOS_TOKEN (read access to Mike28108/soja-backend)."
             exit 1
           fi
+          if gh api "repos/Mike28108/soja-backend/branches/$BRANCH" --silent 2>/dev/null; then ref="$BRANCH"; else ref=main; fi
+          echo "Testing against soja-backend $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
@@ -80,7 +94,7 @@ jobs:
         with:
           repository: Mike28108/soja-backend
           token: ${{ secrets.SOJA_REPOS_TOKEN }}
-          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          ref: ${{ steps.backend.outputs.ref }}
           path: backend
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
