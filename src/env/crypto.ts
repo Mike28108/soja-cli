@@ -158,6 +158,14 @@ export function envelopeStatement(context: VaultContext, deviceKeyId: string, se
   return Buffer.from(['soja-env-envelope-v1', context.workspaceId, context.vaultId, context.environment, String(context.keyVersion), deviceKeyId, sealed].join('\n'));
 }
 
+/**
+ * What a vault is for, signed by the owner who created it: the server cannot
+ * present one repository's (or project's) variables as another's.
+ */
+export function descriptorStatement(context: Omit<VaultContext, 'keyVersion'>, projectId: string, repositoryId: string | null): Buffer {
+  return Buffer.from(['soja-env-vault-v1', context.workspaceId, context.vaultId, projectId, repositoryId ?? '', context.environment].join('\n'));
+}
+
 export function valueStatement(context: VaultContext, name: string, ciphertext: string): Buffer {
   return Buffer.from(['soja-env-value-v1', context.workspaceId, context.vaultId, context.environment, String(context.keyVersion), name, ciphertext].join('\n'));
 }

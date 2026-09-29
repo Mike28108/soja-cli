@@ -45,7 +45,7 @@ const COMMANDS: readonly (readonly [string, string])[] = [
   ['run [-e <env>] -- <command…>', 'Run a command with the shared variables of this folder’s project (needs SOJA open)'],
   ['env setup [--label <name>]', 'Set up this machine for shared, end-to-end encrypted variables'],
   ['env ls [-p <project>] [-e <env>]', 'Environments you can use, or the variable names of one'],
-  ['env create|set|rm … -p <project> -e <env>', 'Owners: create an environment, set (value typed or piped) or remove a variable'],
+  ['env create|set|rm … -p <project> [-r <repo>] -e <env>', 'Owners: create an environment (whole project, or one repository), set or remove a variable'],
   ['env grant|revoke @user -p … -e … [--days 3|7|30]', 'Give access for 3, 7 or 30 days, or take it back (rotates the key)'],
   ['env devices | trust <id> | share | rotate | history', 'Fingerprints, confirming a device, sharing with new devices, rotating, history'],
   ['whoami', 'Current user, workspace and mode'],

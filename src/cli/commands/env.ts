@@ -1,5 +1,5 @@
 import { hostname } from 'node:os';
-import { ENV_ENVIRONMENTS, GRANT_DAYS, type EnvEnvironment, type EnvOperations, type EnvVaultView, type GrantDays } from '../../application/env.js';
+import { ENV_ENVIRONMENTS, GRANT_DAYS, type EnvEnvironment, type EnvOperations, type GrantDays } from '../../application/env.js';
 import type { AppServices } from '../../application/services/index.js';
 import type { Session } from '../../application/types.js';
 import { SojaError, ValidationError } from '../../domain/errors.js';
@@ -48,7 +48,8 @@ export async function envCommand(args: string[]): Promise<void> {
   });
 }
 
-const target = { project: { type: 'string', short: 'p' }, env: { type: 'string', short: 'e' } } as const;
+/** `-p` project, `-r` one of its repositories (without it: the whole project), `-e` environment. */
+const target = { project: { type: 'string', short: 'p' }, repo: { type: 'string', short: 'r' }, env: { type: 'string', short: 'e' } } as const;
 
 async function setup(env: EnvOperations, args: string[]) {
   const { values } = parseCommand(args, { label: { type: 'string' } });
@@ -79,15 +80,17 @@ async function trust(env: EnvOperations, session: Session, args: string[]) {
 
 async function list(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values } = parseCommand(args, target);
-  const project = values.project || values.env ? await resolveProject(services, session, values.project) : null;
-  const vaults = await env.vaults(session, project?.id);
   if (values.env) {
-    const vault = pick(vaults, environmentOf(values.env), project?.name ?? '');
+    const { vault } = await resolveVault(services, env, session, values);
     for (const variable of await env.names(session, vault.id)) print(`${bold(variable.name)} ${dim(`updated ${variable.updatedAt.toLocaleString()}`)}`);
     return;
   }
-  if (!vaults.length) return print(dim('No shared variables yet. An owner creates them with `soja env create -p <project> -e <environment>`.'));
-  const names = new Map((await services.projects.list(session)).map((entry) => [entry.id, entry.name]));
+  const project = values.project || values.repo ? await resolveProject(services, session, values.project) : null;
+  const vaults = await env.vaults(session, project?.id);
+  if (!vaults.length) return print(dim('No shared variables yet. An owner creates them with `soja env create -p <project> [-r <repository>] -e <environment>`.'));
+  const projects = await services.projects.list(session);
+  const names = new Map(projects.map((entry) => [entry.id, entry.name]));
+  const repositories = new Map(projects.flatMap((entry) => entry.repositories.map((repository) => [repository.id, repository.name] as const)));
   for (const vault of vaults) {
     const access = !vault.canRead ? dim('no access') : vault.expiresAt ? `until ${vault.expiresAt.toLocaleString()}` : 'owner';
     const extra = [
@@ -95,21 +98,24 @@ async function list(services: AppServices, env: EnvOperations, session: Session,
       vault.pendingDevices.length ? `${vault.pendingDevices.length} device(s) waiting` : null,
       vault.grants.length ? `shared with ${vault.grants.map((grant) => `@${grant.username}`).join(', ')}` : null,
     ].filter(Boolean);
-    print(`${bold(names.get(vault.projectId) ?? vault.projectId)} · ${vault.environment} · ${vault.variables} variable(s) · ${access}${extra.length ? dim(` · ${extra.join(' · ')}`) : ''}`);
+    const scope = vault.repositoryId ? `/${repositories.get(vault.repositoryId) ?? '?'}` : dim(' (whole project)');
+    print(`${bold(names.get(vault.projectId) ?? vault.projectId)}${scope} · ${vault.environment} · ${vault.variables} variable(s) · ${access}${extra.length ? dim(` · ${extra.join(' · ')}`) : ''}`);
   }
 }
 
 async function create(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values } = parseCommand(args, target);
   const project = await resolveProject(services, session, values.project);
-  const environment = environmentOf(requireArg(values.env, 'environment', 'soja env create -p <project> -e <environment>'));
-  await env.createVault(session, project.id, environment);
-  success(`${project.name} now has ${environment} variables. Add them with \`soja env set NAME -p ${project.key} -e ${environment}\`.`);
+  const repository = await resolveRepository(services, session, project.id, values.repo);
+  const environment = environmentOf(requireArg(values.env, 'environment', 'soja env create -p <project> [-r <repository>] -e <environment>'));
+  await env.createVault(session, project.id, repository?.id ?? null, environment);
+  const flags = `-p ${project.key}${repository ? ` -r ${repository.name}` : ''} -e ${environment}`;
+  success(`${where(project, repository)} now has ${environment} variables. Add them with \`soja env set NAME ${flags}\`.`);
 }
 
 async function set(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values, positionals } = parseCommand(args, target);
-  const name = requireArg(positionals[0], 'variable name', 'soja env set NAME -p <project> -e <environment>  (the value is read from the keyboard or stdin)');
+  const name = requireArg(positionals[0], 'variable name', 'soja env set NAME -p <project> [-r <repository>] -e <environment>  (the value is read from the keyboard or stdin)');
   if (positionals.length > 1) throw new ValidationError('Values are never taken as arguments: they would stay in your shell history.', { hint: `Run \`soja env set ${name} …\` and type it, or pipe it: \`printf %s "$VALUE" | soja env set ${name} …\`.` });
   const { vault, project } = await resolveVault(services, env, session, values);
   const value = await readSecret(`${name} (${project.name} · ${vault.environment}): `);
@@ -119,7 +125,7 @@ async function set(services: AppServices, env: EnvOperations, session: Session, 
 
 async function remove(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values, positionals } = parseCommand(args, target);
-  const name = requireArg(positionals[0], 'variable name', 'soja env rm NAME -p <project> -e <environment>');
+  const name = requireArg(positionals[0], 'variable name', 'soja env rm NAME -p <project> [-r <repository>] -e <environment>');
   const { vault, project } = await resolveVault(services, env, session, values);
   await env.removeVariable(session, vault.id, name);
   success(`${name} removed from ${project.name} ${vault.environment}.`);
@@ -127,7 +133,7 @@ async function remove(services: AppServices, env: EnvOperations, session: Sessio
 
 async function grant(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values, positionals } = parseCommand(args, { ...target, days: { type: 'string', short: 'd' } });
-  const username = requireArg(positionals[0], 'person', 'soja env grant @user -p <project> -e <environment> --days 3|7|30');
+  const username = requireArg(positionals[0], 'person', 'soja env grant @user -p <project> [-r <repository>] -e <environment> --days 3|7|30');
   const days = Number(values.days ?? 7);
   if (!GRANT_DAYS.includes(days as GrantDays)) throw new ValidationError('Access lasts 3, 7 or 30 days.', { hint: 'Use --days 3, --days 7 or --days 30.' });
   const member = await memberNamed(services, session, username);
@@ -140,7 +146,7 @@ async function grant(services: AppServices, env: EnvOperations, session: Session
 
 async function revoke(services: AppServices, env: EnvOperations, session: Session, args: string[]) {
   const { values, positionals } = parseCommand(args, target);
-  const username = requireArg(positionals[0], 'person', 'soja env revoke @user -p <project> -e <environment>');
+  const username = requireArg(positionals[0], 'person', 'soja env revoke @user -p <project> [-r <repository>] -e <environment>');
   const member = await memberNamed(services, session, username);
   const { vault, project } = await resolveVault(services, env, session, values);
   const names = (await env.names(session, vault.id)).map((variable) => variable.name);
@@ -199,16 +205,32 @@ async function resolveProject(services: AppServices, session: Session, query: st
   return found;
 }
 
-async function resolveVault(services: AppServices, env: EnvOperations, session: Session, values: { project?: string | undefined; env?: string | undefined }) {
-  const project = await resolveProject(services, session, values.project);
-  const environment = environmentOf(requireArg(values.env, 'environment', '-e development|staging|production'));
-  return { project, vault: pick(await env.vaults(session, project.id), environment, project.name) };
+/** A repository of the project by name (`-r backend`); none means the whole project. */
+async function resolveRepository(services: AppServices, session: Session, projectId: string, name: string | undefined) {
+  if (!name) return null;
+  const summary = (await services.projects.list(session)).find((project) => project.id === projectId);
+  const wanted = name.trim().toLowerCase();
+  const repository = summary?.repositories.find((candidate) => candidate.name.toLowerCase() === wanted);
+  if (!repository) {
+    const known = summary?.repositories.map((candidate) => candidate.name).join(', ');
+    throw new ValidationError(`No repository “${name}” in this project.`, { hint: known ? `Repositories: ${known}. Without -r you use the variables of the whole project.` : 'Add repositories with `soja project repo add`.' });
+  }
+  return repository;
 }
 
-function pick(vaults: EnvVaultView[], environment: EnvEnvironment, projectName: string): EnvVaultView {
-  const vault = vaults.find((candidate) => candidate.environment === environment);
-  if (!vault) throw new ValidationError(`${projectName} has no ${environment} variables yet.`, { hint: `An owner creates them with \`soja env create -e ${environment}\`.` });
-  return vault;
+function where(project: { name: string }, repository: { name: string } | null): string {
+  return repository ? `${project.name}/${repository.name}` : project.name;
+}
+
+async function resolveVault(services: AppServices, env: EnvOperations, session: Session, values: { project?: string | undefined; repo?: string | undefined; env?: string | undefined }) {
+  const project = await resolveProject(services, session, values.project);
+  const repository = await resolveRepository(services, session, project.id, values.repo);
+  const environment = environmentOf(requireArg(values.env, 'environment', '-e development|staging|production'));
+  const vault = (await env.vaults(session, project.id)).find((candidate) => candidate.environment === environment && candidate.repositoryId === (repository?.id ?? null));
+  const label = where(project, repository);
+  if (!vault) throw new ValidationError(`${label} has no ${environment} variables yet.`, { hint: `An owner creates them with \`soja env create -p ${project.key}${repository ? ` -r ${repository.name}` : ''} -e ${environment}\`.` });
+  // Messages name the repository too; the vault keeps the scope this machine asked for.
+  return { project: { ...project, name: label }, vault: { ...vault, projectId: project.id, repositoryId: repository?.id ?? null, environment } };
 }
 
 async function memberNamed(services: AppServices, session: Session, username: string) {

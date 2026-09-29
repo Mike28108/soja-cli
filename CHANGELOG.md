@@ -7,6 +7,12 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-29
+
+### Added
+
+- **Variables de entorno por repositorio** (requiere `soja-backend` ≥ 1.6.0). En un proyecto con varios repositorios, cada uno puede tener sus propias variables además de las de todo el proyecto: `soja env … -r <repositorio>` y pestañas en la pantalla de variables (`←`/`→`). `soja run` en la carpeta de un repositorio junta las del proyecto y las suyas (las del repositorio ganan si un nombre coincide), y los accesos se dan por repositorio. El owner firma a qué proyecto, repositorio y entorno pertenece cada bóveda; las de v1.9 se firman solas la primera vez que un owner escribe en ellas.
+
 ## [1.9.0] - 2026-09-28
 
 ### Added
@@ -308,7 +314,8 @@ Primera milestone: SOJA usable de punta a punta, local-first.
 - **Errores:** mensajes amigables sin stack traces; `SOJA_DEBUG=1` para ver el detalle.
 - **Calidad:** 73 tests (dominio, servicios, configuración, persistencia, flujos de UI con ink-testing-library), TypeScript estricto y ESLint.
 
-[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/Mike28108/soja-cli/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/Mike28108/soja-cli/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/Mike28108/soja-cli/compare/v1.8.0...v1.9.0
 [1.6.0]: https://github.com/Mike28108/soja-cli/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Mike28108/soja-cli/compare/v1.5.0...v1.5.1

@@ -6,6 +6,7 @@ import { SojaError, ValidationError } from '../../domain/errors.js';
 import {
   decryptValue,
   encryptValue,
+  descriptorStatement,
   envelopeStatement,
   fingerprint,
   generateDevice,
@@ -28,10 +29,17 @@ function safeDevice<T extends { username: string | null; label: string }>(device
   return { ...device, username: device.username === null ? null : terminalSafe(device.username), label: terminalSafe(device.label) };
 }
 
+interface Descriptor {
+  signature: string;
+  signerDeviceKeyId: string;
+}
+
 interface VaultRow {
   id: string;
   projectId: string;
+  repositoryId: string | null;
   environment: EnvEnvironment;
+  descriptor: Descriptor | null;
   keyVersion: number;
   variables: number;
   names?: { name: string; updatedAt: string }[];
@@ -42,7 +50,7 @@ interface VaultRow {
 }
 
 interface Material {
-  vault: { id: string; projectId: string; environment: EnvEnvironment; keyVersion: number };
+  vault: { id: string; projectId: string; repositoryId: string | null; environment: EnvEnvironment; keyVersion: number; descriptor: Descriptor | null };
   access: { expiresAt: string | null };
   envelope: { keyVersion: number; sealed: string; signerDeviceKeyId: string; signature: string };
   variables: { name: string; keyVersion: number; ciphertext: string; signerDeviceKeyId: string; signature: string; updatedAt: string }[];
@@ -125,7 +133,7 @@ export class RemoteEnvService implements EnvOperations {
     return projectId ? views.filter((vault) => vault.projectId === projectId) : views;
   }
 
-  async createVault(session: Session, projectId: string, environment: EnvEnvironment): Promise<EnvVaultView> {
+  async createVault(session: Session, projectId: string, repositoryId: string | null, environment: EnvEnvironment): Promise<EnvVaultView> {
     const context = await this.trustContext(session);
     requireOwner(context, 'create environment variables');
     // The id is chosen here: every envelope is bound to it before the server sees anything.
@@ -133,7 +141,8 @@ export class RemoteEnvService implements EnvOperations {
     const owners = (await this.serverDevices(session)).filter((device) => device.role === 'owner');
     // This machine and owners already pinned; the others are shared with once confirmed.
     const { envelopes } = this.sealForAll(newVaultKey(), owners, vault, context, 'pinned-only');
-    await this.api.post(`${this.base(session)}/vaults`, { id: vault.vaultId, projectId, environment, envelopes });
+    const descriptor = this.signedDescriptor(vault, projectId, repositoryId, context);
+    await this.api.post(`${this.base(session)}/vaults`, { id: vault.vaultId, projectId, repositoryId, environment, descriptor, envelopes });
     this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
     const created = (await this.vaults(session, projectId)).find((row) => row.id === vault.vaultId);
     if (!created) throw new SojaError('The server did not keep the new environment.');
@@ -152,6 +161,7 @@ export class RemoteEnvService implements EnvOperations {
     requireOwner(context, 'write environment variables');
     const material = await this.material(session, ref);
     const { key, vault } = this.openKey(session, material, context, ref, 'write');
+    await this.signIfUnsigned(session, material, ref, context);
     const ciphertext = encryptValue(key, name, value, vault);
     const signature = signStatement(valueStatement(vault, name, ciphertext), context.device.secrets);
     await this.api.request('PUT', `${this.base(session)}/vaults/${ref.id}/variables/${encodeURIComponent(name)}`, { keyVersion: vault.keyVersion, ciphertext, signerDeviceKeyId: context.device.id, signature });
@@ -200,6 +210,7 @@ export class RemoteEnvService implements EnvOperations {
     requireOwner(context, 'rotate environment keys');
     const material = await this.material(session, ref);
     const { key: oldKey, vault } = this.openKey(session, material, context, ref, 'write');
+    await this.signIfUnsigned(session, material, ref, context);
     const values = this.decryptAll(material, oldKey, vault, context, 'pinned-only');
     const row = (await this.vaults(session, ref.projectId)).find((candidate) => candidate.id === ref.id);
     const grantees = new Set((row?.grants ?? []).map((grant) => grant.userId));
@@ -235,7 +246,7 @@ export class RemoteEnvService implements EnvOperations {
     // Only now, with every signature checked, remember devices seen for the first time.
     this.savePins(session, { ...pins, ...this.valueSignerPins(material, withPins) });
     this.keys.markIntroduced(this.api.baseUrl, session.workspace.id);
-    return { vaultId: ref.id, projectId: ref.projectId, environment: ref.environment, variables, expiresAt: material.access.expiresAt ? new Date(material.access.expiresAt) : null };
+    return { vaultId: ref.id, projectId: ref.projectId, repositoryId: ref.repositoryId, environment: ref.environment, variables, expiresAt: material.access.expiresAt ? new Date(material.access.expiresAt) : null };
   }
 
   // ── Verification ─────────────────────────────────────────────────────
@@ -245,10 +256,11 @@ export class RemoteEnvService implements EnvOperations {
    * asked for and who sealed it, according to what it will be used for.
    */
   private openKey(session: Session, material: Material, context: TrustContext, ref: VaultRef, purpose: Purpose): { key: Buffer; vault: VaultContext; pins: Record<string, TrustedDevice> } {
-    if (material.vault.id !== ref.id || material.vault.environment !== ref.environment || material.vault.projectId !== ref.projectId) {
+    if (material.vault.id !== ref.id || material.vault.environment !== ref.environment || material.vault.projectId !== ref.projectId || material.vault.repositoryId !== ref.repositoryId) {
       throw tampered(`The server answered with other variables than ${ref.environment}.`);
     }
     const vault: VaultContext = { workspaceId: session.workspace.id, vaultId: ref.id, environment: ref.environment, keyVersion: material.vault.keyVersion };
+    const descriptorPins = this.checkDescriptor(material, ref, vault, context, purpose);
     if (material.envelope.keyVersion !== vault.keyVersion) throw tampered('The key you received is not the current one.');
     const signer = material.signers.find((device) => device.id === material.envelope.signerDeviceKeyId);
     if (!signer) throw tampered('The key you received has no known signer.');
@@ -260,7 +272,39 @@ export class RemoteEnvService implements EnvOperations {
       throw tampered('The signature on your key does not match.');
     }
     const key = openVaultKey(material.envelope.sealed, { id: context.device.id, secrets: context.device.secrets }, vault);
-    return { key, vault, pins: decision.kind === 'first-use' ? { [signer.id]: decision.pin } : {} };
+    return { key, vault, pins: { ...descriptorPins, ...(decision.kind === 'first-use' ? { [signer.id]: decision.pin } : {}) } };
+  }
+
+  /**
+   * The owner-signed descriptor ties the vault to its project, repository and
+   * environment. Vaults from v1.9 have none: they only count as whole-project.
+   */
+  private checkDescriptor(material: Material, ref: VaultRef, vault: VaultContext, context: TrustContext, purpose: Purpose): Record<string, TrustedDevice> {
+    const descriptor = material.vault.descriptor;
+    if (!descriptor) {
+      if (ref.repositoryId !== null) throw tampered('These repository variables are not signed by an owner.');
+      return {};
+    }
+    const signer = material.signers.find((device) => device.id === descriptor.signerDeviceKeyId);
+    if (!signer) throw tampered('The environment has no known signer.');
+    const decision = this.decide(signer, context, purpose === 'read' ? 'bootstrap' : 'pinned-only');
+    if (acceptedRole(decision) !== 'owner') throw tampered('The environment was not set up by a workspace owner.');
+    const signingKey = decision.kind === 'trusted' && decision.pinned ? decision.pinned.signingKey : signer.signingKey;
+    if (!verifyStatement(descriptorStatement(vault, ref.projectId, ref.repositoryId), descriptor.signature, signingKey)) {
+      throw tampered('The signature on this environment does not match its project, repository or environment.');
+    }
+    return decision.kind === 'first-use' ? { [signer.id]: decision.pin } : {};
+  }
+
+  private signedDescriptor(vault: Omit<VaultContext, 'keyVersion'>, projectId: string, repositoryId: string | null, context: TrustContext): Descriptor {
+    return { signerDeviceKeyId: context.device.id, signature: signStatement(descriptorStatement(vault, projectId, repositoryId), context.device.secrets) };
+  }
+
+  /** A v1.9 vault gets its descriptor from the first owner who writes to it (always whole-project). */
+  private async signIfUnsigned(session: Session, material: Material, ref: VaultRef, context: TrustContext): Promise<void> {
+    if (material.vault.descriptor || ref.repositoryId !== null) return;
+    const descriptor = this.signedDescriptor({ workspaceId: session.workspace.id, vaultId: ref.id, environment: ref.environment }, ref.projectId, null, context);
+    await this.api.request('PUT', `${this.base(session)}/vaults/${ref.id}/descriptor`, descriptor);
   }
 
   /** Every value must be signed by a trusted owner device, for this exact vault, name and key version. */
@@ -390,6 +434,7 @@ function toView(row: VaultRow): EnvVaultView {
   return {
     id: row.id,
     projectId: row.projectId,
+    repositoryId: row.repositoryId ?? null,
     environment: row.environment,
     keyVersion: row.keyVersion,
     variables: row.variables,

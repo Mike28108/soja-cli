@@ -4,7 +4,7 @@ SOJA es un workspace de desarrollo que empieza en la terminal. Este archivo desc
 
 Las versiones son hitos propuestos y pueden ajustarse según lo que aprendamos al usar la herramienta. Cada etapa debe terminar con un flujo usable, persistencia comprobada y documentación actualizada.
 
-## v1.9 — Variables de entorno cifradas (publicado en v1.9.0)
+## v1.9 — Variables de entorno cifradas (publicado en v1.9.0; por repositorio en v1.10.0)
 
 Decidido (2026-09-28): compartir variables de entorno de un proyecto con los devs del workspace, incluidas las de producción, sin que el servidor pueda leerlas y sin archivos `.env`. Solo en modo remoto.
 

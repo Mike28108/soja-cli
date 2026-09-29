@@ -13,6 +13,8 @@ interface Variable { name: string; keyVersion: number; ciphertext: string; signe
 interface Vault {
   id: string;
   projectId: string;
+  repositoryId: string | null;
+  descriptor: { signature: string; signerDeviceKeyId: string } | null;
   environment: 'development' | 'staging' | 'production';
   keyVersion: number;
   rotationRequired: boolean;
@@ -81,7 +83,7 @@ export class FakeEnvServer {
     if (method === 'GET' && path === `${ws}/env/vaults`) return json(200, { vaults: [...this.vaults.values()].map((vault) => this.view(vault, user)) });
     if (method === 'POST' && path === `${ws}/env/vaults`) {
       if (user.role !== 'owner') throw new Reply(403, 'Owners only.');
-      const vault: Vault = { id: String(body.id), projectId: String(body.projectId), environment: body.environment as Vault['environment'], keyVersion: 1, rotationRequired: false, envelopes: new Map(), variables: new Map(), grants: new Map(), history: ['vault_created'] };
+      const vault: Vault = { id: String(body.id), projectId: String(body.projectId), repositoryId: typeof body.repositoryId === 'string' ? body.repositoryId : null, descriptor: (body.descriptor as Vault['descriptor']) ?? null, environment: body.environment as Vault['environment'], keyVersion: 1, rotationRequired: false, envelopes: new Map(), variables: new Map(), grants: new Map(), history: ['vault_created'] };
       this.vaults.set(vault.id, vault);
       for (const envelope of body.envelopes as Envelope[]) vault.envelopes.set(envelope.deviceKeyId, { ...envelope, keyVersion: 1 });
       return json(201, { vault: { id: vault.id } });
@@ -97,14 +99,20 @@ export class FakeEnvServer {
       const envelope = vault.envelopes.get(deviceId);
       if (!envelope || envelope.keyVersion !== vault.keyVersion) throw new Reply(409, 'Not shared with this device yet.');
       vault.history.push('fetched');
-      const signerIds = new Set([envelope.signerDeviceKeyId, ...[...vault.variables.values()].map((variable) => variable.signerDeviceKeyId)]);
+      const signerIds = new Set([envelope.signerDeviceKeyId, ...(vault.descriptor ? [vault.descriptor.signerDeviceKeyId] : []), ...[...vault.variables.values()].map((variable) => variable.signerDeviceKeyId)]);
       return json(200, {
-        vault: { id: vault.id, projectId: vault.projectId, environment: vault.environment, keyVersion: vault.keyVersion },
+        vault: { id: vault.id, projectId: vault.projectId, repositoryId: vault.repositoryId, environment: vault.environment, keyVersion: vault.keyVersion, descriptor: vault.descriptor },
         access: { expiresAt: user.role === 'owner' ? null : vault.grants.get(user.id)?.expiresAt.toISOString() },
         envelope,
         variables: [...vault.variables.values()],
         signers: [...signerIds].flatMap((id) => { const device = this.devices.get(id); return device ? [this.describe(device)] : []; }),
       });
+    }
+    if (method === 'PUT' && rest === 'descriptor') {
+      if (user.role !== 'owner') throw new Reply(403, 'Owners only.');
+      if (vault.descriptor) throw new Reply(409, 'Already signed.');
+      vault.descriptor = body as Vault['descriptor'];
+      return json(200, { signed: true });
     }
     const variable = /^variables\/([^/]+)$/.exec(rest);
     if (variable && method === 'PUT') {
@@ -169,6 +177,8 @@ export class FakeEnvServer {
     return {
       id: vault.id,
       projectId: vault.projectId,
+      repositoryId: vault.repositoryId,
+      descriptor: vault.descriptor,
       environment: vault.environment,
       keyVersion: vault.keyVersion,
       variables: vault.variables.size,

@@ -26,6 +26,8 @@ export interface EnvDeviceView {
 export interface VaultRef {
   id: string;
   projectId: string;
+  /** Null: shared by every repository of the project. */
+  repositoryId: string | null;
   environment: EnvEnvironment;
 }
 
@@ -48,6 +50,7 @@ export interface EnvVaultView extends VaultRef {
 export interface LoadedVault {
   vaultId: string;
   projectId: string;
+  repositoryId: string | null;
   environment: EnvEnvironment;
   variables: Record<string, string>;
   expiresAt: Date | null;
@@ -72,7 +75,8 @@ export interface EnvOperations {
   removeDevice(deviceId: string): Promise<void>;
 
   vaults(session: Session, projectId?: string): Promise<EnvVaultView[]>;
-  createVault(session: Session, projectId: string, environment: EnvEnvironment): Promise<EnvVaultView>;
+  /** `repositoryId` null: variables for the whole project. */
+  createVault(session: Session, projectId: string, repositoryId: string | null, environment: EnvEnvironment): Promise<EnvVaultView>;
   /** Names only: values are never listed. */
   names(session: Session, vaultId: string): Promise<{ name: string; updatedAt: Date }[]>;
   setVariable(session: Session, vault: VaultRef, name: string, value: string): Promise<void>;

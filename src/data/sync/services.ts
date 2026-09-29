@@ -175,6 +175,10 @@ export class ReplicaProjectService implements ProjectOperations {
     return this.local.findByRepository(session, path);
   }
 
+  locate(session: Session, path: string) {
+    return this.local.locate(session, path);
+  }
+
   async addRepository(session: Session, project: Project, input: { id?: string; name: string; path: string }) {
     const name = input.name.trim().toLowerCase().replace(/\s+/g, '-');
     const shared = await online('Adding a project repository', () => this.context.api.post<ProjectRepository>(`/v1/workspaces/${session.workspace.id}/projects/${project.id}/repositories`, { name }));

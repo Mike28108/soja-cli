@@ -37,7 +37,7 @@ function person(username: string, role: 'owner' | 'member') {
 async function ownerWithProduction() {
   const michael = person('michael', 'owner');
   await michael.env.setup('michael-laptop');
-  const vault = await michael.env.createVault(michael.session, project, 'production');
+  const vault = await michael.env.createVault(michael.session, project, null, 'production');
   await michael.env.setVariable(michael.session, vault, 'DATABASE_URL', 'postgres://prod');
   await michael.env.setVariable(michael.session, vault, 'STRIPE_KEY', 'sk_live_123');
   return { michael, vault };
@@ -188,8 +188,12 @@ describe('a compromised server', () => {
     stored.envelopes.set(angelDevice.id, { deviceKeyId: angelDevice.id, sealed, signerDeviceKeyId: brunoKeys.id, signature: signStatement(envelopeStatement(context, angelDevice.id, sealed), brunoKeys.secrets), keyVersion: 1 });
     // Bruno's device was never confirmed by Angel, so its seal counts for nothing…
     await expect(angel.env.load(angel.session, vault)).rejects.toThrow('has not seen before');
-    // …and even once Angel confirms it, a member cannot seal production.
+    // …and even once Angel confirms it (and Michael's laptop, since confirming ends the
+    // first-use window), a member cannot seal production.
     await angel.env.trust(angel.session, brunoKeys.id);
+    const michaelDevice = michael.env.thisDevice();
+    if (!michaelDevice) throw new Error('setup');
+    await angel.env.trust(angel.session, michaelDevice.id);
     await expect(angel.env.load(angel.session, vault)).rejects.toThrow('Production keys must be shared by an owner');
   });
 
@@ -269,7 +273,7 @@ describe('security review regressions', () => {
   it('an owner never writes with a key sealed by a device it has not pinned (the server would read the value)', async () => {
     const michael = person('michael', 'owner');
     await michael.env.setup('michael-laptop');
-    const vault = await michael.env.createVault(michael.session, project, 'staging');
+    const vault = await michael.env.createVault(michael.session, project, null, 'staging');
     const michaelDevice = michael.env.thisDevice();
     const stored = server.vaults.get(vault.id);
     const michaelPublic = michaelDevice ? server.devices.get(michaelDevice.id) : undefined;
@@ -319,17 +323,54 @@ describe('security review regressions', () => {
     const ctx = context(vault.id, 'production');
     const sealed = sealVaultKey(newVaultKey(), { id: michaelDevice.id, encryptionKey: michaelPublic.encryptionKey }, ctx);
     stored.envelopes.set(michaelDevice.id, { deviceKeyId: michaelDevice.id, sealed, signerDeviceKeyId: boss.id, signature: signStatement(envelopeStatement(ctx, michaelDevice.id, sealed), bossKeys), keyVersion: 1 });
-    await expect(told.load(michael.session, vault)).rejects.toThrow('has not seen before');
+    // Refused: under the role the server claims, not even his own signature counts as an owner's.
+    await expect(told.load(michael.session, vault)).rejects.toThrow('not set up by a workspace owner');
   });
 
   it('refuses material for another vault than the one asked for', async () => {
     const { michael, vault } = await ownerWithProduction();
-    const staging = await michael.env.createVault(michael.session, project, 'staging');
+    const staging = await michael.env.createVault(michael.session, project, null, 'staging');
     await michael.env.setVariable(michael.session, staging, 'DATABASE_URL', 'postgres://staging');
     // Asking for staging, the server answers with production (which Michael can read too).
     const original = server.fetch;
     const swapped: typeof fetch = (input, init) => original(String(input).replace(`/vaults/${staging.id}/material`, `/vaults/${vault.id}/material`), init);
     const swappedEnv = new RemoteEnvService(new ApiClient(SERVER, 'token-michael', swapped), michael.keys, () => server.now);
     await expect(swappedEnv.load(michael.session, staging)).rejects.toThrow('other variables than staging');
+  });
+});
+
+describe('variables per repository', () => {
+  it('a repository has its own vault, bound by the owner’s signature to that repository', async () => {
+    const michael = person('michael', 'owner');
+    await michael.env.setup('michael-laptop');
+    const backend = randomUUID();
+    const frontend = randomUUID();
+    const vault = await michael.env.createVault(michael.session, project, backend, 'production');
+    expect(vault.repositoryId).toBe(backend);
+    await michael.env.setVariable(michael.session, vault, 'STRIPE_KEY', 'sk_live_backend');
+    expect((await michael.env.load(michael.session, vault)).variables).toEqual({ STRIPE_KEY: 'sk_live_backend' });
+
+    // The server relabels the backend vault as the frontend's: the signed descriptor says otherwise.
+    const stored = server.vaults.get(vault.id);
+    if (!stored) throw new Error('setup');
+    stored.repositoryId = frontend;
+    await expect(michael.env.load(michael.session, { ...vault, repositoryId: frontend })).rejects.toThrow('does not match its project, repository or environment');
+    // Or claims it is the whole project's.
+    stored.repositoryId = null;
+    await expect(michael.env.load(michael.session, { ...vault, repositoryId: null })).rejects.toThrow('does not match');
+  });
+
+  it('a v1.9 vault without a descriptor only counts as whole-project, and the first owner write signs it', async () => {
+    const { michael, vault } = await ownerWithProduction();
+    const stored = server.vaults.get(vault.id);
+    if (!stored) throw new Error('setup');
+    stored.descriptor = null;
+    stored.repositoryId = randomUUID();
+    await expect(michael.env.load(michael.session, { ...vault, repositoryId: stored.repositoryId })).rejects.toThrow('not signed by an owner');
+    stored.repositoryId = null;
+    expect((await michael.env.load(michael.session, vault)).variables).toHaveProperty('DATABASE_URL');
+    await michael.env.setVariable(michael.session, vault, 'NEW_ONE', 'x');
+    expect(stored.descriptor).not.toBeNull();
+    expect((await michael.env.load(michael.session, vault)).variables).toHaveProperty('NEW_ONE', 'x');
   });
 });
