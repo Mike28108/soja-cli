@@ -15,6 +15,7 @@ describe('resolvePaths', () => {
       databaseFile: '/data/soja/soja.db',
       configFile: '/conf/soja/config.json',
       credentialsFile: '/conf/soja/credentials.json',
+      envKeysFile: '/conf/soja/env-keys.json',
     });
   });
 
