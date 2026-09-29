@@ -172,6 +172,11 @@ export const symbols = {
   cross: '✕',
   active: '●',
   inactive: '○',
+  /** One per character of a secret being typed. */
+  secret: '•',
+  /** A program running with shared variables. */
+  play: '▶',
+  lock: '⚿',
   rule: '─',
   comment: '›',
   ellipsis: '…',

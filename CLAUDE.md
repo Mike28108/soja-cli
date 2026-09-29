@@ -35,6 +35,7 @@ y haz commit `release: vX.Y.Z` con el tag `vX.Y.Z`.
 - Publicado: v1.1, solo interfaz, en v1.1.0 (ver `ROADMAP.md`): marco tipo aplicación, paleta propia clara/oscura, mouse. Componentes en `ui/kit/` y `ui/chrome/`; nunca `useInput` directo en componentes (todo pasa por `KeyProvider`). Los tags `vX.Y.Z` publican el release con su paquete (`release.yml`).
 - Publicado: v1.4 (npm con OIDC y provenance, `soja account delete`, HTTPS obligatorio) en v1.4.0, con `soja-backend` 1.2.0. El repositorio es público con licencia propietaria: solo colaboradores aprobados abren PRs y `main` exige PR; nunca pongas secretos en el cliente. Usa el email noreply de GitHub en los commits.
 - Publicado: interruptor del mouse (adelanto de v1.5) en v1.5.0. `publish.yml` solo deja la versión en espera en npm (`npm stage publish`); el propietario la aprueba con `npm stage approve` y 2FA.
+- Publicado: v1.9 (variables de entorno cifradas de extremo a extremo, `soja run`, `soja env`) en v1.9.0, con `soja-backend` 1.5.0. Contrato en `soja-backend/docs/ENV.md`; nunca uses material que el servidor envía sin verificarlo contra lo fijado localmente (`src/env/trust.ts`).
 - Antes de cambiar el alcance de un hito, actualiza `ROADMAP.md` y mantén `docs/SOJA.md` como descripción del estado implementado.
 
 ## Verificación antes de terminar

@@ -12,7 +12,9 @@ import type { GitClient } from '../../git/types.js';
 import { createLocalRepositories } from '../local/index.js';
 import type { ApiClient } from '../remote/api-client.js';
 import { LiveConnection } from '../remote/live.js';
+import { EnvKeyStore } from '../../env/keystore.js';
 import { ReplicaChatService } from './chat.js';
+import { RemoteEnvService } from './env.js';
 import { ReplicaFinanceService } from './finance.js';
 import { ReplicaIntakeService } from './intake.js';
 import { LocalImporter } from './importer.js';
@@ -56,6 +58,8 @@ export function createReplicaServices(
   WebSocketImpl: typeof WebSocket | undefined,
   localDatabaseFile: string | undefined,
   backups: BackupOperations,
+  /** This machine's device keys for shared environment variables; without it there is no `env`. */
+  envKeysFile?: string,
 ): AppServices & { sync: SyncControl } {
   const repos = createLocalRepositories(handle);
   const store = new ReplicaStore(handle.db);
@@ -127,6 +131,7 @@ export function createReplicaServices(
     chat: new ReplicaChatService(context, tasks),
     finance: new ReplicaFinanceService(context),
     intake: new ReplicaIntakeService(context),
+    ...(envKeysFile ? { env: new RemoteEnvService(api, new EnvKeyStore(envKeysFile)) } : {}),
     ...(localDatabaseFile ? { importer: new LocalImporter(localDatabaseFile, config, api, store, engine) } : {}),
     git: new GitWorkflowService(tasks, projects, git),
     folders: new FolderService(config),

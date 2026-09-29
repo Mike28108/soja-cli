@@ -24,7 +24,7 @@ afterEach(() => {
 /** A developer who used SOJA locally (username michael), then signs in to a team server. */
 async function localThenRemote(): Promise<{ remote: AppRuntime; config: MemoryConfigStore; repo: string }> {
   const databaseFile = join(dir.path, 'soja.db');
-  const paths = { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile };
+  const paths = { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile };
   const config = new MemoryConfigStore();
   const local = await bootstrap({ paths, config });
   const session = await local.services.session.setup({ displayName: 'Michael', username: 'michael', workspaceName: 'Bravos Local' });
@@ -74,7 +74,7 @@ describe('importing local data to the team', () => {
     const credentials = new CredentialStore(join(dir.path, 'credentials.json'));
     credentials.save(SERVER, server.tokenFor(userId), 'michael');
     const remote = await bootstrap({
-      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: join(dir.path, 'none.db') },
+      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: join(dir.path, 'none.db') },
       config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: SERVER, userId } }),
       credentials,
       fetch: server.fetch,

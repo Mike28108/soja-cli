@@ -68,7 +68,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<AppRunt
       replica.close();
       throw error;
     }
-    const services = createReplicaServices(api, replica, config, git, gitConsole, options.WebSocket, paths.databaseFile, new BackupService({ label: new URL(loaded.remote.apiUrl).host, backupTo: (file) => replica.backupTo(file) }, backupDir(paths)));
+    const services = createReplicaServices(api, replica, config, git, gitConsole, options.WebSocket, paths.databaseFile, new BackupService({ label: new URL(loaded.remote.apiUrl).host, backupTo: (file) => replica.backupTo(file) }, backupDir(paths)), paths.envKeysFile || undefined);
     return {
       services,
       paths,

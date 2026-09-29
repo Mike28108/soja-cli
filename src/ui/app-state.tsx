@@ -69,15 +69,17 @@ interface ProviderProps {
   initialSession: Session;
   initialRoute?: Route;
   updates?: { check: () => Promise<UpdateCheck | null>; install: (version: string) => Promise<void> };
+  notice?: { text: string; hint?: string };
   children: ReactNode;
 }
 
-export function AppStateProvider({ services, cwd, initialSession, initialRoute, updates, children }: ProviderProps) {
+export function AppStateProvider({ services, cwd, initialSession, initialRoute, updates, notice, children }: ProviderProps) {
   const { exit } = useApp();
   const [session, setSession] = useState(initialSession);
   const [stack, dispatch] = useReducer(navigate, navigate([{ name: 'home' }], { type: 'reset', ...(initialRoute ? { route: initialRoute } : {}) }));
   const [overlay, setOverlay] = useState<Overlay | null>(null);
-  const [flash, setFlash] = useState<Flash | null>(null);
+  // A notice from launch (e.g. `soja run` unavailable) is the first thing shown.
+  const [flash, setFlash] = useState<Flash | null>(notice ? { id: 0, text: notice.text, tone: 'error', hint: notice.hint } : null);
   const [revision, setRevision] = useState(0);
   const [queryEpochs, setQueryEpochs] = useState<Record<string, number>>({});
   const [homeFilter, setHomeFilter] = useState<TaskFilter>(initialRoute?.name === 'home' && initialRoute.filter ? initialRoute.filter : 'mine');

@@ -29,6 +29,24 @@ export function useCommandPalette(newTaskProjectId: string | null): () => void {
       { id: 'projects', label: 'Projects', key: shortcuts.projects, run: () => go({ type: 'push', route: { name: 'projects' } }) },
       { id: 'switch-project', label: 'Switch project', run: () => flows.pickProject() },
       { id: 'new-project', label: 'New project', run: () => flows.newProject() },
+      ...(services.env
+        ? [{
+            id: 'env',
+            label: 'Environment variables',
+            run: async () => {
+              if (newTaskProjectId) return go({ type: 'push', route: { name: 'env', projectId: newTaskProjectId } });
+              const projects = await services.projects.list(session);
+              if (!projects.length) return notify('Create a project first.', 'info');
+              openOverlay({
+                kind: 'picker',
+                title: 'Environment variables of…',
+                options: projects.map((project) => ({ value: project.id, label: project.name, hint: project.key })),
+                filterable: true,
+                onSelect: (projectId) => go({ type: 'push', route: { name: 'env', projectId } }),
+              });
+            },
+          }]
+        : []),
       { id: 'switch-workspace', label: 'Switch workspace', run: () => flows.pickWorkspace() },
       { id: 'workspaces', label: 'Workspaces', key: shortcuts.workspaces, run: () => go({ type: 'push', route: { name: 'workspaces' } }) },
       ...(services.finance ? [{ id: 'finance', label: 'Finance & performance', key: shortcuts.finance, run: () => go({ type: 'push', route: { name: 'finance' } }) }] : []),

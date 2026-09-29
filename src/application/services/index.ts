@@ -1,4 +1,5 @@
 import type { ConfigStore } from '../../config/config.js';
+import type { EnvOperations } from '../env.js';
 import type { Repositories } from '../../data/repositories.js';
 import { GitConsole } from '../../git/console.js';
 import type { SyncControl } from '../../data/sync/index.js';
@@ -47,6 +48,8 @@ export interface AppServices {
   finance?: FinanceOperations;
   /** Per-project external ticket intake management; remote owner only. */
   intake?: IntakeOperations;
+  /** Shared, end-to-end encrypted environment variables; remote mode only. */
+  env?: EnvOperations;
   /** Brings local-mode data to the server; remote mode only. */
   importer?: ImportOperations;
   /** Copies of the database in use (local, or the remote-mode replica). */

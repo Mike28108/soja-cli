@@ -6,9 +6,9 @@
 
 | | |
 | --- | --- |
-| Versión de la app | **1.6.0** |
-| Versión del documento | **1.6.0** (revisión 1) |
-| Última actualización | 2026-09-26 |
+| Versión de la app | **1.9.0** |
+| Versión del documento | **1.9.0** (revisión 1) |
+| Última actualización | 2026-09-28 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
 
@@ -57,7 +57,7 @@ Solicitud externa → Developer la registra en SOJA → Proyecto → Developer a
 - Terminal-native, keyboard-first y minimalista, con identidad propia.
 - Funcionalidades reales y persistentes; nada de prototipos con datos simulados.
 
-### Estado actual (v1.7.1)
+### Estado actual (v1.9.0)
 
 Dos modos. **Local** (predeterminado): todo vive en SQLite en tu máquina, sin cuenta ni servidor. **Remoto**: un equipo comparte workspaces, proyectos y tasks a través de `soja-backend`, con login de GitHub, trabajo sin conexión y **chat del equipo en tiempo real** (ver [§9](#9-modo-remoto-equipo)). En ambos, el flujo Git de v0.2 (ver [§8](#8-flujo-de-trabajo-con-git)) funciona en tu máquina, y con la CLI `gh` SOJA muestra y mergea los pull requests de GitHub con su CI (v0.6). La v1.0 consolida todo: archivar y borrar tasks, llevar el trabajo local al equipo (`soja import-local`), editar proyectos y canales, `$EDITOR`, copias diarias, instalación y actualización desde GitHub Releases, y CI con pruebas de extremo a extremo.
 
@@ -494,6 +494,25 @@ El texto pegado se inserta completo; los saltos de línea se convierten en espac
 | `n` | Nuevo proyecto |
 | `r` | Elegir el repositorio del proyecto (selector de carpetas) |
 | `e` | Editar nombre, descripción o URL |
+| `V` | Variables de entorno del proyecto (modo remoto) |
+
+### Variables de entorno
+
+Pantalla por proyecto (`V` en Proyectos o *Environment variables* en la command palette): a la izquierda los tres entornos con tu acceso, a la derecha los nombres de sus variables (los valores nunca se muestran), quién tiene acceso temporal, dispositivos que esperan y cómo usarlas con `soja run`.
+
+| Tecla | Acción |
+| --- | --- |
+| `↑` / `↓`, `j` / `k` | Elegir entorno |
+| `S` | Preparar esta máquina (la primera vez) |
+| `c` | Crear el entorno (owners) |
+| `a` | Añadir o cambiar una variable: nombre y luego el valor, que se escribe como `••••` (owners) |
+| `d` | Borrar una variable (owners) |
+| `g` | Dar acceso por 3, 7 o 30 días |
+| `u` | Revocar un acceso: rota la clave y lista lo que esa persona vio (owners) |
+| `s` | Compartir con dispositivos nuevos que tienen acceso |
+| `R` | Rotar la clave (owners) |
+| `t` | Dispositivos y huellas; confirmar uno bloqueado |
+| `h` | Historial (owners) |
 
 ### Chat
 
@@ -644,6 +663,28 @@ soja sync [--dismiss]              # sincroniza ahora y muestra conflictos y rec
 Ver [§9](#9-modo-remoto-equipo).
 
 Una sesión GitHub pendiente o rechazada no habilita el modo remoto. En esta primera etapa el acceso al servidor oficial es solo por solicitud: se revisa en unas 24–48 h y se aprueba si encaja con la etapa del proyecto. Para nuevas cuentas, `soja login` solicita nombre, fecha de nacimiento, país (búsqueda por texto y selección de resultado) y una carta de interés. Hasta aprobarse, se conserva el trabajo local y las peticiones de workspace/chat no están disponibles. Cada aprobación debe ir seguida de la selección de workspace; una cuenta sin membresías no obtiene acceso por el hecho de ser aprobada.
+
+### Variables de entorno
+
+```bash
+soja run [-e <entorno>] -- <comando…>          # con las variables del proyecto de esta carpeta; necesita SOJA abierto
+soja env setup [--label <nombre>]               # prepara esta máquina y muestra su huella
+soja env ls                                      # entornos que ves, con tu acceso y su fecha límite
+soja env ls -p <proyecto> -e <entorno>           # nombres de las variables (nunca valores)
+soja env create -p <proyecto> -e <entorno>       # owners
+soja env set NOMBRE -p <proyecto> -e <entorno>   # owners; el valor se escribe oculto o llega por stdin
+soja env rm NOMBRE -p <proyecto> -e <entorno>    # owners
+soja env grant @usuario -p … -e … --days 3|7|30  # dar o renovar acceso
+soja env revoke @usuario -p … -e …               # owners; revoca, rota y lista lo que vio
+soja env share -p … -e …                         # sella para dispositivos nuevos con acceso
+soja env rotate -p … -e …                        # owners
+soja env history -p … -e …                       # owners
+soja env devices                                 # dispositivos del workspace con huella y confianza
+soja env trust <id>                              # tras comparar la huella con su dueño
+soja env devices remove <id>                     # retira un dispositivo tuyo
+```
+
+`-p` acepta la clave o el nombre del proyecto; sin `-p`, el proyecto vinculado al repositorio en el que estás. `-e` acepta `development`, `staging` y `production` (o `dev`, `stage`, `prod`). Un valor nunca se pasa como argumento, porque quedaría en el historial de la shell: `soja env set` lo pide sin mostrarlo, o lo lee de un pipe (`printf %s "$VALOR" | soja env set NOMBRE …`). Ver [§9](#variables-de-entorno-compartidas-v19).
 
 ### Chat
 
@@ -991,6 +1032,52 @@ En modo remoto, SOJA muestra texto que escriben otros: títulos, descripciones, 
 
 Un intento queda visible como texto inofensivo (por ejemplo `[2J`), sin efecto. El servidor, además, rechaza caracteres de control al guardar.
 
+### Variables de entorno compartidas (v1.9)
+
+Las variables de entorno de un proyecto (`DATABASE_URL`, claves de Stripe…), incluidas las de producción, se comparten con el equipo **sin archivos `.env`** y sin que el servidor pueda leerlas. Requiere `soja-backend` ≥ 1.5.0. El protocolo y sus formatos están en `soja-backend/docs/ENV.md`.
+
+**Cómo se usan.** Con SOJA abierto en una terminal, desde la carpeta de un repositorio vinculado al proyecto:
+
+```bash
+soja run -- npm run dev                # el único entorno al que tienes acceso
+soja run -e staging -- npm run dev     # uno concreto
+```
+
+SOJA arranca el comando con las variables en su entorno. No se escribe nada en disco. Si cierras SOJA, si tu acceso vence o si te lo revocan, SOJA **detiene el comando y todo lo que haya lanzado**. Con SOJA cerrado, `soja run` no arranca nada.
+
+**Cifrado de extremo a extremo.**
+
+- La primera vez, `soja env setup` (o `S` en la pantalla de variables) crea en tu máquina un par de claves X25519 (para recibir) y otro Ed25519 (para firmar). Solo las públicas llegan al servidor; las privadas quedan en `env-keys.json` (permisos `0600`).
+- Cada entorno de un proyecto (`development`, `staging`, `production`) es una **bóveda** con su propia clave AES-256-GCM, sellada para cada dispositivo con acceso.
+- El servidor guarda texto cifrado, sobres y firmas. Los **nombres** de las variables no se cifran.
+
+**Firmas y confianza.** Cada valor lo firma un dispositivo de un owner y cada sobre, quien lo selló. SOJA rechaza lo que no verifique, así que un servidor comprometido no puede leer ni **inyectar** variables. Los dispositivos de otras personas se fijan la primera vez que se ven (*trust on first use*), con su huella (`3F2A 91C0 …`):
+
+- Si cambian las claves de un dispositivo conocido, o aparece uno nuevo de alguien conocido, SOJA se detiene hasta que alguien compare la huella con su dueño y la confirme (`soja env trust <id>`, o `t` en la pantalla).
+- El primer uso solo vale en dos casos: un owner, en el **primer** contacto de esta máquina con el workspace (lo recuerda SOJA, no el servidor), y la persona a la que tú das acceso. Cualquier otro dispositivo nuevo se confirma antes de usarlo o de compartirle nada.
+- Para escribir o rotar, SOJA solo usa una clave que le selló un owner ya confiable; rotar y compartir solo sellan para dispositivos ya confiables. Lo que el servidor devuelve debe ser exactamente el proyecto y entorno que pediste.
+
+**Permisos.**
+
+| Quién | Qué puede hacer |
+| --- | --- |
+| Owners | Crean entornos, escriben y borran variables, dan y revocan accesos, rotan claves y ven el historial. Tienen acceso a todo. |
+| Miembros | Usan un entorno solo con un acceso de **3, 7 o 30 días**, que vence solo (lo aplica el servidor). Nunca escriben variables. Con acceso a `development` o `staging` pueden compartirlo con otro miembro; `production` solo lo comparten los owners. |
+
+**Revocar y rotar.**
+
+- Revocar un acceso, que venza o retirar un dispositivo marca el entorno para **rotación**.
+- Rotar genera una clave nueva y vuelve a cifrarlo todo, solo para quien sigue teniendo acceso.
+- `soja env revoke` rota en el acto y lista los valores que esa persona pudo ver, para cambiarlos en su proveedor. La rotación protege lo que escribas después, no lo que ya vio.
+
+**Nombres bloqueados.** `PATH`, `LD_PRELOAD`, `NODE_OPTIONS`, `BASH_ENV`, `DYLD_*`, `SOJA_*` y otros que hacen cargar código ajeno se rechazan en el servidor y, otra vez, antes de arrancar el comando.
+
+**Límites** (ver [§16](#16-limitaciones-conocidas-y-roadmap)):
+
+- Quien tiene acceso puede ver los valores desde su propio proceso mientras dura. Se evitan las copias en disco, el uso fuera de SOJA y el uso tras la fecha límite, no que una persona decidida los copie.
+- Cualquier programa de tu usuario puede pedirle variables al agente mientras SOJA está abierto, igual que con `ssh-agent`.
+- `soja run` solo usa un socket tuyo en una carpeta que solo tú puedes abrir; si no, se niega. En Windows, `soja run` aún no está disponible (en WSL sí).
+
 ---
 
 ## 10. Configuración y datos locales
@@ -1003,6 +1090,8 @@ SOJA sigue la especificación XDG.
 | Configuración | `$XDG_CONFIG_HOME/soja/config.json` | `~/.config/soja/config.json` |
 | Réplica local de un servidor SOJA (modo remoto) | `$XDG_DATA_HOME/soja/remote/<servidor>.db` | `~/.local/share/soja/remote/<servidor>.db` |
 | Tokens de servidores SOJA (modo remoto) | `$XDG_CONFIG_HOME/soja/credentials.json` (permisos `0600`) | `~/.config/soja/credentials.json` |
+| Claves de este dispositivo y huellas confiables (variables compartidas) | `$XDG_CONFIG_HOME/soja/env-keys.json` (permisos `0600`) | `~/.config/soja/env-keys.json` |
+| Socket del agente de variables (solo con SOJA abierto) | `$XDG_RUNTIME_DIR/soja/agent.sock` (carpeta `0700`, socket `0600`) | `/tmp/soja-<uid>/agent.sock` |
 | Copias de la base de datos | `$XDG_DATA_HOME/soja/backups/` | `~/.local/share/soja/backups/` |
 | Última consulta de versiones | `$XDG_DATA_HOME/soja/update-check.json` | `~/.local/share/soja/update-check.json` |
 
@@ -1275,6 +1364,7 @@ src/
 │   └── navigation/ routes.ts (pila de pantallas)
 ├── application/    services/ (session, workspace, project, task, git-workflow, folder), chat.ts, ports.ts, filters.ts, timeline.ts, validation.ts, types.ts
 ├── git/            types.ts (GitClient, GitError), cli-git.ts (git/gh), console.ts (log en vivo), diagnose.ts (errores → sugerencias), merge-evidence.ts (detección de merges)
+├── env/            crypto.ts (X25519, Ed25519, HKDF, AES-GCM según soja-backend docs/ENV.md), keystore.ts (claves del dispositivo y huellas, 0600), trust.ts (TOFU y bloqueos), agent.ts + agent-socket.ts (agente para `soja run` dentro de la TUI), process-tree.ts (detener un comando con sus hijos)
 ├── domain/         task.ts, workflow.ts, activity.ts, entities.ts, chat.ts, naming.ts, errors.ts
 ├── data/           repositories.ts, local/ (SQLite), remote/ (api-client, live), sync/ (réplica: store, engine, servicios, chat)
 ├── database/       schema.ts, client.ts, migrate.ts, migrations/
@@ -1419,6 +1509,7 @@ Vitest + ink-testing-library. Se prueba **comportamiento**, no píxeles.
 | Operaciones Git | `test/git/git-operations.test.ts`, `test/git/diagnose.test.ts` | Commit de archivos elegidos (nuevos, borrados, renombrados), rama incorrecta y validaciones; merge `--no-ff` en la base registrada, cambios sin guardar, conflictos con abort; borrar (mergeada, sin mergear con force, cambiando de branch); push a un remoto real local con log; PR con título y cuerpo; diagnóstico de 11 tipos de error; parser de `git status -z` |
 | Seguridad de terminal | `test/security.test.ts` | Secuencias hostiles (limpiar pantalla, título, portapapeles OSC 52, colores, C1, *bidi*) eliminadas del texto del servidor, de la réplica tras sincronizar, de commits ajenos, del log de Git y de los errores; saltos de línea, tabuladores y Unicode normal intactos |
 | Sincronización offline | `test/data/sync.test.ts` (+ servidor simulado `fake-soja-server.ts`) | Números provisionales que se vuelven reales, dos developers creando offline, campos combinados y conflicto en el mismo campo con aviso, reintentos sin duplicados tras errores del servidor, rechazo que elimina la task y explica, ediciones en cola visibles tras un pull, cerrar y reabrir con cola pendiente, abrir offline desde la réplica, operaciones que requieren conexión |
+| Variables de entorno | `test/env/crypto.test.ts`, `test/env/remote-env.test.ts` (+ `fake-env-server.ts`, que puede actuar como servidor comprometido), `test/env/agent.test.ts`, `test/ui/env.test.tsx`, E2E | Sobres y valores que no se pueden mover de nombre, bóveda, entorno o versión; firmas; servidor que cambia claves, planta dispositivos, inventa un owner con un miembro cómplice o firma producción con un miembro; nombres peligrosos; `soja run` con SOJA cerrado, carpeta sin vincular, entorno sin acceso, cierre, revocación y caducidad que detienen el comando y sus hijos; socket y archivo de claves solo para tu usuario; valor enmascarado en la TUI; contra el backend real, que en la base solo hay texto cifrado |
 | Chat | `test/data/chat.test.ts` (+ servidor y WebSocket simulados) | Mensajes offline pendientes que llegan en orden, no leídos y menciones, marcas de lectura entre máquinas que no retroceden, editar y borrar solo lo propio (también offline), mensaje rechazado que devuelve el texto, límite de envío con reintento en orden, task desde un mensaje con respuesta renumerada, canales solo online, mensajes en tiempo real, sincronización al recibir `changes.available`, reconexión y token rechazado; un cambio hecho durante una sincronización se envía al terminarla |
 | Pull requests | `test/git/pull-requests.test.ts` (+ `gh` simulado en `fake-gh.ts`) | Lectura del JSON de `gh` (checks de CheckRun y StatusContext, revisión, texto hostil), PR de la task o por qué no hay (sin branch, sin PR, `gh` sin sesión o sin instalar), checks fallidos una vez por commit, PR mergeado en GitHub que cierra la task una sola vez, una llamada a `gh` por repositorio para las listas, merge con borrado de branch, borradores, PRs ya mergeados, cambios sin guardar y reglas del repositorio |
 | Interfaz y mouse | `test/ui/mouse.test.tsx`, `test/ui/mouse-input.test.ts` | Clic para seleccionar y abrir, pestañas, rueda, cambiar un campo del detalle con clic, cerrar ventanas con clic fuera, botones de confirmación, un reporte de mouse nunca dispara atajos; lectura SGR, capas y región más pequeña; tema claro/oscuro por `COLORFGBG` y OSC 11 |
@@ -1456,6 +1547,7 @@ Los tests usan SQLite en memoria y un reloj determinista (`test/helpers.ts`). Lo
 - Sin conexión no se pueden crear proyectos ni workspaces ni agregar developers.
 
 - Mouse: no hay arrastrar ni selección con el mouse dentro de SOJA; para copiar texto, `Shift` + arrastrar en la terminal o apaga el mouse con `M`.
+- Variables de entorno: quien tiene acceso puede leer los valores desde su propio proceso mientras dura (por ejemplo `/proc/<pid>/environ`); la rotación no deshace lo que ya vio. Las claves privadas del dispositivo están en un archivo `0600`, todavía no en el llavero del sistema. El servidor no puede leer ni falsificar valores, pero sí podría ocultar una variable o servir una versión anterior firmada. El primer contacto de un miembro confía en los owners que ve (TOFU): comparar huellas con `soja env devices` lo cierra. No hay variables en modo local.
 - La detección del tema depende de que la terminal responda a OSC 11 o defina `COLORFGBG`; si no, se usa la paleta oscura (`SOJA_THEME=light` la cambia).
 
 ### Roadmap propuesto
@@ -1503,6 +1595,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.9.0 r1 | 1.9.0 | 2026-09-28 | Variables de entorno compartidas cifradas de extremo a extremo: `soja run`, `soja env`, pantalla por proyecto (§5, §6, §7, §9, §10, §12, §15, §16). Cabecera al día (la documentación seguía en 1.6.0). |
 | 1.6.0 r1 | 1.6.0 | 2026-09-26 | Finanzas por workspace, permisos de designados y tickets externos con aprobación del owner y consulta del estado/comentarios/asignación por API. |
 | 1.5.1 r1 | 1.5.1 | 2026-09-26 | Corrección: la consulta de actualizaciones a npm pedía un formato que `/latest` rechaza (406). |
 | 1.5.0 r1 | 1.5.0 | 2026-09-26 | Publicación de v1.5.0: interruptor del mouse (`M`, barra de estado, palette, `soja mouse`) y publicación en npm por etapas con aprobación 2FA. |

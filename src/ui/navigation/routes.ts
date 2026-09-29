@@ -5,6 +5,7 @@ export type Route =
   | { name: 'task'; ref: string }
   | { name: 'projects' }
   | { name: 'project'; projectId: string }
+  | { name: 'env'; projectId: string }
   | { name: 'workspaces' }
   | { name: 'finance' }
   | { name: 'settings' }

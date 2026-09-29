@@ -39,6 +39,8 @@ export interface PromptSpec {
   /** Tab completes from these. */
   suggestions?: string[];
   allowEmpty?: boolean;
+  /** A secret: typed characters show as dots and nothing is suggested. */
+  secret?: boolean;
   onSubmit: (value: string) => SubmitResult;
 }
 

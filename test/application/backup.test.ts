@@ -12,7 +12,7 @@ const runtimes: AppRuntime[] = [];
 
 async function open(): Promise<AppRuntime> {
   const runtime = await bootstrap({
-    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: join(dir.path, 'soja.db') },
+    paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: join(dir.path, 'soja.db') },
     config: config,
     clock: () => now,
   });

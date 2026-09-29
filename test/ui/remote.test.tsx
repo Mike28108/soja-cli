@@ -27,7 +27,7 @@ describe('remote mode in the interface', () => {
     const credentials = new CredentialStore(join(dir.path, 'credentials.json'));
     credentials.save('https://soja.test', server.tokenFor(userId), 'michael');
     runtime = await bootstrap({
-      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: ':memory:' },
       config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: 'https://soja.test', userId } }),
       credentials,
       fetch: server.fetch,
@@ -63,7 +63,7 @@ describe('remote mode in the interface', () => {
     const credentials = new CredentialStore(join(dir.path, 'credentials.json'));
     credentials.save('https://soja.test', server.tokenFor(userId), 'michael');
     runtime = await bootstrap({
-      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', databaseFile: ':memory:' },
+      paths: { dataDir: dir.path, configDir: '', configFile: '', credentialsFile: '', envKeysFile: '', databaseFile: ':memory:' },
       config: new MemoryConfigStore({ mode: 'remote', parentFolders: [], remote: { apiUrl: 'https://soja.test', userId } }),
       credentials,
       fetch: server.fetch,

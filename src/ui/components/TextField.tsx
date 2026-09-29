@@ -13,6 +13,7 @@ export function TextField({
   active = true,
   label,
   width,
+  mask = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -20,12 +21,13 @@ export function TextField({
   active?: boolean;
   label?: string | undefined;
   width?: number;
+  mask?: boolean;
 }) {
   return (
     <Box flexDirection="column">
       {label ? <Text color={active ? palette.accent : palette.muted}>{label}</Text> : null}
       <Box backgroundColor={palette.neutralSoft} paddingX={1} {...(width ? { width } : {})}>
-        <TextInput value={value} onChange={onChange} placeholder={placeholder} active={active} prompt={active ? '›' : ' '} />
+        <TextInput value={value} onChange={onChange} placeholder={placeholder} active={active} prompt={active ? '›' : ' '} mask={mask} />
       </Box>
     </Box>
   );
