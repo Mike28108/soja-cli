@@ -7,6 +7,11 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Added
+
+- **Variables de entorno compartidas, cifradas de extremo a extremo** (modo remoto; requiere `soja-backend` ≥ 1.5.0). Cada entorno de un proyecto (`development`, `staging`, `production`) guarda sus variables cifradas con una clave que solo tienen los dispositivos con acceso; el servidor nunca ve valores y no puede inyectarlos (cada valor va firmado por un owner). Los devs las usan con **`soja run -- <comando>`** desde el repositorio del proyecto mientras SOJA está abierto: sin archivos `.env`, y al cerrar SOJA o vencer el acceso el comando se detiene. Los owners dan acceso por **3, 7 o 30 días**; solo ellos comparten producción. Revocar rota la clave y lista los valores que conviene cambiar en su proveedor. Comandos `soja env …` y pantalla por proyecto (`V` en Proyectos, o *Environment variables* en la command palette), con valores que se escriben enmascarados.
+- Huellas de dispositivos (`soja env devices`, `soja env trust`): un dispositivo nuevo de alguien conocido, o una clave cambiada, bloquea hasta confirmarlo.
+
 ## [1.8.0] - 2026-09-28
 
 ### Added

@@ -4,17 +4,23 @@
  *
  *   SOJA_BACKEND_DIR=../../services/soja-backend DATABASE_URL=postgres://…@localhost/… npm run test:e2e
  */
-import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { bootstrap } from '../../src/bootstrap.js';
+import { resolvePaths } from '../../src/config/paths.js';
+import { EnvAgent } from '../../src/env/agent.js';
+import { agentSocketPath } from '../../src/env/agent-socket.js';
 
 const BACKEND = resolvePath(process.env.SOJA_BACKEND_DIR ?? '../../services/soja-backend');
 const DATABASE_URL = process.env.DATABASE_URL ?? '';
 const PORT = Number(process.env.SOJA_E2E_PORT ?? 18799);
 const SERVER = `http://localhost:${PORT}`;
 const CLI = resolvePath('src/cli/index.tsx');
+const TSX_LOADER = pathToFileURL(resolvePath('node_modules/tsx/dist/loader.mjs')).href;
 const home = mkdtempSync(join(tmpdir(), 'soja-e2e-'));
 let server: ChildProcess | null = null;
 
@@ -48,20 +54,30 @@ async function stopServer(): Promise<void> {
   throw new Error('The E2E server is still running after being stopped.');
 }
 
-/** Runs `soja …` as a developer with their own home, config and replica. */
-function soja(who: string, ...args: string[]): Promise<{ code: number; out: string }> {
+/** A developer's environment: their own home, config, replica and agent socket. */
+function envOf(who: string): NodeJS.ProcessEnv {
   const dir = join(home, who);
+  return { ...process.env, HOME: dir, XDG_DATA_HOME: join(dir, 'data'), XDG_CONFIG_HOME: join(dir, 'config'), XDG_RUNTIME_DIR: join(dir, 'run'), NO_COLOR: '1', TSX_TSCONFIG_PATH: resolvePath('tsconfig.json') };
+}
+
+/** Runs `soja …` as a developer; `input` is piped to stdin (secrets are never arguments). */
+function sojaIn(who: string, options: { input?: string; cwd?: string }, ...args: string[]): Promise<{ code: number; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', CLI, ...args], {
-      env: { ...process.env, HOME: dir, XDG_DATA_HOME: join(dir, 'data'), XDG_CONFIG_HOME: join(dir, 'config'), NO_COLOR: '1', TSX_TSCONFIG_PATH: resolvePath('tsconfig.json') },
-      stdio: ['ignore', 'pipe', 'pipe'],
+    // tsx by absolute path: the command may run from a folder outside this project.
+    const child = spawn(process.execPath, ['--import', TSX_LOADER, CLI, ...args], {
+      env: envOf(who),
+      cwd: options.cwd ?? process.cwd(),
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
+    if (options.input !== undefined) child.stdin?.end(options.input);
     let out = '';
-    child.stdout.on('data', (chunk: Buffer) => (out += chunk.toString()));
-    child.stderr.on('data', (chunk: Buffer) => (out += chunk.toString()));
+    child.stdout?.on('data', (chunk: Buffer) => (out += chunk.toString()));
+    child.stderr?.on('data', (chunk: Buffer) => (out += chunk.toString()));
     child.on('close', (code) => resolve({ code: code ?? 1, out }));
   });
 }
+
+const soja = (who: string, ...args: string[]) => sojaIn(who, {}, ...args);
 
 async function login(who: string): Promise<void> {
   await fetch(`${SERVER}/__next?login=${who}`);
@@ -118,5 +134,59 @@ describe('a team on a real server', () => {
     expect((await soja('michael', 'task', 'delete', ref, '--yes')).out).toContain('deleted');
     await soja('angel', 'sync');
     expect((await soja('angel', 'task', 'list', '--archived')).out).not.toContain('Written offline by Michael');
+  });
+});
+
+describe('shared environment variables on a real server', () => {
+  it('an owner shares production for 3 days; the developer runs with it only while SOJA is open; revoking ends it', async () => {
+    await login('laura');
+    await login('bruno');
+    expect((await soja('laura', 'workspace', 'create', 'Secrets')).out).toContain('Created Secrets');
+    expect((await soja('laura', 'workspace', 'add', 'bruno')).out).toContain('@bruno joined');
+    expect((await soja('bruno', 'use', 'secrets')).out).toContain('Now in Secrets');
+    expect((await soja('laura', 'project', 'create', 'Enroll', '--key', 'ENR')).code).toBe(0);
+    await soja('bruno', 'sync');
+
+    expect((await soja('laura', 'env', 'setup', '--label', 'laura-laptop')).out).toContain('Fingerprint');
+    expect((await soja('bruno', 'env', 'setup', '--label', 'bruno-laptop')).out).toContain('Fingerprint');
+    expect((await soja('laura', 'env', 'create', '-p', 'ENR', '-e', 'production')).out).toContain('now has production variables');
+    expect((await soja('laura', 'env', 'set', 'DATABASE_URL', 'postgres://secret-value', '-p', 'ENR', '-e', 'production')).out).toContain('never taken as arguments');
+    expect((await sojaIn('laura', { input: 'postgres://secret-value\n' }, 'env', 'set', 'DATABASE_URL', '-p', 'ENR', '-e', 'production')).out).toContain('DATABASE_URL saved');
+    expect((await soja('bruno', 'env', 'ls')).out).toContain('no access');
+    expect((await soja('laura', 'env', 'grant', '@bruno', '-p', 'ENR', '-e', 'production', '--days', '3')).out).toContain('@bruno can use Enroll production until');
+    expect((await soja('bruno', 'env', 'ls', '-p', 'ENR', '-e', 'production')).out).toContain('DATABASE_URL');
+
+    // Bruno's repository, linked to the project on his machine only.
+    const repo = join(home, 'bruno', 'enroll');
+    mkdirSync(repo, { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    expect((await soja('bruno', 'project', 'link', 'ENR', repo)).code).toBe(0);
+
+    const run = () => sojaIn('bruno', { cwd: repo }, 'run', '--', process.execPath, '-e', 'console.log("value=" + process.env.DATABASE_URL)');
+    expect((await run()).out).toContain('SOJA is not open');
+
+    // Bruno opens SOJA: its agent serves `soja run` in his repository.
+    const env = envOf('bruno');
+    const paths = resolvePaths({ XDG_DATA_HOME: env.XDG_DATA_HOME, XDG_CONFIG_HOME: env.XDG_CONFIG_HOME }, env.HOME);
+    const runtime = await bootstrap({ paths });
+    const agent = new EnvAgent(runtime.services, agentSocketPath({ XDG_RUNTIME_DIR: env.XDG_RUNTIME_DIR }));
+    try {
+      expect(await agent.start()).toBe('started');
+      const used = await run();
+      expect(used.out).toContain('value=postgres://secret-value');
+      expect(used.out).toContain('Enroll · production · 1 variable');
+
+      // The server never had the value in clear text.
+      const dump = execFileSync('psql', [DATABASE_URL, '-At', '-c', 'select ciphertext from env_variables'], { encoding: 'utf8' });
+      expect(dump).not.toContain('secret-value');
+
+      const revoked = await soja('laura', 'env', 'revoke', '@bruno', '-p', 'ENR', '-e', 'production');
+      expect(revoked.out).toContain('the key was rotated (v2)');
+      expect(revoked.out).toContain('DATABASE_URL');
+      expect((await run()).out).toContain('no access to Enroll variables');
+    } finally {
+      agent.close();
+      runtime.close();
+    }
   });
 });

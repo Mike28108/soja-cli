@@ -232,6 +232,22 @@ describe('a compromised server', () => {
   });
 });
 
+describe('what the server says is printed safely', () => {
+  it('strips terminal control sequences from labels and usernames, and drops malformed names', async () => {
+    const { michael, vault } = await ownerWithProduction();
+    server.plantDevice(michael.id, generateDevice(), 'laptop\u001b]52;c;cHduZWQ=\u0007\u001b[2J');
+    const shown = await michael.env.devices(michael.session);
+    expect(JSON.stringify(shown)).not.toContain('\\u001b');
+    expect(JSON.stringify(shown)).not.toContain('\\u0007');
+    const stored = server.vaults.get(vault.id);
+    const original = stored?.variables.get('DATABASE_URL');
+    if (!stored || !original) throw new Error('setup');
+    stored.variables.set('X\u001b[31m', { ...original, name: 'X\u001b[31m' });
+    const [listed] = await michael.env.vaults(michael.session);
+    expect(listed?.names.map((entry) => entry.name)).toEqual(['DATABASE_URL', 'STRIPE_KEY']);
+  });
+});
+
 describe('the key file', () => {
   it('refuses a corrupted file instead of guessing', () => {
     const file = join(dir.path, 'broken.json');

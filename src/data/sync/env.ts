@@ -19,7 +19,15 @@ import {
 } from '../../env/crypto.js';
 import type { EnvKeyStore, ThisDevice, TrustedDevice } from '../../env/keystore.js';
 import { confirmedPin, decideTrust, type ServerDevice, type TrustDecision } from '../../env/trust.js';
+import { terminalSafe } from '../../utils/text.js';
 import type { ApiClient } from '../remote/api-client.js';
+
+const NAME = /^[A-Z_][A-Z0-9_]{0,127}$/;
+
+/** Names and labels come from the server and end up in a terminal: no control sequences. */
+function safeDevice<T extends { username: string | null; label: string }>(device: T): T {
+  return { ...device, username: device.username === null ? null : terminalSafe(device.username), label: terminalSafe(device.label) };
+}
 
 interface VaultRow {
   id: string;
@@ -200,7 +208,13 @@ export class RemoteEnvService implements EnvOperations {
 
   async history(session: Session, vaultId: string): Promise<EnvHistoryEntry[]> {
     const { history } = await this.api.get<{ history: { action: string; actor: string | null; subject: string | null; detail: string | null; createdAt: string }[] }>(`${this.base(session)}/vaults/${vaultId}/history`);
-    return history.map((entry) => ({ ...entry, createdAt: new Date(entry.createdAt) }));
+    return history.map((entry) => ({
+      action: terminalSafe(entry.action),
+      actor: entry.actor === null ? null : terminalSafe(entry.actor),
+      subject: entry.subject === null ? null : terminalSafe(entry.subject),
+      detail: entry.detail === null ? null : terminalSafe(entry.detail),
+      createdAt: new Date(entry.createdAt),
+    }));
   }
 
   async load(session: Session, vaultId: string): Promise<LoadedVault> {
@@ -292,13 +306,14 @@ export class RemoteEnvService implements EnvOperations {
     return `/v1/workspaces/${session.workspace.id}/env`;
   }
 
-  private material(session: Session, vaultId: string): Promise<Material> {
+  private async material(session: Session, vaultId: string): Promise<Material> {
     const device = this.requireDevice();
-    return this.api.get<Material>(`${this.base(session)}/vaults/${encodeURIComponent(vaultId)}/material?device=${device.id}`);
+    const material = await this.api.get<Material>(`${this.base(session)}/vaults/${encodeURIComponent(vaultId)}/material?device=${device.id}`);
+    return { ...material, signers: material.signers.map(safeDevice) };
   }
 
   private async serverDevices(session: Session): Promise<ServerDevice[]> {
-    return (await this.api.get<{ devices: ServerDevice[] }>(`${this.base(session)}/devices`)).devices;
+    return (await this.api.get<{ devices: ServerDevice[] }>(`${this.base(session)}/devices`)).devices.map(safeDevice);
   }
 
   private async trustContext(session: Session): Promise<TrustContext> {
@@ -354,14 +369,14 @@ function toView(row: VaultRow): EnvVaultView {
     environment: row.environment,
     keyVersion: row.keyVersion,
     variables: row.variables,
-    names: (row.names ?? []).map((entry) => ({ name: entry.name, updatedAt: new Date(entry.updatedAt) })),
+    names: (row.names ?? []).filter((entry) => NAME.test(entry.name)).map((entry) => ({ name: entry.name, updatedAt: new Date(entry.updatedAt) })),
     canRead: row.access.canRead,
     canShare: row.access.canShare,
     canWrite: row.access.canWrite,
     expiresAt: row.access.expiresAt ? new Date(row.access.expiresAt) : null,
     rotationRequired: row.rotationRequired ?? false,
-    pendingDevices: (row.pendingDevices ?? []).map((device) => ({ id: device.id, username: device.username, label: device.label })),
-    grants: (row.grants ?? []).map((grant) => ({ userId: grant.userId, username: grant.username, expiresAt: new Date(grant.expiresAt) })),
+    pendingDevices: (row.pendingDevices ?? []).map(safeDevice).map((device) => ({ id: device.id, username: device.username, label: device.label })),
+    grants: (row.grants ?? []).map((grant) => ({ userId: grant.userId, username: terminalSafe(grant.username), expiresAt: new Date(grant.expiresAt) })),
   };
 }
 
