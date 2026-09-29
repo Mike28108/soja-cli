@@ -7,7 +7,7 @@
 | | |
 | --- | --- |
 | Versión de la app | **1.9.0** |
-| Versión del documento | **1.9.0** (revisión 1) |
+| Versión del documento | **1.9.0** (revisión 2) |
 | Última actualización | 2026-09-28 |
 | Autor | Enmauel.biz |
 | Repositorio | `soja-cli` |
@@ -503,6 +503,7 @@ Pantalla por proyecto (`V` en Proyectos o *Environment variables* en la command 
 | Tecla | Acción |
 | --- | --- |
 | `↑` / `↓`, `j` / `k` | Elegir entorno |
+| `←` / `→` (o clic en las pestañas) | Todo el proyecto o uno de sus repositorios |
 | `S` | Preparar esta máquina (la primera vez) |
 | `c` | Crear el entorno (owners) |
 | `a` | Añadir o cambiar una variable: nombre y luego el valor, que se escribe como `••••` (owners) |
@@ -670,8 +671,8 @@ Una sesión GitHub pendiente o rechazada no habilita el modo remoto. En esta pri
 soja run [-e <entorno>] -- <comando…>          # con las variables del proyecto de esta carpeta; necesita SOJA abierto
 soja env setup [--label <nombre>]               # prepara esta máquina y muestra su huella
 soja env ls                                      # entornos que ves, con tu acceso y su fecha límite
-soja env ls -p <proyecto> -e <entorno>           # nombres de las variables (nunca valores)
-soja env create -p <proyecto> -e <entorno>       # owners
+soja env ls -p <proyecto> [-r <repo>] -e <entorno>   # nombres de las variables (nunca valores)
+soja env create -p <proyecto> [-r <repo>] -e <entorno>   # owners; sin -r, para todo el proyecto
 soja env set NOMBRE -p <proyecto> -e <entorno>   # owners; el valor se escribe oculto o llega por stdin
 soja env rm NOMBRE -p <proyecto> -e <entorno>    # owners
 soja env grant @usuario -p … -e … --days 3|7|30  # dar o renovar acceso
@@ -684,7 +685,7 @@ soja env trust <id>                              # tras comparar la huella con s
 soja env devices remove <id>                     # retira un dispositivo tuyo
 ```
 
-`-p` acepta la clave o el nombre del proyecto; sin `-p`, el proyecto vinculado al repositorio en el que estás. `-e` acepta `development`, `staging` y `production` (o `dev`, `stage`, `prod`). Un valor nunca se pasa como argumento, porque quedaría en el historial de la shell: `soja env set` lo pide sin mostrarlo, o lo lee de un pipe (`printf %s "$VALOR" | soja env set NOMBRE …`). Ver [§9](#variables-de-entorno-compartidas-v19).
+`-p` acepta la clave o el nombre del proyecto; sin `-p`, el proyecto vinculado al repositorio en el que estás. `-r <nombre>` elige uno de sus repositorios (`soja project repo list`); sin `-r` son las variables de todo el proyecto. Todos los comandos de `soja env` aceptan `-r`. `-e` acepta `development`, `staging` y `production` (o `dev`, `stage`, `prod`). Un valor nunca se pasa como argumento, porque quedaría en el historial de la shell: `soja env set` lo pide sin mostrarlo, o lo lee de un pipe (`printf %s "$VALOR" | soja env set NOMBRE …`). Ver [§9](#variables-de-entorno-compartidas-v19).
 
 ### Chat
 
@@ -1043,7 +1044,9 @@ soja run -- npm run dev                # el único entorno al que tienes acceso
 soja run -e staging -- npm run dev     # uno concreto
 ```
 
-SOJA arranca el comando con las variables en su entorno. No se escribe nada en disco. Si cierras SOJA, si tu acceso vence o si te lo revocan, SOJA **detiene el comando y todo lo que haya lanzado**. Con SOJA cerrado, `soja run` no arranca nada.
+SOJA arranca el comando con las variables en su entorno. No se escribe nada en disco.
+
+**Por repositorio (v1.10).** Si el proyecto tiene varios repositorios (frontend, backend, workers…), cada uno puede tener sus propias variables además de las de **todo el proyecto**. `soja run` en la carpeta de un repositorio junta las del proyecto y las de ese repositorio del mismo entorno; si un nombre está en ambas, gana la del repositorio. Los accesos también son por repositorio: puedes dar acceso a producción del backend sin dar el del frontend. A qué proyecto, repositorio y entorno pertenece cada bóveda lo firma el owner que la creó, así que el servidor no puede presentar las variables de un repositorio como las de otro. Las bóvedas de v1.9 cuentan como de todo el proyecto y se firman la primera vez que un owner escribe en ellas. Si cierras SOJA, si tu acceso vence o si te lo revocan, SOJA **detiene el comando y todo lo que haya lanzado**. Con SOJA cerrado, `soja run` no arranca nada.
 
 **Cifrado de extremo a extremo.**
 
@@ -1595,6 +1598,7 @@ El repositorio es público, pero solo los colaboradores aprobados por el propiet
 
 | Doc | App | Fecha | Cambios |
 | --- | --- | --- | --- |
+| 1.9.0 r2 | 1.9.0 + sin publicar | 2026-09-29 | Variables por repositorio: bóvedas de todo el proyecto o de un repositorio, `-r` en `soja env`, pestañas en la pantalla, `soja run` que junta ambas (§6, §7, §9). |
 | 1.9.0 r1 | 1.9.0 | 2026-09-28 | Variables de entorno compartidas cifradas de extremo a extremo: `soja run`, `soja env`, pantalla por proyecto (§5, §6, §7, §9, §10, §12, §15, §16). Cabecera al día (la documentación seguía en 1.6.0). |
 | 1.6.0 r1 | 1.6.0 | 2026-09-26 | Finanzas por workspace, permisos de designados y tickets externos con aprobación del owner y consulta del estado/comentarios/asignación por API. |
 | 1.5.1 r1 | 1.5.1 | 2026-09-26 | Corrección: la consulta de actualizaciones a npm pedía un formato que `/latest` rechaza (406). |

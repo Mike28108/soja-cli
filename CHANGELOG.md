@@ -7,6 +7,10 @@ La documentación completa del estado actual está en [`docs/SOJA.md`](docs/SOJA
 
 ## [Unreleased]
 
+### Added
+
+- **Variables de entorno por repositorio** (requiere `soja-backend` ≥ 1.6.0). En un proyecto con varios repositorios, cada uno puede tener sus propias variables además de las de todo el proyecto: `soja env … -r <repositorio>` y pestañas en la pantalla de variables (`←`/`→`). `soja run` en la carpeta de un repositorio junta las del proyecto y las suyas (las del repositorio ganan si un nombre coincide), y los accesos se dan por repositorio. El owner firma a qué proyecto, repositorio y entorno pertenece cada bóveda; las de v1.9 se firman solas la primera vez que un owner escribe en ellas.
+
 ## [1.9.0] - 2026-09-28
 
 ### Added

@@ -11,9 +11,11 @@ import { useKeys } from '../input/KeyProvider.js';
 import { Badge } from '../kit/Badge.js';
 import { Clickable } from '../kit/Clickable.js';
 import { Panel } from '../kit/Panel.js';
+import { Tabs } from '../kit/Tabs.js';
 import { palette, symbols } from '../theme/theme.js';
 import { ScreenFrame } from './ScreenFrame.js';
 
+const WHOLE_PROJECT = 'project';
 const LABEL: Record<EnvEnvironment, string> = { development: 'Development', staging: 'Staging', production: 'Production' };
 
 /**
@@ -38,14 +40,26 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
   const { services, session, openOverlay, run, notify } = useAppState();
   const { width, height } = useLayout();
   const [index, setIndex] = useState(0);
+  /** `project`: variables for the whole project; otherwise a repository id. */
+  const [scope, setScope] = useState<string>(WHOLE_PROJECT);
   const device = env.thisDevice();
   const project = useQuery(async () => (await services.projects.list(session)).find((entry) => entry.id === projectId) ?? null, `env-project:${projectId}`);
   const role = useQuery(async () => (await services.workspaces.members(session)).find((member) => member.id === session.user.id)?.role ?? 'member', `env-role:${sessionKey}`);
   const vaults = useQuery(async () => (device ? await env.vaults(session, projectId) : []), `env-vaults:${projectId}`);
   const environment = ENV_ENVIRONMENTS[index] ?? 'development';
-  const vault = vaults.data?.find((entry) => entry.environment === environment) ?? null;
+  const repositories = project.data?.repositories ?? [];
+  const repository = repositories.find((entry) => entry.id === scope) ?? null;
+  const repositoryId = repository?.id ?? null;
+  const inScope = (vaults.data ?? []).filter((entry) => entry.repositoryId === repositoryId);
+  const vault = inScope.find((entry) => entry.environment === environment) ?? null;
   const owner = role.data === 'owner';
-  const projectName = project.data?.name ?? 'Project';
+  const projectName = repository ? `${project.data?.name ?? 'Project'}/${repository.name}` : (project.data?.name ?? 'Project');
+  const scopes = [{ value: WHOLE_PROJECT, label: 'Whole project' }, ...repositories.map((entry) => ({ value: entry.id, label: entry.name }))];
+  const moveScope = (step: number) => {
+    const position = scopes.findIndex((entry) => entry.value === scope);
+    const next = scopes[(position + step + scopes.length) % scopes.length];
+    if (next) setScope(next.value);
+  };
 
   const setup = () =>
     openOverlay({
@@ -198,9 +212,10 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
     (input, key) => {
       if (key.upArrow || input === 'k') setIndex((current) => Math.max(0, current - 1));
       else if (key.downArrow || input === 'j') setIndex((current) => Math.min(ENV_ENVIRONMENTS.length - 1, current + 1));
+      else if ((key.leftArrow || key.rightArrow) && scopes.length > 1) moveScope(key.rightArrow ? 1 : -1);
       else if (!device && input === 'S') setup();
       else if (!device) return false;
-      else if (input === 'c' && owner && !vault) void run(() => env.createVault(session, projectId, environment), `${LABEL[environment]} variables created`);
+      else if (input === 'c' && owner && !vault) void run(() => env.createVault(session, projectId, repositoryId, environment), `${LABEL[environment]} variables created for ${repository ? repository.name : 'the whole project'}`);
       else if (input === 'a' && owner && vault) addVariable(vault);
       else if (input === 'd' && owner && vault) removeVariable(vault);
       else if (input === 'g' && vault?.canShare) void grant(vault).catch(() => undefined);
@@ -222,6 +237,7 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
     ? [['S', 'set up this machine'], ['esc', 'back']]
     : [
         ['↑↓', 'environment'],
+        ...(scopes.length > 1 ? ([['←→', 'repository']] as [string, string][]) : []),
         ...(owner && !vault ? ([['c', 'create']] as [string, string][]) : []),
         ...(owner && vault ? ([['a', 'set'], ['d', 'remove'], ['g', 'give access'], ['u', 'revoke'], ['R', 'rotate'], ['h', 'history']] as [string, string][]) : []),
         ...(!owner && vault?.canShare ? ([['g', 'give access']] as [string, string][]) : []),
@@ -239,10 +255,16 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
           <Text color={palette.muted}>Press S: SOJA creates its keys here (the private ones never leave it) and shows you its fingerprint.</Text>
         </Box>
       ) : (
-        <Box gap={1} height={Math.max(8, height - 1)}>
+        <Box flexDirection="column" height={Math.max(8, height - 1)}>
+          {scopes.length > 1 ? (
+            <Box marginBottom={1}>
+              <Tabs items={scopes} value={scope} onChange={setScope} active={active} />
+            </Box>
+          ) : null}
+        <Box gap={1} flexGrow={1}>
           <Panel title="Environments" width={listWidth}>
             {ENV_ENVIRONMENTS.map((name, position) => {
-              const entry = vaults.data?.find((candidate) => candidate.environment === name) ?? null;
+              const entry = inScope.find((candidate) => candidate.environment === name) ?? null;
               return (
                 <Clickable key={name} active={active} onClick={() => setIndex(position)}>
                   <Box backgroundColor={position === index ? palette.selection : undefined} gap={1}>
@@ -256,8 +278,9 @@ function EnvPanels({ active, projectId, env, sessionKey }: { active: boolean; pr
             {vaults.error ? <Text color={palette.danger}>{vaults.error.message}</Text> : null}
           </Panel>
           <Panel title={LABEL[environment]} flexGrow={1} aside={vault ? `${vault.variables} variable${vault.variables === 1 ? '' : 's'} · key v${vault.keyVersion}` : undefined}>
-            <VaultDetails vault={vault} owner={owner} environment={environment} />
+            <VaultDetails vault={vault} owner={owner} environment={environment} repository={repository?.name ?? null} />
           </Panel>
+        </Box>
         </Box>
       )}
     </ScreenFrame>
@@ -272,9 +295,15 @@ function AccessBadge({ vault }: { vault: EnvVaultView | null }) {
   return <Badge tone="success">owner</Badge>;
 }
 
-function VaultDetails({ vault, owner, environment }: { vault: EnvVaultView | null; owner: boolean; environment: EnvEnvironment }) {
+function VaultDetails({ vault, owner, environment, repository }: { vault: EnvVaultView | null; owner: boolean; environment: EnvEnvironment; repository: string | null }) {
   if (!vault) {
-    return <Text color={palette.muted}>{owner ? `No ${environment} variables yet. Press c to create them.` : `No ${environment} variables yet.`}</Text>;
+    const scope = repository ? `for ${repository}` : 'for the whole project';
+    return (
+      <Box flexDirection="column">
+        <Text color={palette.muted}>{owner ? `No ${environment} variables ${scope} yet. Press c to create them.` : `No ${environment} variables ${scope} yet.`}</Text>
+        {repository ? <Text color={palette.faint}>Whole-project variables also reach this repository; its own ones win on a name clash.</Text> : null}
+      </Box>
+    );
   }
   return (
     <Box flexDirection="column">

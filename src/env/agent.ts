@@ -27,13 +27,14 @@ const helloSchema = z.object({
 }).strict();
 
 export type AgentReply =
-  | { type: 'env'; project: { name: string; key: string }; environment: EnvEnvironment; variables: Record<string, string>; expiresAt: string | null }
+  | { type: 'env'; project: { name: string; key: string }; repository?: string | null; environment: EnvEnvironment; variables: Record<string, string>; expiresAt: string | null }
   | { type: 'error'; message: string; hint?: string }
   | { type: 'stop'; reason: 'closed' | 'expired' | 'revoked' | 'workspace-changed' };
 
 export interface AgentRun {
   id: number;
   project: string;
+  repository: string | null;
   environment: EnvEnvironment;
   command: string;
   expiresAt: Date | null;
@@ -45,7 +46,8 @@ const MAX_TIMER = 2 ** 31 - 1;
 interface Connection {
   run: AgentRun;
   socket: Socket;
-  vaultId: string;
+  /** The whole-project vault and the repository's, whichever apply. */
+  vaultIds: string[];
   workspaceId: string;
   timer: NodeJS.Timeout | null;
 }
@@ -128,43 +130,57 @@ export class EnvAgent {
       return this.fail(socket, new SojaError('This `soja run` does not match the open SOJA.', { hint: 'Update SOJA (`soja update`) so both are the same version.' }));
     }
     try {
-      const { session, vaultId, loaded, project } = await this.resolve(request);
-      for (const name of Object.keys(loaded.variables)) {
+      const { session, vaultIds, environment, variables, expiresAt, project, repository } = await this.resolve(request);
+      for (const name of Object.keys(variables)) {
         if (!isAllowedVariable(name)) throw new SojaError(`${name} is not allowed as a shared variable. SOJA did not start anything.`);
       }
       const id = (this.counter += 1);
-      const run: AgentRun = { id, project: project.name, environment: loaded.environment, command: request.command.join(' '), expiresAt: loaded.expiresAt, startedAt: this.clock() };
-      const connection: Connection = { run, socket, vaultId, workspaceId: session.workspace.id, timer: null };
+      const run: AgentRun = { id, project: project.name, repository: repository?.name ?? null, environment, command: request.command.join(' '), expiresAt, startedAt: this.clock() };
+      const connection: Connection = { run, socket, vaultIds, workspaceId: session.workspace.id, timer: null };
       this.connections.set(id, connection);
       this.armExpiry(connection);
       this.watch();
       socket.on('close', () => this.forget(id));
-      send(socket, { type: 'env', project: { name: project.name, key: project.key }, environment: loaded.environment, variables: loaded.variables, expiresAt: loaded.expiresAt?.toISOString() ?? null });
+      send(socket, { type: 'env', project: { name: project.name, key: project.key }, repository: repository?.name ?? null, environment, variables, expiresAt: expiresAt?.toISOString() ?? null });
       this.emit();
     } catch (error) {
       this.fail(socket, error);
     }
   }
 
+  /**
+   * The variables for this folder: the project's shared ones, then the ones of
+   * the repository it is (a name in both takes the repository's value).
+   */
   private async resolve(request: z.infer<typeof helloSchema>) {
     const env = this.services.env;
     if (!env) throw new SojaError('Shared environment variables need remote mode.', { hint: 'Run `soja login`.' });
     const session: Session | null = await this.services.session.current();
     if (!session) throw new SojaError('SOJA is not set up yet.');
-    const project = await this.services.projects.findByRepository(session, request.cwd);
-    if (!project) throw new SojaError('This folder is not linked to a SOJA project.', { hint: 'Link its repository to the project first (`soja project link`, or `r` in Projects).' });
-    const readable = (await env.vaults(session, project.id)).filter((vault) => vault.canRead);
-    const vault = request.environment ? readable.find((candidate) => candidate.environment === request.environment) : readable.length === 1 ? readable[0] : undefined;
-    if (!vault) {
-      const available = readable.map((candidate) => candidate.environment).join(', ');
-      if (request.environment) throw new SojaError(`You have no current access to ${project.name} ${request.environment} variables.`, { hint: available ? `You can use: ${available}.` : 'Ask a workspace owner to share them with you.' });
-      throw new SojaError(readable.length ? `${project.name} has several environments you can use.` : `You have no access to ${project.name} variables.`, {
-        hint: readable.length ? `Choose one: \`soja run -e <${available.replaceAll(', ', '|')}> -- …\`.` : 'Ask a workspace owner to share them with you.',
+    const here = await this.services.projects.locate(session, request.cwd);
+    if (!here) throw new SojaError('This folder is not linked to a SOJA project.', { hint: 'Link its repository to the project first (`soja project link`, or `r` in Projects).' });
+    const { project, repository } = here;
+    const scopes = new Set<string | null>([null, repository?.id ?? null]);
+    const readable = (await env.vaults(session, project.id)).filter((vault) => vault.canRead && scopes.has(vault.repositoryId));
+    const environments = [...new Set(readable.map((vault) => vault.environment))];
+    const where = repository && repository.name !== 'default' ? `${project.name}/${repository.name}` : project.name;
+    const environment = request.environment ?? (environments.length === 1 ? environments[0] : undefined);
+    const chosen = readable.filter((vault) => vault.environment === environment);
+    if (!environment || !chosen.length) {
+      const available = environments.join(', ');
+      if (request.environment) throw new SojaError(`You have no current access to ${where} ${request.environment} variables.`, { hint: available ? `You can use: ${available}.` : 'Ask a workspace owner to share them with you.' });
+      throw new SojaError(environments.length ? `${where} has several environments you can use.` : `You have no access to ${where} variables.`, {
+        hint: environments.length ? `Choose one: \`soja run -e <${available.replaceAll(', ', '|')}> -- …\`.` : 'Ask a workspace owner to share them with you.',
       });
     }
-    // What this machine asked for, not what the list claims: the loaded material must match it.
-    const ref = { id: vault.id, projectId: project.id, environment: request.environment ?? vault.environment };
-    return { session, vaultId: vault.id, loaded: await env.load(session, ref), project };
+    // Whole project first, then the repository on top. Each ref is what this machine asked for,
+    // not what the list claims: the loaded material must match it.
+    const ordered = [...chosen].sort((a, b) => (a.repositoryId === null ? -1 : 1) - (b.repositoryId === null ? -1 : 1));
+    const loaded = [];
+    for (const vault of ordered) loaded.push(await env.load(session, { id: vault.id, projectId: project.id, repositoryId: vault.repositoryId === null ? null : (repository?.id ?? null), environment }));
+    const variables = Object.assign({}, ...loaded.map((entry) => entry.variables)) as Record<string, string>;
+    const ends = loaded.flatMap((entry) => (entry.expiresAt ? [entry.expiresAt.getTime()] : []));
+    return { session, vaultIds: ordered.map((vault) => vault.id), environment, variables, expiresAt: ends.length ? new Date(Math.min(...ends)) : null, project, repository };
   }
 
   /** Stops the run when its access ends, even if nobody asks the server. */
@@ -196,10 +212,15 @@ export class EnvAgent {
       }
       const vaults = await env.vaults(session).catch(() => null);
       if (!vaults) continue; // Offline: the expiry timer still applies.
-      const vault = vaults.find((candidate) => candidate.id === connection.vaultId);
-      if (!vault?.canRead) this.stop(connection.run.id, 'revoked');
-      else if (vault.expiresAt && (!connection.run.expiresAt || vault.expiresAt < connection.run.expiresAt)) {
-        connection.run.expiresAt = vault.expiresAt;
+      const used = connection.vaultIds.map((id) => vaults.find((candidate) => candidate.id === id));
+      if (used.some((vault) => !vault?.canRead)) {
+        this.stop(connection.run.id, 'revoked');
+        continue;
+      }
+      const ends = used.flatMap((vault) => (vault?.expiresAt ? [vault.expiresAt] : []));
+      const earliest = ends.length ? new Date(Math.min(...ends.map((end) => end.getTime()))) : null;
+      if (earliest && (!connection.run.expiresAt || earliest < connection.run.expiresAt)) {
+        connection.run.expiresAt = earliest;
         if (connection.timer) clearTimeout(connection.timer);
         this.armExpiry(connection);
       }

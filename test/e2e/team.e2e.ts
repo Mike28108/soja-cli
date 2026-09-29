@@ -180,6 +180,24 @@ describe('shared environment variables on a real server', () => {
       const dump = execFileSync('psql', [DATABASE_URL, '-At', '-c', 'select ciphertext from env_variables'], { encoding: 'utf8' });
       expect(dump).not.toContain('secret-value');
 
+      // A second repository with its own production variables; its value wins in its folder.
+      const lauraApi = join(home, 'laura', 'api');
+      const brunoApi = join(home, 'bruno', 'api');
+      for (const folder of [lauraApi, brunoApi]) {
+        mkdirSync(folder, { recursive: true });
+        execFileSync('git', ['init', '-q'], { cwd: folder });
+      }
+      expect((await soja('laura', 'project', 'repo', 'add', 'ENR', 'api', lauraApi)).code).toBe(0);
+      await soja('bruno', 'sync');
+      expect((await soja('bruno', 'project', 'repo', 'link', 'ENR', 'api', brunoApi)).code).toBe(0);
+      expect((await soja('laura', 'env', 'create', '-p', 'ENR', '-r', 'api', '-e', 'production')).out).toContain('Enroll/api now has production variables');
+      expect((await sojaIn('laura', { input: 'postgres://api-value' }, 'env', 'set', 'DATABASE_URL', '-p', 'ENR', '-r', 'api', '-e', 'production')).out).toContain('DATABASE_URL saved');
+      expect((await soja('laura', 'env', 'grant', '@bruno', '-p', 'ENR', '-r', 'api', '-e', 'production', '--days', '3')).out).toContain('@bruno can use Enroll/api production');
+      const inApi = await sojaIn('bruno', { cwd: brunoApi }, 'run', '--', process.execPath, '-e', 'console.log("value=" + process.env.DATABASE_URL)');
+      expect(inApi.out).toContain('value=postgres://api-value');
+      expect(inApi.out).toContain('Enroll/api · production');
+      expect((await run()).out).toContain('value=postgres://secret-value');
+
       const revoked = await soja('laura', 'env', 'revoke', '@bruno', '-p', 'ENR', '-e', 'production');
       expect(revoked.out).toContain('the key was rotated (v2)');
       expect(revoked.out).toContain('DATABASE_URL');

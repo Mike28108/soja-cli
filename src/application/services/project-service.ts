@@ -150,6 +150,15 @@ export class ProjectService {
 
   /** The project linked to the repository containing `path`, if any. Never throws for non-repositories. */
   async findByRepository(session: Session, path: string): Promise<Project | null> {
+    return (await this.locate(session, path))?.project ?? null;
+  }
+
+  /**
+   * The project and repository linked to the Git repository containing `path`
+   * on this machine. `repository` is null for a project linked the v1.7 way
+   * (a single path) that has no repository entry yet.
+   */
+  async locate(session: Session, path: string): Promise<{ project: Project; repository: ProjectRepository | null } | null> {
     let root: string | null;
     try {
       root = await this.git.repositoryRoot(path);
@@ -159,8 +168,13 @@ export class ProjectService {
     }
     if (!root) return null;
     const projects = await this.repos.projects.listByWorkspace(session.workspace.id);
-    return projects.find((project) => project.repositoryPath === root) ??
-      (await Promise.all(projects.map(async (project) => (await this.repos.projectRepositories.list(project.id)).some((repository) => repository.localPath === root) ? project : null))).find(Boolean) ?? null;
+    for (const project of projects) {
+      const repositories = await this.repos.projectRepositories.list(project.id);
+      const repository = repositories.find((candidate) => candidate.localPath === root);
+      if (repository) return { project, repository };
+      if (project.repositoryPath === root) return { project, repository: repositories.find((candidate) => candidate.name === 'default') ?? null };
+    }
+    return null;
   }
 
   /** Finds a project by key (`ENROLL`) or name (`EnrollBridge`), case-insensitively. */

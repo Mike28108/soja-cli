@@ -50,7 +50,10 @@ function person(username: string, role: 'owner' | 'member') {
   const services = {
     env,
     session: { current: async () => session },
-    projects: { findByRepository: async (_session: Session, cwd: string) => (cwd.startsWith(repo) ? project : null) },
+    projects: {
+      findByRepository: async (_session: Session, cwd: string) => (cwd.startsWith(repo) ? project : null),
+      locate: async (_session: Session, cwd: string) => (cwd.startsWith(repo) ? { project, repository: null } : null),
+    },
   } as unknown as AppServices;
   return { id, session, env, services };
 }
@@ -61,8 +64,8 @@ async function team() {
   const angel = person('angel', 'member');
   await michael.env.setup('michael-laptop');
   await angel.env.setup('angel-laptop');
-  const production = await michael.env.createVault(michael.session, project.id, 'production');
-  await michael.env.createVault(michael.session, project.id, 'staging');
+  const production = await michael.env.createVault(michael.session, project.id, null, 'production');
+  await michael.env.createVault(michael.session, project.id, null, 'staging');
   await michael.env.setVariable(michael.session, production, 'DATABASE_URL', 'postgres://prod');
   await michael.env.grant(michael.session, production, angel.id, 3);
   return { michael, angel, production };
@@ -209,5 +212,22 @@ describe('soja run', () => {
     } finally {
       impostor.close();
     }
+  }, 60_000);
+
+  it('in a repository folder, merges the whole-project variables with the repository’s, which win', async () => {
+    const michael = person('michael', 'owner');
+    await michael.env.setup('michael-laptop');
+    const backend = { id: randomUUID(), projectId: project.id, name: 'backend', repositoryUrl: null, localPath: repo, createdAt: new Date(), updatedAt: new Date() };
+    const whole = await michael.env.createVault(michael.session, project.id, null, 'production');
+    const own = await michael.env.createVault(michael.session, project.id, backend.id, 'production');
+    await michael.env.setVariable(michael.session, whole, 'SENTRY_DSN', 'https://shared');
+    await michael.env.setVariable(michael.session, whole, 'DATABASE_URL', 'postgres://shared');
+    await michael.env.setVariable(michael.session, own, 'DATABASE_URL', 'postgres://backend');
+    const services = { ...michael.services, projects: { locate: async () => ({ project, repository: backend }) } } as unknown as AppServices;
+    await openSoja(services);
+    const run = sojaRun(['--', process.execPath, '-e', 'console.log(process.env.DATABASE_URL, process.env.SENTRY_DSN)']);
+    expect((await run.done).code).toBe(0);
+    expect(run.out().trim()).toBe('postgres://backend https://shared');
+    expect(run.err()).toContain('EnrollBridge/backend · production · 2 variables');
   }, 60_000);
 });

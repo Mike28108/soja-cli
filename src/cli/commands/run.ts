@@ -39,7 +39,8 @@ export async function runCommand(args: string[]): Promise<void> {
 
   const count = Object.keys(variables).length;
   const until = first.expiresAt ? ` · until ${new Date(first.expiresAt).toLocaleString()}` : '';
-  process.stderr.write(`${paint('dim', `▶ ${terminalSafe(String(first.project.name))} · ${terminalSafe(String(first.environment))} · ${count} variable${count === 1 ? '' : 's'}${until}`, process.stderr)}\n`);
+  const repository = typeof first.repository === 'string' && first.repository !== 'default' ? `/${terminalSafe(first.repository)}` : '';
+  process.stderr.write(`${paint('dim', `▶ ${terminalSafe(String(first.project.name))}${repository} · ${terminalSafe(String(first.environment))} · ${count} variable${count === 1 ? '' : 's'}${until}`, process.stderr)}\n`);
 
   const [program, ...rest] = command;
   if (!program) throw new ValidationError('Say what to run: `soja run -- npm run dev`.');
